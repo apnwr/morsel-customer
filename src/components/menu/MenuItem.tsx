@@ -2,8 +2,11 @@
 
 import React, { useState } from 'react';
 import { MenuItem as MenuItemType } from '@/types/menu';
+import { useCart } from '@/contexts/CartContext';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Minus, Plus } from 'lucide-react';
+import { VariationSelectionModal } from './VariationSelectionModal';
 
 interface MenuItemProps {
   item: MenuItemType;
@@ -12,9 +15,72 @@ interface MenuItemProps {
 
 export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemProps) {
   const [imageLoading, setImageLoading] = useState(true);
+  const [showVariationModal, setShowVariationModal] = useState(false);
+  const { cart, updateQuantity, removeItem } = useCart();
+
+  // Find ALL cart items for this menu item (including customized versions)
+  const cartItemsForThisMenuItem = cart.items.filter(ci => ci.menuItem.id === item.id);
+  
+  // Calculate total quantity across all variations
+  const totalQuantityInCart = cartItemsForThisMenuItem.reduce((sum, ci) => sum + ci.quantity, 0);
+  
+  // Find the non-customized version (if exists)
+  const plainCartItem = cartItemsForThisMenuItem.find(ci => ci.customizations.length === 0);
 
   const handleClick = () => {
     onAdd(item);
+  };
+
+  const handleIncrement = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (item.isCustomizable) {
+      // For customizable items, always open the modal
+      onAdd(item);
+    } else {
+      // For non-customizable items, just increment
+      if (plainCartItem) {
+        updateQuantity(plainCartItem.id, plainCartItem.quantity + 1);
+      }
+    }
+  };
+
+  const handleDecrement = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (item.isCustomizable) {
+      // Check if there are multiple variations or a single item with quantity > 1
+      const hasMultipleVariations = cartItemsForThisMenuItem.length > 1;
+      const hasSingleItemWithMultipleQuantity = cartItemsForThisMenuItem.length === 1 && cartItemsForThisMenuItem[0].quantity > 1;
+      
+      if (hasMultipleVariations || hasSingleItemWithMultipleQuantity) {
+        // Open variation selection modal
+        setShowVariationModal(true);
+      } else if (cartItemsForThisMenuItem.length === 1) {
+        // Only one variation with quantity 1, just remove it
+        removeItem(cartItemsForThisMenuItem[0].id);
+      }
+    } else {
+      // For non-customizable items, just decrement
+      if (plainCartItem) {
+        if (plainCartItem.quantity === 1) {
+          removeItem(plainCartItem.id);
+        } else {
+          updateQuantity(plainCartItem.id, plainCartItem.quantity - 1);
+        }
+      }
+    }
+  };
+
+  const handleVariationRemove = (cartItemId: string) => {
+    removeItem(cartItemId);
+  };
+
+  const handleVariationDecrement = (cartItemId: string) => {
+    const cartItem = cart.items.find(ci => ci.id === cartItemId);
+    if (cartItem) {
+      updateQuantity(cartItemId, cartItem.quantity - 1);
+    }
   };
 
   return (
@@ -62,14 +128,47 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
         </p>
       </div>
 
-      {/* Add Button */}
-      <button
-        onClick={handleClick}
-        className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
-        aria-label={item.isCustomizable ? `Customize ${item.name}` : `Add ${item.name} to cart`}
-      >
-        {item.isCustomizable ? 'More' : 'Add'}
-      </button>
+      {/* Add Button or Quantity Controls */}
+      {totalQuantityInCart === 0 ? (
+        <button
+          onClick={handleClick}
+          className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+          aria-label={item.isCustomizable ? `Customize ${item.name}` : `Add ${item.name} to cart`}
+        >
+          Add
+        </button>
+      ) : (
+        <div className="flex items-center gap-2 px-3 py-2 bg-black text-white rounded-lg">
+          <button
+            onClick={handleDecrement}
+            className="w-6 h-6 flex items-center justify-center hover:bg-gray-800 rounded transition-colors"
+            aria-label={`Decrease quantity of ${item.name}`}
+          >
+            <Minus className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-medium min-w-[20px] text-center">
+            {totalQuantityInCart}
+          </span>
+          <button
+            onClick={handleIncrement}
+            className="w-6 h-6 flex items-center justify-center hover:bg-gray-800 rounded transition-colors"
+            aria-label={`Increase quantity of ${item.name}`}
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      
+      {/* Variation Selection Modal */}
+      {showVariationModal && (
+        <VariationSelectionModal
+          isOpen={showVariationModal}
+          onClose={() => setShowVariationModal(false)}
+          cartItems={cartItemsForThisMenuItem}
+          onRemove={handleVariationRemove}
+          onDecrement={handleVariationDecrement}
+        />
+      )}
     </article>
   );
 });

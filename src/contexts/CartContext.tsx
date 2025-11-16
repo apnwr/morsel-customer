@@ -78,16 +78,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addItem = (menuItem: MenuItem, customizations: Customization[] = [], notes?: string, quantity: number = 1) => {
     const validQuantity = sanitizeQuantity(quantity);
     
-    const newCartItem: CartItem = {
-      id: generateCartItemId(),
-      menuItem,
-      quantity: validQuantity,
-      customizations,
-      notes,
-      itemTotal: calculateItemTotal(menuItem, customizations, validQuantity),
-    };
+    // Check if the same item (without customizations) already exists in cart
+    const existingItemIndex = cart.items.findIndex(
+      item => item.menuItem.id === menuItem.id && 
+              item.customizations.length === 0 && 
+              customizations.length === 0
+    );
 
-    const newItems = [...cart.items, newCartItem];
+    let newItems: CartItem[];
+
+    if (existingItemIndex !== -1 && customizations.length === 0) {
+      // Item exists and has no customizations - update quantity
+      newItems = cart.items.map((item, index) => {
+        if (index === existingItemIndex) {
+          const newQuantity = item.quantity + validQuantity;
+          return {
+            ...item,
+            quantity: newQuantity,
+            itemTotal: calculateItemTotal(item.menuItem, item.customizations, newQuantity),
+          };
+        }
+        return item;
+      });
+    } else {
+      // New item or has customizations - add as new entry
+      const newCartItem: CartItem = {
+        id: generateCartItemId(),
+        menuItem,
+        quantity: validQuantity,
+        customizations,
+        notes,
+        itemTotal: calculateItemTotal(menuItem, customizations, validQuantity),
+      };
+      newItems = [...cart.items, newCartItem];
+    }
+
     const totals = calculateCartTotals(newItems);
 
     setCart({

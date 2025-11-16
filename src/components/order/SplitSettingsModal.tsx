@@ -6,7 +6,7 @@ import { useSplit } from '@/contexts/SplitContext';
 import { useCart } from '@/contexts/CartContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
-import { Plus, AlertCircle } from 'lucide-react';
+import { Plus, AlertCircle, X } from 'lucide-react';
 import { modalVariants, backdropVariants } from '@/lib/animations';
 
 interface SplitSettingsModalProps {
@@ -15,7 +15,7 @@ interface SplitSettingsModalProps {
 }
 
 export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps) {
-  const { split, setSplitMode, addMockParticipant, updateShare, calculateSplit, validateSplitShares } = useSplit();
+  const { split, setSplitMode, addMockParticipant, removeParticipant, updateShare, calculateSplit, validateSplitShares } = useSplit();
   const { cart } = useCart();
   
   // Initialize local shares from split.shares
@@ -240,7 +240,16 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
                   const localAmount = localShares[participant.id] || '0.00';
 
                   return (
-                    <div key={participant.id} className="flex flex-col items-center">
+                    <div key={participant.id} className="flex flex-col items-center relative">
+                      {/* Remove Button */}
+                      <button
+                        onClick={() => removeParticipant(participant.id)}
+                        className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors z-10"
+                        aria-label={`Remove ${participant.name}`}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      
                       <Avatar
                         name={participant.name}
                         color={participant.avatar}

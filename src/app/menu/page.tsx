@@ -113,13 +113,12 @@ export default function MenuPage() {
       </button>
 
       {/* Menu Navigation Popup */}
-      {showMenuNav && (
-        <MenuNavPopup
-          categories={menuData.categories}
-          onSelectCategory={handleSelectCategory}
-          onClose={() => setShowMenuNav(false)}
-        />
-      )}
+      <MenuNavPopup
+        isOpen={showMenuNav}
+        categories={menuData.categories}
+        onSelectCategory={handleSelectCategory}
+        onClose={() => setShowMenuNav(false)}
+      />
 
       {/* Customization Modal */}
       {selectedItem && (

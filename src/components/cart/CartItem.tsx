@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { CartItem as CartItemType } from '@/types/cart';
 import { Avatar } from '@/components/ui/Avatar';
 import { Minus, Plus } from 'lucide-react';
+import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 
 interface CartItemProps {
   item: CartItemType;
@@ -12,11 +13,20 @@ interface CartItemProps {
 }
 
 export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, onCustomize }: CartItemProps) {
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
   const handleDecrement = () => {
     const newQuantity = item.quantity - 1;
-    if (newQuantity >= 1) {
+    if (newQuantity === 0) {
+      // Show confirmation modal
+      setShowDeleteModal(true);
+    } else if (newQuantity >= 1) {
       onUpdateQuantity(item.id, newQuantity);
     }
+  };
+
+  const handleConfirmDelete = () => {
+    onUpdateQuantity(item.id, 0);
   };
 
   const handleIncrement = () => {
@@ -61,8 +71,7 @@ export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, o
           >
             <button
               onClick={handleDecrement}
-              disabled={item.quantity <= 1}
-              className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg hover:bg-gray-50 active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg hover:bg-gray-50 active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
               aria-label={`Decrease quantity of ${item.menuItem.name}`}
             >
               <Minus className="w-4 h-4" />
@@ -117,6 +126,14 @@ export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, o
           ${item.itemTotal.toFixed(2)}
         </div>
       </div>
+      
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleConfirmDelete}
+        itemName={item.menuItem.name}
+      />
     </article>
   );
 });

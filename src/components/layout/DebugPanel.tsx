@@ -11,12 +11,21 @@ import { getMenuForRestaurant } from '@/mocks/menuData';
 
 export default function DebugPanel() {
   const [isOpen, setIsOpen] = useState(false);
+  const [displayTableNumber, setDisplayTableNumber] = useState('15');
   const router = useRouter();
 
   const { context, switchRestaurant, switchBranch, changeTable } = useRestaurant();
   const { addItem } = useCart();
   const { startTimer, expireTimer, resetOrder } = useOrder();
   const { addMockParticipant } = useSplit();
+
+  // Load display table number on mount
+  React.useEffect(() => {
+    const stored = localStorage.getItem('morsel_table_number');
+    if (stored) {
+      setDisplayTableNumber(stored);
+    }
+  }, []);
 
   // Check visibility based on environment and localStorage
   const isVisible = (() => {
@@ -100,7 +109,7 @@ export default function DebugPanel() {
       {isOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 flex items-end sm:items-center sm:justify-end">
           <div
-            className="bg-white w-full sm:w-96 sm:h-full sm:max-h-screen overflow-y-auto shadow-xl animate-slide-up sm:animate-slide-in"
+            className="bg-white w-full sm:w-96 max-h-[70vh] sm:max-h-screen overflow-y-auto shadow-xl animate-slide-up sm:animate-slide-in flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -129,7 +138,7 @@ export default function DebugPanel() {
             </div>
 
             {/* Content */}
-            <div className="p-4 space-y-6">
+            <div className="p-4 space-y-6 overflow-y-auto flex-1">
               {/* Current Context */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-2">Current Context</h3>
@@ -139,19 +148,19 @@ export default function DebugPanel() {
                     <span className="font-medium">{context.restaurant.name}</span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Branch:</span>{' '}
+                    <span className="text-gray-600">Area:</span>{' '}
                     <span className="font-medium">{context.branch.name}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Table:</span>{' '}
-                    <span className="font-medium">{context.table}</span>
+                    <span className="font-medium">{displayTableNumber}</span>
                   </div>
                 </div>
               </div>
 
               {/* Restaurant Controls */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Restaurant Controls</h3>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Restaurant & Area Controls</h3>
                 <div className="space-y-2">
                   <button
                     onClick={handleSwitchRestaurant}
@@ -163,7 +172,7 @@ export default function DebugPanel() {
                     onClick={handleSwitchBranch}
                     className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition-all text-sm font-medium"
                   >
-                    Switch Branch
+                    Switch Area
                   </button>
                   <button
                     onClick={handleChangeTable}
@@ -171,6 +180,25 @@ export default function DebugPanel() {
                   >
                     Change Table
                   </button>
+                  
+                  {/* Table Number Input */}
+                  <div className="mt-3">
+                    <label className="block text-xs text-gray-600 mb-1">Set Table Number (for display)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="999"
+                      value={displayTableNumber}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setDisplayTableNumber(value);
+                        localStorage.setItem('morsel_table_number', value);
+                        window.dispatchEvent(new Event('storage'));
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter table number"
+                    />
+                  </div>
                 </div>
               </div>
 

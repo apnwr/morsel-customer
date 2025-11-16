@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
 import { useOrder } from '@/contexts/OrderContext';
-import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useSplit } from '@/contexts/SplitContext';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -19,40 +18,26 @@ export default function CartPage() {
   const router = useRouter();
   // Navigation guard - redirect to login if no restaurant context
   const restaurantContext = useRequireRestaurantContext();
-  const { cart, updateQuantity, removeItem } = useCart();
+  const { cart, updateQuantity, removeItem, clearCart } = useCart();
   const { order, placeOrder } = useOrder();
   const { split } = useSplit();
   const [kitchenNote, setKitchenNote] = useState('');
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [showBillModal, setShowBillModal] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
-
-  // Don't render if no context (will redirect)
-  if (!restaurantContext || !restaurantContext.restaurant) {
-    return null;
-  }
+  const [isClient, setIsClient] = useState(false);
 
   // Update current time every second
   useEffect(() => {
+    // Mark as client-side
+    setIsClient(true);
+    
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
     }, 1000);
 
     return () => clearInterval(interval);
   }, []);
-
-  // Calculate remaining time based on current time
-  const getRemainingTime = () => {
-    if (!order || !order.timerExpiresAt) return null;
-    
-    const remaining = Math.max(0, Math.floor((order.timerExpiresAt - currentTime) / 1000));
-    const minutes = Math.floor(remaining / 60);
-    const seconds = remaining % 60;
-    
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  const remainingTime = getRemainingTime();
 
   // Handle quantity updates - memoized to prevent unnecessary re-renders
   const handleUpdateQuantity = useCallback((itemId: string, quantity: number) => {
@@ -79,19 +64,40 @@ export default function CartPage() {
     // Place the order
     placeOrder(restaurantContext, customerName, diningType, cart, split);
     
+    // Clear the cart after placing order
+    clearCart();
+    
     // Close modal and navigate to order summary
     setShowBillModal(false);
     router.push('/order-summary');
-  }, [restaurantContext, cart, split, placeOrder, router]);
+  }, [restaurantContext, cart, split, placeOrder, clearCart, router]);
+
+  // Calculate remaining time based on current time
+  const getRemainingTime = () => {
+    if (!order || !order.timerExpiresAt) return null;
+    
+    const remaining = Math.max(0, Math.floor((order.timerExpiresAt - currentTime) / 1000));
+    const minutes = Math.floor(remaining / 60);
+    const seconds = remaining % 60;
+    
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const remainingTime = getRemainingTime();
+
+  // Don't render if no context (will redirect)
+  if (!restaurantContext || !restaurantContext.restaurant) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-white pb-32">
       {/* Header */}
       <div className="sticky top-0 bg-white border-b border-gray-100 p-4 z-10">
-        <div className="flex items-center justify-between">
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
           {/* Timer Badge */}
           <div className="flex items-center gap-2">
-            {remainingTime && (
+            {isClient && remainingTime && (
               <Badge variant="timer">
                 {remainingTime}
               </Badge>
@@ -104,7 +110,7 @@ export default function CartPage() {
             className="flex items-center gap-2 hover:opacity-70 transition-opacity"
           >
             <span className="font-semibold text-lg">
-              ${cart.total.toFixed(2)}
+              ${isClient ? cart.total.toFixed(2) : '0.00'}
             </span>
             <span className="text-gray-400">→</span>
           </button>
@@ -112,12 +118,12 @@ export default function CartPage() {
       </div>
 
       {/* Cart Content */}
-      <div className="p-4">
+      <div className={cart.items.length === 0 ? "flex items-center justify-center min-h-[calc(100vh-120px)] px-4" : "max-w-2xl mx-auto p-4"}>
         {cart.items.length === 0 ? (
           <EmptyState
             icon="🛒"
             title="Your cart is empty"
-            description="Start adding delicious items from the menu to get started!"
+            description="Add items from the menu to get started"
             actionLabel="Browse Menu"
             onAction={() => router.push('/menu')}
           />
@@ -208,12 +214,14 @@ export default function CartPage() {
 
       {/* Floating Bill Button */}
       {cart.items.length > 0 && (
-        <button
-          onClick={() => setShowBillModal(true)}
-          className="fixed bottom-6 left-4 right-4 py-4 bg-black text-white rounded-xl font-medium shadow-lg hover:bg-gray-900 active:scale-95 transition-all z-20"
-        >
-          Bill · ${cart.total.toFixed(2)}
-        </button>
+        <div className="fixed bottom-6 left-0 right-0 px-4 z-20 flex justify-center">
+          <button
+            onClick={() => setShowBillModal(true)}
+            className="w-full max-w-2xl py-4 bg-black text-white rounded-xl font-medium shadow-lg hover:bg-gray-900 active:scale-95 transition-all"
+          >
+            Bill · ${cart.total.toFixed(2)}
+          </button>
+        </div>
       )}
 
       {/* Bill Modal */}

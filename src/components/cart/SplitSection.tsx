@@ -41,7 +41,7 @@ export function SplitSection() {
         {/* Header Button */}
         <div className="flex items-center justify-between py-2">
           <button
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={() => setShowSettingsModal(true)}
             className="flex items-center gap-2 flex-1 hover:opacity-70 transition-opacity"
           >
             <span className="font-medium text-base">{getModeLabel()}</span>
@@ -50,11 +50,7 @@ export function SplitSection() {
                 ({split.participants.length})
               </span>
             )}
-            {isExpanded ? (
-              <ChevronDown className="w-5 h-5 text-gray-400" />
-            ) : (
-              <ChevronRight className="w-5 h-5 text-gray-400" />
-            )}
+            <ChevronRight className="w-5 h-5 text-gray-400" />
           </button>
           
           {/* Settings Button */}
@@ -68,7 +64,7 @@ export function SplitSection() {
         </div>
 
         {/* Participants Grid */}
-        {isExpanded && split.participants.length > 0 && (
+        {split.participants.length > 0 && (
           <div className="flex gap-4 mt-4 overflow-x-auto pb-2">
             {split.participants.map((participant) => {
               const amount = split.shares[participant.id] || 0;
@@ -90,16 +86,6 @@ export function SplitSection() {
               );
             })}
           </div>
-        )}
-
-        {/* Empty State */}
-        {split.participants.length === 0 && (
-          <button
-            onClick={() => setShowSettingsModal(true)}
-            className="w-full mt-2 p-4 border-2 border-dashed border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-colors"
-          >
-            <p className="text-sm text-gray-500">Click to set up bill splitting</p>
-          </button>
         )}
       </div>
 
