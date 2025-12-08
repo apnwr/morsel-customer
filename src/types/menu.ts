@@ -21,6 +21,9 @@ export interface MenuItem {
   price: number;
   image: string;
   tags: string[];
+  allergens?: string[];
+  dietary?: string[];
+  preparationTime?: string;
   isCustomizable: boolean;
   customOptions?: CustomOption[];
 }

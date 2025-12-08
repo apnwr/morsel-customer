@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useCart } from '@/contexts/CartContext';
 import { useSplit } from '@/contexts/SplitContext';
@@ -8,12 +8,18 @@ import { useSplit } from '@/contexts/SplitContext';
 interface BillModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onPlaceOrder: () => void;
+  onPlaceOrder: (paymentType: 'cash' | 'card' | 'upi') => void;
+  isConfirming?: boolean;
 }
 
-export function BillModal({ isOpen, onClose, onPlaceOrder }: BillModalProps) {
+export function BillModal({ isOpen, onClose, onPlaceOrder, isConfirming = false }: BillModalProps) {
   const { cart } = useCart();
   const { split } = useSplit();
+  const [selectedPayment, setSelectedPayment] = useState<'cash' | 'card' | 'upi'>('cash');
+
+  const handleConfirmOrder = () => {
+    onPlaceOrder(selectedPayment);
+  };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Bill">
@@ -75,17 +81,65 @@ export function BillModal({ isOpen, onClose, onPlaceOrder }: BillModalProps) {
           </div>
         )}
 
+        {/* Payment Method Selection */}
+        <div className="border-t border-gray-200 pt-4">
+          <h3 className="font-semibold text-sm text-gray-600 mb-3">Payment Method</h3>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => setSelectedPayment('cash')}
+              className={`py-3 px-4 rounded-lg border-2 transition-all ${
+                selectedPayment === 'cash'
+                  ? 'border-black bg-black text-white'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="text-center">
+                <div className="text-2xl mb-1">💵</div>
+                <div className="text-xs font-medium">Cash</div>
+              </div>
+            </button>
+            <button
+              onClick={() => setSelectedPayment('card')}
+              className={`py-3 px-4 rounded-lg border-2 transition-all ${
+                selectedPayment === 'card'
+                  ? 'border-black bg-black text-white'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="text-center">
+                <div className="text-2xl mb-1">💳</div>
+                <div className="text-xs font-medium">Card</div>
+              </div>
+            </button>
+            <button
+              onClick={() => setSelectedPayment('upi')}
+              className={`py-3 px-4 rounded-lg border-2 transition-all ${
+                selectedPayment === 'upi'
+                  ? 'border-black bg-black text-white'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="text-center">
+                <div className="text-2xl mb-1">📱</div>
+                <div className="text-xs font-medium">UPI</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
         {/* Actions */}
         <div className="space-y-2 pt-4">
           <button
-            onClick={onPlaceOrder}
-            className="w-full py-4 bg-black text-white rounded-xl font-medium hover:bg-gray-900 active:scale-95 transition-all"
+            onClick={handleConfirmOrder}
+            disabled={isConfirming}
+            className="w-full py-4 bg-black text-white rounded-xl font-medium hover:bg-gray-900 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
           >
-            Place Order
+            {isConfirming ? 'Confirming...' : 'Confirm Order'}
           </button>
           <button
             onClick={onClose}
-            className="w-full py-3 text-gray-600 hover:text-gray-800 transition-colors text-sm"
+            disabled={isConfirming}
+            className="w-full py-3 text-gray-600 hover:text-gray-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Edit Cart
           </button>

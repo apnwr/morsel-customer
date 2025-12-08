@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Plus, AlertCircle, X } from 'lucide-react';
 import { modalVariants, backdropVariants } from '@/lib/animations';
+import { getFromStorage } from '@/mocks/mockStorage';
 
 interface SplitSettingsModalProps {
   isOpen: boolean;
@@ -17,7 +18,10 @@ interface SplitSettingsModalProps {
 export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps) {
   const { split, setSplitMode, addMockParticipant, removeParticipant, updateShare, calculateSplit, validateSplitShares } = useSplit();
   const { cart } = useCart();
-  
+
+  // Get current user's sessionUserId to show "You" instead of name
+  const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+
   // Initialize local shares from split.shares
   const initializeLocalShares = () => {
     const shares: Record<string, string> = {};
@@ -256,7 +260,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
                         size="lg"
                       />
                       <span className="text-xs text-gray-600 mt-2 truncate max-w-full text-center">
-                        {participant.name}
+                        {participant.id === currentSessionUserId ? 'You' : participant.name}
                       </span>
                       
                       {split.mode === 'custom' ? (

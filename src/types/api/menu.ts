@@ -1,0 +1,69 @@
+/**
+ * API Types for Menu and Items
+ */
+
+import type { Timestamp } from './session';
+
+export interface MenuAvailability {
+  startTime: string;
+  endTime: string;
+  days: string[] | string;
+}
+
+export interface Menu {
+  id: string;
+  businessId: string;
+  name: string;
+  description: string;
+  type: 'food' | 'beverage' | 'dessert' | 'mixed' | string;
+  availability: MenuAvailability;
+  status: 'active' | 'inactive' | string;
+  createdAt: Timestamp;
+  tags: string[];
+  itemIds: string[];
+  updatedAt: Timestamp;
+  items?: MenuItem[]; // API now returns populated items directly
+}
+
+export interface MenuResponse {
+  data: Menu[];
+}
+
+export interface ItemVariant {
+  name: string;
+  price: number;
+}
+
+export interface ItemAddon {
+  name: string;
+  price: number;
+}
+
+export interface MenuItem {
+  id: string;
+  businessId: string;
+  name: string;
+  description: string;
+  type: 'main' | 'dessert' | 'beverage' | 'appetizer' | string;
+  price: number;
+  preparationTime: string;
+  category: string;
+  allergens: string[];
+  dietary: string[];
+  variants: ItemVariant[];
+  addons: ItemAddon[];
+  createdAt: Timestamp;
+  status: 'active' | 'inactive' | string;
+  updatedAt: Timestamp;
+}
+
+export interface ItemsResponse {
+  data: MenuItem[];
+}
+
+/**
+ * Menu with populated items
+ */
+export interface MenuWithItems extends Menu {
+  items: MenuItem[];
+}
