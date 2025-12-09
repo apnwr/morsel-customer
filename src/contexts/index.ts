@@ -3,3 +3,4 @@ export * from './RestaurantContext';
 export * from './CartContext';
 export * from './OrderContext';
 export * from './SplitContext';
+export * from './SessionContext';

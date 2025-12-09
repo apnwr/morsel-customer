@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Plus, AlertCircle, X } from 'lucide-react';
 import { modalVariants, backdropVariants } from '@/lib/animations';
+import { getFromStorage } from '@/mocks/mockStorage';
 
 interface SplitSettingsModalProps {
   isOpen: boolean;
@@ -17,7 +18,10 @@ interface SplitSettingsModalProps {
 export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps) {
   const { split, setSplitMode, addMockParticipant, removeParticipant, updateShare, calculateSplit, validateSplitShares } = useSplit();
   const { cart } = useCart();
-  
+
+  // Get current user's sessionUserId to show "You" instead of name
+  const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+
   // Initialize local shares from split.shares
   const initializeLocalShares = () => {
     const shares: Record<string, string> = {};
@@ -235,7 +239,15 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
             {/* Participants Grid */}
             {split.participants.length > 0 ? (
               <div className="grid grid-cols-3 gap-4">
-                {split.participants.map((participant) => {
+                {[...split.participants].sort((a, b) => {
+                  // Sort to put current user first
+                  const aIsCurrent = a.id === currentSessionUserId;
+                  const bIsCurrent = b.id === currentSessionUserId;
+
+                  if (aIsCurrent && !bIsCurrent) return -1;
+                  if (!aIsCurrent && bIsCurrent) return 1;
+                  return 0;
+                }).map((participant) => {
                   const amount = split.shares[participant.id] || 0;
                   const localAmount = localShares[participant.id] || '0.00';
 
@@ -256,7 +268,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
                         size="lg"
                       />
                       <span className="text-xs text-gray-600 mt-2 truncate max-w-full text-center">
-                        {participant.name}
+                        {participant.id === currentSessionUserId ? 'You' : participant.name}
                       </span>
                       
                       {split.mode === 'custom' ? (

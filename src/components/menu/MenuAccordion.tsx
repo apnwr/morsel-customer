@@ -25,19 +25,19 @@ export function MenuAccordion({
       {/* Category Header */}
       <motion.button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center justify-between w-full mb-3 hover:opacity-70 transition-opacity"
+        className="flex items-center gap-3 w-full mb-3 hover:opacity-70 transition-opacity"
         whileTap={{ scale: 0.98 }}
       >
-        <span className="font-semibold text-lg">
-          {category.name} ({items.length})
-        </span>
         <motion.span 
-          className="text-gray-400 text-xl"
+          className="text-black font-bold text-xl shrink-0"
           variants={rotateVariants}
           animate={isExpanded ? 'expanded' : 'collapsed'}
         >
           ›
         </motion.span>
+        <span className="font-semibold text-lg">
+          {category.name} ({items.length})
+        </span>
       </motion.button>
 
       {/* Category Items */}

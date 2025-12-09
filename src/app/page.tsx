@@ -8,15 +8,23 @@ export default function SplashScreen() {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // Trigger fade-in animation
-    setIsVisible(true);
+    // Hardcoded space_id for testing (will be replaced by QR code scan)
+    const HARDCODED_SPACE_ID = 'MzIc4dAkf8Z4Aw9DKHAY';
 
-    // Auto-redirect to login after 1.5 seconds
-    const timer = setTimeout(() => {
-      router.push('/login');
+    // Trigger fade-in animation asynchronously to avoid cascading renders
+    const fadeTimer = setTimeout(() => {
+      setIsVisible(true);
+    }, 10);
+
+    // Auto-redirect to space page after 1.5 seconds
+    const redirectTimer = setTimeout(() => {
+      router.push(`/space/${HARDCODED_SPACE_ID}`);
     }, 1500);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(redirectTimer);
+    };
   }, [router]);
 
   return (

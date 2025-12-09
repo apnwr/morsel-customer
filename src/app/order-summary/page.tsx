@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useOrder } from '@/contexts/OrderContext';
 import { useCart } from '@/contexts/CartContext';
 import { useSplit } from '@/contexts/SplitContext';
+import { useSession } from '@/contexts/SessionContext';
 import OrderStatusBanner from '@/components/order/OrderStatusBanner';
 import RunningTabs from '@/components/order/RunningTabs';
 import { Avatar } from '@/components/ui/Avatar';
@@ -13,6 +14,7 @@ import { SplitSettingsModal } from '@/components/order/SplitSettingsModal';
 import { PaymentModal } from '@/components/order/PaymentModal';
 import { useTimerSync } from '@/hooks/useTimerSync';
 import { useRequireActiveOrder } from '@/hooks/useNavigationGuard';
+import { useSessionValidation } from '@/hooks/useSessionValidation';
 
 export default function OrderSummaryPage() {
   const router = useRouter();
@@ -21,6 +23,10 @@ export default function OrderSummaryPage() {
   const { remainingTime, resetOrder } = useOrder();
   const { clearCart } = useCart();
   const { clearSplit } = useSplit();
+  const { endSession } = useSession();
+
+  // Session validation - checks session status and expiry
+  useSessionValidation();
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -39,11 +45,22 @@ export default function OrderSummaryPage() {
   // Handle payment click with simulated delay
   const handlePayNow = async () => {
     setIsProcessingPayment(true);
-    
+
     // Simulate payment processing delay (500ms)
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     setIsProcessingPayment(false);
+
+    // End session after successful payment
+    // This marks the session as completed since payment is done
+    try {
+      await endSession('completed');
+      console.log('[OrderSummary] Session ended after payment completion');
+    } catch (error) {
+      console.error('[OrderSummary] Failed to end session after payment:', error);
+      // Continue anyway - don't block payment modal
+    }
+
     setPaymentModalOpen(true);
   };
 

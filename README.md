@@ -2,6 +2,26 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### 1. Environment Setup
+
+Copy the `.env.example` file to `.env.local`:
+
+```bash
+cp .env.example .env.local
+```
+
+The `.env.local` file contains necessary environment variables including the API base URL.
+
+### 2. Install Dependencies
+
+```bash
+npm install
+# or
+yarn install
+```
+
+### 3. Run the Development Server
+
 First, run the development server:
 
 ```bash
@@ -19,6 +39,36 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## API Documentation
+
+Comprehensive API documentation is available in [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
+
+This document includes:
+- Base URL configuration
+- All API endpoints with request/response structures
+- Type definitions
+- Integration flow
+- Usage examples
+- Error handling
+
+**Always update this documentation when making API-related changes.**
+
+## Project Structure
+
+```
+src/
+├── app/                    # Next.js app router pages
+├── components/            # React components
+├── contexts/              # React contexts for state management
+├── hooks/                 # Custom React hooks
+├── lib/                   # Utilities and configurations
+│   ├── api/              # API client and endpoints
+│   └── config.ts         # Environment configuration
+├── services/             # API services
+├── types/                # TypeScript type definitions
+└── mocks/                # Mock data for development
+```
 
 ## Learn More
 

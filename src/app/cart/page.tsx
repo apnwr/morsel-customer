@@ -7,25 +7,33 @@ import { useOrder } from '@/contexts/OrderContext';
 import { useSplit } from '@/contexts/SplitContext';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { SplitSection } from '@/components/cart/SplitSection';
+import { ParticipantsList } from '@/components/session/ParticipantsList';
 import { CartItem } from '@/components/cart/CartItem';
 import { CartItem as CartItemType } from '@/types/cart';
 import { BillModal } from '@/components/cart/BillModal';
 import { getFromStorage } from '@/mocks/mockStorage';
 import { useRequireRestaurantContext } from '@/hooks/useNavigationGuard';
+import { useSessionValidation } from '@/hooks/useSessionValidation';
 
 export default function CartPage() {
   const router = useRouter();
   // Navigation guard - redirect to login if no restaurant context
   const restaurantContext = useRequireRestaurantContext();
-  const { cart, updateQuantity, removeItem, clearCart } = useCart();
+  const { cart, updateQuantity, removeItem, clearCart, confirmOrder } = useCart();
   const { order, placeOrder } = useOrder();
   const { split } = useSplit();
+
+  // Session validation - checks session status and expiry
+  useSessionValidation();
+
+  // Get current user's sessionUserId
+  const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
   const [kitchenNote, setKitchenNote] = useState('');
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [showBillModal, setShowBillModal] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [isClient, setIsClient] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // Update current time every second
   useEffect(() => {
@@ -56,21 +64,34 @@ export default function CartPage() {
   }, []);
 
   // Handle place order - memoized
-  const handlePlaceOrder = useCallback(() => {
-    // Get customer name and dining type from localStorage
-    const customerName = getFromStorage<string>('morsel_customer_name') || 'Guest';
-    const diningType = getFromStorage<'dine-in' | 'takeaway' | 'delivery'>('morsel_dining_type') || 'dine-in';
-    
-    // Place the order
-    placeOrder(restaurantContext, customerName, diningType, cart, split);
-    
-    // Clear the cart after placing order
-    clearCart();
-    
-    // Close modal and navigate to order summary
-    setShowBillModal(false);
-    router.push('/order-summary');
-  }, [restaurantContext, cart, split, placeOrder, clearCart, router]);
+  const handlePlaceOrder = useCallback(async (paymentType: 'cash' | 'card' | 'upi') => {
+    setIsConfirming(true);
+
+    try {
+      // Confirm order via API
+      const result = await confirmOrder(paymentType);
+
+      if (result.success) {
+        // Close modal
+        setShowBillModal(false);
+
+        // Also update the old OrderContext for backward compatibility
+        // Get customer name and dining type from localStorage
+        const customerName = getFromStorage<string>('morsel_customer_name') || 'Guest';
+        const diningType = getFromStorage<'dine-in' | 'takeaway' | 'delivery'>('morsel_dining_type') || 'dine-in';
+        placeOrder(restaurantContext, customerName, diningType, cart, split);
+
+        // Navigate to order summary
+        router.push('/order-summary');
+      }
+    } catch (error) {
+      console.error('Order confirmation failed:', error);
+      // Show error to user - you might want to add a toast/alert here
+      alert(error instanceof Error ? error.message : 'Failed to confirm order. Please try again.');
+    } finally {
+      setIsConfirming(false);
+    }
+  }, [confirmOrder, restaurantContext, cart, split, placeOrder, router]);
 
   // Calculate remaining time based on current time
   const getRemainingTime = () => {
@@ -84,6 +105,27 @@ export default function CartPage() {
   };
 
   const remainingTime = getRemainingTime();
+
+  // Calculate the amount user needs to pay based on split settings
+  const getUserAmount = () => {
+    // If no split participants or split mode is disabled, return full amount
+    if (!split.participants || split.participants.length === 0) {
+      return cart.total;
+    }
+
+    // Find current user's participant entry
+    const currentUser = split.participants.find(p => p.id === currentSessionUserId);
+
+    // If current user not found in participants, return full amount
+    if (!currentUser) {
+      return cart.total;
+    }
+
+    // Return user's share from split, default to full amount if not found
+    return split.shares[currentUser.id] ?? cart.total;
+  };
+
+  const userAmount = getUserAmount();
 
   // Don't render if no context (will redirect)
   if (!restaurantContext || !restaurantContext.restaurant) {
@@ -118,8 +160,8 @@ export default function CartPage() {
       </div>
 
       {/* Cart Content */}
-      <div className={cart.items.length === 0 ? "flex items-center justify-center min-h-[calc(100vh-120px)] px-4" : "max-w-2xl mx-auto p-4"}>
-        {cart.items.length === 0 ? (
+      <div className={!isClient || cart.items.length === 0 ? "flex items-center justify-center min-h-[calc(100vh-120px)] px-4" : "max-w-2xl mx-auto p-4"}>
+        {!isClient || cart.items.length === 0 ? (
           <EmptyState
             icon="🛒"
             title="Your cart is empty"
@@ -129,8 +171,10 @@ export default function CartPage() {
           />
         ) : (
           <>
-            {/* Split Section */}
-            <SplitSection />
+            {/* Participants List */}
+            <div className="mb-4">
+              <ParticipantsList />
+            </div>
             
             {/* Cart Items */}
             <div className="space-y-2 border-b border-gray-100 pb-4 mb-4">
@@ -219,7 +263,7 @@ export default function CartPage() {
             onClick={() => setShowBillModal(true)}
             className="w-full max-w-2xl py-4 bg-black text-white rounded-xl font-medium shadow-lg hover:bg-gray-900 active:scale-95 transition-all"
           >
-            Bill · ${cart.total.toFixed(2)}
+            Bill · ${isClient ? userAmount.toFixed(2) : '0.00'}
           </button>
         </div>
       )}
@@ -229,6 +273,7 @@ export default function CartPage() {
         isOpen={showBillModal}
         onClose={() => setShowBillModal(false)}
         onPlaceOrder={handlePlaceOrder}
+        isConfirming={isConfirming}
       />
     </div>
   );

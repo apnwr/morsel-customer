@@ -104,6 +104,17 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         };
       }
 
+      // Get current user's sessionUserId to correctly identify them
+      const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+
+      // Debug logging to understand ID matching
+      console.log('[SplitContext] calculateSplit called:', {
+        mode: prev.mode,
+        currentSessionUserId,
+        participants: prev.participants.map(p => ({ id: p.id, name: p.name, isMock: p.isMock })),
+        total
+      });
+
       let newShares: Record<string, number> = {};
 
       switch (prev.mode) {
@@ -113,26 +124,42 @@ export function SplitProvider({ children }: { children: ReactNode }) {
 
         case 'self':
           // Current user pays nothing, others split evenly
-          const otherParticipants = prev.participants.filter((p) => !p.isMock);
-          if (otherParticipants.length > 0) {
-            const currentUser = prev.participants.find((p) => !p.isMock);
-            if (currentUser) {
-              newShares[currentUser.id] = 0;
-              const others = prev.participants.filter((p) => p.isMock);
+          const currentUser = currentSessionUserId
+            ? prev.participants.find((p) => p.id === currentSessionUserId)
+            : prev.participants.find((p) => !p.isMock); // Fallback to first non-mock participant
+
+          if (currentUser) {
+            newShares[currentUser.id] = 0;
+            const others = prev.participants.filter((p) => p.id !== currentUser.id);
+            if (others.length > 0) {
               const othersShares = calculateEvenSplit(total, others);
               newShares = { ...newShares, ...othersShares };
             }
+          } else {
+            // Ultimate fallback: even split
+            newShares = calculateEvenSplit(total, prev.participants);
           }
           break;
 
         case 'all':
           // Current user pays everything
-          const currentUserAll = prev.participants.find((p) => !p.isMock);
+          const currentUserAll = currentSessionUserId
+            ? prev.participants.find((p) => p.id === currentSessionUserId)
+            : prev.participants.find((p) => !p.isMock); // Fallback to first non-mock participant
+
           if (currentUserAll) {
             newShares[currentUserAll.id] = total;
-            prev.participants.filter((p) => p.isMock).forEach((p) => {
+            prev.participants.filter((p) => p.id !== currentUserAll.id).forEach((p) => {
               newShares[p.id] = 0;
             });
+          } else {
+            // Ultimate fallback: first participant pays all
+            if (prev.participants.length > 0) {
+              newShares[prev.participants[0].id] = total;
+              prev.participants.slice(1).forEach((p) => {
+                newShares[p.id] = 0;
+              });
+            }
           }
           break;
 
@@ -146,6 +173,13 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       }
 
       const isValid = validateSplit(newShares, total);
+
+      // Debug logging to see the result
+      console.log('[SplitContext] calculateSplit result:', {
+        mode: prev.mode,
+        newShares,
+        isValid
+      });
 
       return {
         ...prev,
