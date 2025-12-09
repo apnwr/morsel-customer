@@ -13,6 +13,7 @@ import { CartItem as CartItemType } from '@/types/cart';
 import { BillModal } from '@/components/cart/BillModal';
 import { getFromStorage } from '@/mocks/mockStorage';
 import { useRequireRestaurantContext } from '@/hooks/useNavigationGuard';
+import { useSessionValidation } from '@/hooks/useSessionValidation';
 
 export default function CartPage() {
   const router = useRouter();
@@ -21,6 +22,9 @@ export default function CartPage() {
   const { cart, updateQuantity, removeItem, clearCart, confirmOrder } = useCart();
   const { order, placeOrder } = useOrder();
   const { split } = useSplit();
+
+  // Session validation - checks session status and expiry
+  useSessionValidation();
 
   // Get current user's sessionUserId
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');

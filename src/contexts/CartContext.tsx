@@ -63,7 +63,7 @@ function generateCartItemId(): string {
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { sessionData } = useSession();
+  const { sessionData, refreshSessionData } = useSession();
   const [cart, setCart] = useState<Cart>(() => {
     // Initialize from localStorage or use empty cart
     const stored = getFromStorage<Cart>(STORAGE_KEY);
@@ -260,6 +260,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
         sessionUserId,
         paymentType,
       });
+
+      console.log('[CartContext] Order confirmed successfully:', {
+        orderId: response.data.id,
+        status: response.data.status,
+        total: response.data.total,
+      });
+
+      // ✅ Refresh session data to get updated orders array
+      try {
+        await refreshSessionData();
+        console.log('[CartContext] Session data refreshed after order confirmation');
+
+        // Verify order appears in session (optional verification)
+        // This will be logged in refreshSessionData
+      } catch (refreshError) {
+        console.warn('[CartContext] Failed to refresh session after order confirmation:', refreshError);
+        // Don't throw - continue even if refresh fails
+      }
 
       // Clear the cart on successful order confirmation
       clearCart();

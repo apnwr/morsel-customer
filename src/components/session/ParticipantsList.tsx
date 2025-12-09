@@ -181,22 +181,38 @@ export function ParticipantsList() {
   }, [sessionId, fetchSessionDetails]);
 
   // Get participants from API, prioritizing API data but ensuring all are in split
+  // Sort so current user appears first
   const participants = useMemo(() => {
+    let participantsList: any[] = [];
+
     // Use API participants as source of truth
     if (sessionDetail?.participants && sessionDetail.participants.length > 0) {
-      return sessionDetail.participants;
+      participantsList = [...sessionDetail.participants];
     }
     // Fallback to split participants if API data not available
-    if (split.participants.length > 0) {
-      return split.participants.map((p) => ({
+    else if (split.participants.length > 0) {
+      participantsList = split.participants.map((p) => ({
         sessionUserId: p.id,
         guestName: p.name,
         patronId: undefined,
         joinedAt: undefined,
       }));
     }
-    return [];
-  }, [sessionDetail?.participants, split.participants]);
+
+    // Sort to put current user first
+    if (participantsList.length > 0 && currentSessionUserId) {
+      participantsList.sort((a, b) => {
+        const aIsCurrent = a.sessionUserId === currentSessionUserId;
+        const bIsCurrent = b.sessionUserId === currentSessionUserId;
+
+        if (aIsCurrent && !bIsCurrent) return -1;
+        if (!aIsCurrent && bIsCurrent) return 1;
+        return 0;
+      });
+    }
+
+    return participantsList;
+  }, [sessionDetail?.participants, split.participants, currentSessionUserId]);
 
   // Identify current user
   const isCurrentUser = useCallback(
@@ -299,7 +315,7 @@ export function ParticipantsList() {
         </div>
 
         {/* Participants Row */}
-        <div className="flex items-center gap-5 overflow-x-auto pb-2">
+        <div className="flex items-start gap-5 overflow-x-auto pb-2 -mx-5 px-5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {participants.length > 0 ? (
             <>
               {participants.map((participant) => {
@@ -337,6 +353,9 @@ export function ParticipantsList() {
                 <span className="text-xs font-black text-center text-black leading-tight opacity-40">
                   Invite
                 </span>
+                <span className="text-lg font-black text-center text-transparent leading-tight select-none">
+                  $0.00
+                </span>
               </button>
             </>
           ) : (
@@ -351,6 +370,9 @@ export function ParticipantsList() {
                 </div>
                 <span className="text-xs font-black text-center text-black leading-tight opacity-40">
                   Invite
+                </span>
+                <span className="text-lg font-black text-center text-transparent leading-tight select-none">
+                  $0.00
                 </span>
               </button>
             </>

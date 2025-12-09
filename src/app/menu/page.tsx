@@ -16,6 +16,7 @@ import { menuService } from '@/services/menu.service';
 import { MenuItem as MenuItemType } from '@/types/menu';
 import { Customization } from '@/types/cart';
 import { useRequireRestaurantContext } from '@/hooks/useNavigationGuard';
+import { useSessionValidation } from '@/hooks/useSessionValidation';
 import type { MenuWithItems } from '@/types/api/menu';
 
 // Lazy load CustomizationModal since it's only shown on demand
@@ -29,6 +30,9 @@ export default function MenuPage() {
   const context = useRequireRestaurantContext();
   const { sessionData } = useSession();
   const { cart, addItem } = useCart();
+
+  // Session validation - checks session status and expiry
+  useSessionValidation();
   const [showMenuNav, setShowMenuNav] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItemType | null>(null);
   const [apiMenus, setApiMenus] = useState<MenuWithItems[]>([]);

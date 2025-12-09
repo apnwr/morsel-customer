@@ -125,3 +125,26 @@ export interface SessionDetail {
 export interface SessionDetailResponse {
   data: SessionDetail;
 }
+
+/**
+ * End Session Request
+ * Payload for ending an active session
+ * PUT /session/{sessionId}/end
+ */
+export interface EndSessionRequest {
+  sessionUserId: string;
+  reason?: 'completed' | 'timeout' | 'left' | 'cancelled';
+}
+
+/**
+ * End Session Response
+ * Response after ending a session
+ */
+export interface EndSessionResponse {
+  message: string;
+  session: {
+    id: string;
+    status: 'completed' | 'cancelled' | string;
+    endedAt: Timestamp;
+  };
+}

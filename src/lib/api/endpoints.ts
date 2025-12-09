@@ -8,6 +8,7 @@ export const endpoints = {
     getBySpaceId: (spaceId: string) => `/ordering-session/space/${spaceId}`,
     getBySessionId: (sessionId: string) => `/ordering-session/session/${sessionId}`,
     start: () => `/ordering-session/start`,
+    end: (sessionId: string) => `/ordering-session/session/${sessionId}/end`,
   },
   menu: {
     getByBusinessId: (businessId: string) => `/business/menus/active/${businessId}`,

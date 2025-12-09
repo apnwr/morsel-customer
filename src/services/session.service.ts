@@ -10,6 +10,8 @@ import type {
   StartSessionRequest,
   StartSessionResponse,
   SessionDetailResponse,
+  EndSessionRequest,
+  EndSessionResponse,
 } from '@/types/api/session';
 
 export const sessionService = {
@@ -52,6 +54,23 @@ export const sessionService = {
   ): Promise<SessionDetailResponse> => {
     return apiClient.get<SessionDetailResponse>(
       endpoints.orderingSession.getBySessionId(sessionId)
+    );
+  },
+
+  /**
+   * End an active ordering session
+   * Marks the session as completed/ended
+   * @param sessionId - The session ID to end
+   * @param data - End session data with sessionUserId and optional reason
+   * @returns End session response with updated status
+   */
+  endSession: async (
+    sessionId: string,
+    data: EndSessionRequest
+  ): Promise<EndSessionResponse> => {
+    return apiClient.put<EndSessionResponse>(
+      endpoints.orderingSession.end(sessionId),
+      data
     );
   },
 };
