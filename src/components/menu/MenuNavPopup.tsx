@@ -47,7 +47,7 @@ export function MenuNavPopup({ isOpen, categories, menusWithSections, onSelectCa
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.95 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-white rounded-3xl shadow-2xl z-50 p-6 min-w-[320px] max-w-[90vw] border border-gray-100"
+        className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-white rounded-[12px] shadow-2xl z-50 p-6 min-w-[320px] max-w-[90vw] border border-gray-100"
       >
         {/* Header */}
         <div className="mb-4">
@@ -56,13 +56,13 @@ export function MenuNavPopup({ isOpen, categories, menusWithSections, onSelectCa
         </div>
 
         {/* Content */}
-        <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto scrollbar-hide">
           {menusWithSections ? (
             // Grouped by menu
             menusWithSections.map((menu) => (
               <div key={menu.menuId} className="space-y-2">
                 {/* Menu Header */}
-                <div className="px-4 py-3 border-b-2 border-gray-300">
+                <div className="px-4 py-3">
                   <span className="font-bold text-base text-gray-900">{menu.menuName}</span>
                 </div>
 
@@ -75,7 +75,7 @@ export function MenuNavPopup({ isOpen, categories, menusWithSections, onSelectCa
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: sectionIndex * 0.03 }}
                       onClick={() => handleCategoryClick(section.id)}
-                      className="w-full group flex items-center justify-between px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-50/50 rounded-xl hover:from-black hover:to-gray-900 transition-all duration-300 hover:shadow-md hover:scale-[1.01] active:scale-[0.98]"
+                      className="w-full group flex items-center justify-between px-4 py-3 bg-gray-100 rounded-[12px] hover:from-black hover:to-gray-900 transition-all duration-300 hover:shadow-md hover:scale-[1.01] active:scale-[0.98]"
                     >
                       <span className="font-medium text-sm text-gray-900 group-hover:text-white transition-colors">
                         {section.name}
@@ -95,7 +95,7 @@ export function MenuNavPopup({ isOpen, categories, menusWithSections, onSelectCa
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.05 }}
                 onClick={() => handleCategoryClick(category.id)}
-                className="w-full group flex items-center justify-between px-5 py-4 bg-gradient-to-r from-gray-50 to-gray-50/50 rounded-2xl hover:from-black hover:to-gray-900 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                className="w-full group flex items-center justify-between px-5 py-4 bg-gradient-to-r from-gray-50 to-gray-50/50 rounded-[12px] hover:from-black hover:to-gray-900 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
               >
                 <span className="font-medium text-gray-900 group-hover:text-white transition-colors">
                   {category.name}

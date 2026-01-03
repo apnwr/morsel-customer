@@ -181,7 +181,7 @@ const MenuRenderer = React.memo(
           <div className="mb-5 pb-3 border-b border-gray-200 last:border-b-0">
             {/* Menu Name Header - only show if visibility is active */}
             {menu.visibility === 'active' && (
-              <div className="mb-4 pb-2 border-b-2 border-gray-400">
+              <div className="mb-4 pb-2 border-b-1 border-gray-300">
                 <h2 className="font-bold text-xl text-gray-900">{category.name}</h2>
               </div>
             )}

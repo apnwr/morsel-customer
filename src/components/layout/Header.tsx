@@ -162,7 +162,7 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
             <button className="px-[18px] py-2 bg-[#FFFFFF] rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">
               Filters
             </button>
-            <button className="px-[8px] py-2 bg-[#FFFFFF] rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">
+            <button className="px-[18px] py-2 bg-[#FFFFFF] rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">
               Bestseller
             </button>
             {/* <button className="px-4 py-2 bg-gray-100 rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">

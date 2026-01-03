@@ -159,6 +159,9 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
                 alt="Increase"
                 width={10}
                 height={10}
+                style={{
+                  filter: 'invert(1)',
+                }}
                 className="w-2.5 h-2.5"
               />
             </button>

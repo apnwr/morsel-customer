@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { CartItem as CartItemType } from '@/types/cart';
 import { Avatar } from '@/components/ui/Avatar';
-import { Minus, Plus } from 'lucide-react';
+import { Minus } from 'lucide-react';
+import Image from 'next/image';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 
 interface CartItemProps {
@@ -89,7 +90,13 @@ export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, o
               className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg hover:bg-gray-50 active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label={`Increase quantity of ${item.menuItem.name}`}
             >
-              <Plus className="w-4 h-4" />
+              <Image
+                src="/icons/Plus.png"
+                alt="Increase quantity"
+                width={16}
+                height={16}
+                className="object-contain"
+              />
             </button>
           </div>
         </div>

@@ -1,11 +1,12 @@
-'use client';
+"use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { MenuItem } from '@/types/menu';
-import { Customization } from '@/types/cart';
-import { Modal } from '@/components/ui/Modal';
-import Image from 'next/image';
-import { X, Clock } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from "react";
+import { MenuItem } from "@/types/menu";
+import { Customization } from "@/types/cart";
+import { Modal } from "@/components/ui/Modal";
+import Image from "next/image";
+import { X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface CustomizationModalProps {
   item: MenuItem;
@@ -21,13 +22,17 @@ export function CustomizationModal({
   isOpen,
   onClose,
   onAddToCart,
-  existingQuantityInCart = 0,
-  lastCustomizations
+  lastCustomizations,
 }: CustomizationModalProps) {
   // For radio options: optionId -> choiceId
   // For checkbox options: optionId -> choiceId[] (multiple selections)
-  const [selectedChoices, setSelectedChoices] = useState<Record<string, string | string[]>>({});
+  const [selectedChoices, setSelectedChoices] = useState<
+    Record<string, string | string[]>
+  >({});
   const [quantity, setQuantity] = useState(1);
+  const [expandedOptions, setExpandedOptions] = useState<Set<string>>(
+    new Set()
+  );
 
   // Initialize state when modal opens or when lastCustomizations change
   useEffect(() => {
@@ -46,12 +51,17 @@ export function CustomizationModal({
             (c) => c.optionId === option.id
           );
 
-          if (option.type === 'radio' && matchingCustomizations.length > 0) {
+          if (option.type === "radio" && matchingCustomizations.length > 0) {
             // For radio, take the first matching choice
             selections[option.id] = matchingCustomizations[0].choiceId;
-          } else if (option.type === 'checkbox' && matchingCustomizations.length > 0) {
+          } else if (
+            option.type === "checkbox" &&
+            matchingCustomizations.length > 0
+          ) {
             // For checkbox, collect all matching choices
-            selections[option.id] = matchingCustomizations.map((c) => c.choiceId);
+            selections[option.id] = matchingCustomizations.map(
+              (c) => c.choiceId
+            );
           }
         });
 
@@ -68,30 +78,50 @@ export function CustomizationModal({
       const timer = setTimeout(() => {
         setSelectedChoices(initialSelections);
         setQuantity(1);
+        // Initialize only variant options as expanded by default
+        if (item.customOptions) {
+          const variantOptions = item.customOptions
+            .filter((opt) => opt.id.startsWith("variant-"))
+            .map((opt) => opt.id);
+          setExpandedOptions(new Set(variantOptions));
+        }
       }, 0);
 
       return () => clearTimeout(timer);
     }
   }, [isOpen, lastCustomizations, item]);
 
+  // Toggle accordion for customization option
+  const toggleOption = (optionId: string) => {
+    setExpandedOptions((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(optionId)) {
+        newSet.delete(optionId);
+      } else {
+        newSet.add(optionId);
+      }
+      return newSet;
+    });
+  };
+
   // Helper function to get initials from item name
   const getInitials = (name: string) => {
     return name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
+      .split(" ")
+      .map((word) => word[0])
+      .join("")
       .toUpperCase()
       .slice(0, 2);
   };
 
   // Check if item has a valid image
-  const hasImage = item.image && item.image.trim() !== '';
+  const hasImage = item.image && item.image.trim() !== "";
 
   // Check if item has customization options
   const hasCustomOptions = item.customOptions && item.customOptions.length > 0;
 
-  // Calculate total price based on selections
-  const totalPrice = useMemo(() => {
+  // Calculate per-item price with customizations (without quantity multiplier)
+  const itemPriceWithCustomizations = useMemo(() => {
     let price = item.price;
 
     // Add price modifiers from selected choices
@@ -99,13 +129,13 @@ export function CustomizationModal({
       item.customOptions.forEach((option) => {
         const selection = selectedChoices[option.id];
 
-        if (option.type === 'radio' && typeof selection === 'string') {
+        if (option.type === "radio" && typeof selection === "string") {
           // Single selection (radio button)
           const choice = option.choices.find((c) => c.id === selection);
           if (choice) {
             price += choice.priceModifier;
           }
-        } else if (option.type === 'checkbox' && Array.isArray(selection)) {
+        } else if (option.type === "checkbox" && Array.isArray(selection)) {
           // Multiple selections (checkboxes)
           selection.forEach((choiceId) => {
             const choice = option.choices.find((c) => c.id === choiceId);
@@ -117,12 +147,22 @@ export function CustomizationModal({
       });
     }
 
-    return price * quantity;
-  }, [item, selectedChoices, quantity]);
+    return price;
+  }, [item, selectedChoices]);
 
-  const handleChoiceSelect = (optionId: string, choiceId: string, type: 'radio' | 'checkbox', maxSelection?: number) => {
+  // Calculate total price based on selections (includes quantity)
+  const totalPrice = useMemo(() => {
+    return itemPriceWithCustomizations * quantity;
+  }, [itemPriceWithCustomizations, quantity]);
+
+  const handleChoiceSelect = (
+    optionId: string,
+    choiceId: string,
+    type: "radio" | "checkbox",
+    maxSelection?: number
+  ) => {
     setSelectedChoices((prev) => {
-      if (type === 'radio') {
+      if (type === "radio") {
         // Radio: replace with new selection
         return {
           ...prev,
@@ -137,11 +177,14 @@ export function CustomizationModal({
           // Deselecting - always allowed
           return {
             ...prev,
-            [optionId]: currentSelections.filter(id => id !== choiceId),
+            [optionId]: currentSelections.filter((id) => id !== choiceId),
           };
         } else {
           // Selecting - check max selection limit
-          if (maxSelection !== undefined && currentSelections.length >= maxSelection) {
+          if (
+            maxSelection !== undefined &&
+            currentSelections.length >= maxSelection
+          ) {
             // Max selections reached, don't add more
             return prev;
           }
@@ -167,7 +210,7 @@ export function CustomizationModal({
       item.customOptions.forEach((option) => {
         const selection = selectedChoices[option.id];
 
-        if (option.type === 'radio' && typeof selection === 'string') {
+        if (option.type === "radio" && typeof selection === "string") {
           // Single selection (radio button)
           const choice = option.choices.find((c) => c.id === selection);
           if (choice) {
@@ -179,7 +222,7 @@ export function CustomizationModal({
               priceModifier: choice.priceModifier,
             });
           }
-        } else if (option.type === 'checkbox' && Array.isArray(selection)) {
+        } else if (option.type === "checkbox" && Array.isArray(selection)) {
           // Multiple selections (checkboxes)
           selection.forEach((choiceId) => {
             const choice = option.choices.find((c) => c.id === choiceId);
@@ -212,15 +255,20 @@ export function CustomizationModal({
     return item.customOptions.every((option) => {
       const selection = selectedChoices[option.id];
 
-      if (option.type === 'radio') {
+      if (option.type === "radio") {
         // Radio: check if required or has minSelection
-        if (option.required || (option.minSelection && option.minSelection > 0)) {
-          return typeof selection === 'string';
+        if (
+          option.required ||
+          (option.minSelection && option.minSelection > 0)
+        ) {
+          return typeof selection === "string";
         }
-      } else if (option.type === 'checkbox') {
+      } else if (option.type === "checkbox") {
         // Checkbox: check minSelection requirement
         if (option.minSelection && option.minSelection > 0) {
-          return Array.isArray(selection) && selection.length >= option.minSelection;
+          return (
+            Array.isArray(selection) && selection.length >= option.minSelection
+          );
         } else if (option.required) {
           // Fallback to required flag if minSelection not set
           return Array.isArray(selection) && selection.length > 0;
@@ -231,187 +279,251 @@ export function CustomizationModal({
   }, [item.customOptions, selectedChoices]);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="full" showCloseButton={false}>
-      <div className="flex flex-col h-full max-h-[90vh]">
-        {/* Header with Close Button */}
-        <div className="p-4 border-b border-gray-200 flex items-center justify-end">
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="full"
+      showCloseButton={false}
+    >
+      <div className="flex flex-col h-[90vh] bg-[#F7F8F8]">
+        {/* Header with Item Info and Close Button */}
+        <div className="p-4 pt-5 border-b border-gray-200 bg-[#F7F8F8]">
+          <div className="flex items-start gap-3 mb-3">
+            {/* Item Image */}
+            <div className="relative w-16 h-16 shrink-0 border-2 border-white rounded-lg overflow-hidden">
+              {hasImage ? (
+                <Image
+                  src={item.image}
+                  alt={item.name}
+                  fill
+                  className=" object-cover"
+                  sizes="64px"
+                />
+              ) : (
+                <div className="w-full h-full rounded-lg bg-purple-100 flex items-center justify-center">
+                  <span className="text-purple-600 font-bold text-sm">
+                    {getInitials(item.name)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Item Name and Description */}
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-sm mb-1 truncate">{item.name}</h3>
+              <p className="text-[#00000050] text-[10px] line-clamp-1">
+                {item.description}
+              </p>
+            </div>
+
+            {/* Close Button */}
+            <button
+              onClick={onClose}
+              className="p-1.5 hover:bg-gray-100 rounded-full transition-colors shrink-0"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          {/* Preparation Time */}
+          {/* {item.preparationTime && (
+            <div className="flex items-center gap-2 text-gray-600 my-2">
+              <Clock className="w-3.5 h-3.5" />
+              <span className="text-xs">{item.preparationTime} mins</span>
+            </div>
+          )} */}
+          {/* Allergens and Dietary Info */}
+          {((item.allergens && item.allergens.length > 0) ||
+            (item.dietary && item.dietary.length > 0)) && (
+            <div className="flex flex-wrap gap-1.5">
+              {item.allergens &&
+                item.allergens.map((allergen) => (
+                  <span
+                    key={`allergen-${allergen}`}
+                    className="px-2 py-1 bg-red-50 text-red-700 rounded-full text-[10px] font-medium leading-none"
+                  >
+                    ⚠️ {allergen}
+                  </span>
+                ))}
+              {item.dietary &&
+                item.dietary.map((diet) => (
+                  <span
+                    key={`dietary-${diet}`}
+                    className="px-2 py-1 bg-green-50 text-green-700 rounded-full text-[10px] font-medium capitalize leading-none"
+                  >
+                    ✓ {diet}
+                  </span>
+                ))}
+            </div>
+          )}
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto">
-          {/* Item Image and Basic Info */}
-          <div className="p-6">
-            <div className="flex items-start gap-4 mb-4">
-              <div className="relative w-24 h-24 shrink-0">
-                {hasImage ? (
-                  <Image
-                    src={item.image}
-                    alt={item.name}
-                    fill
-                    className="rounded-2xl object-cover"
-                    sizes="96px"
-                  />
-                ) : (
-                  <div className="w-full h-full rounded-2xl bg-purple-100 flex items-center justify-center">
-                    <span className="text-purple-600 font-bold text-2xl">
-                      {getInitials(item.name)}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-xl mb-1">{item.name}</h3>
-                <p className="text-gray-600 text-sm mb-2 line-clamp-2">{item.description}</p>
-                <p className="text-2xl font-bold">${item.price.toFixed(2)}</p>
-              </div>
-            </div>
-
-            {/* Preparation Time */}
-            {item.preparationTime && (
-              <div className="flex items-center gap-2 text-gray-600 mb-4">
-                <Clock className="w-4 h-4" />
-                <span className="text-sm">{item.preparationTime}</span>
-              </div>
-            )}
-
-            {/* Allergens and Dietary Info */}
-            {((item.allergens && item.allergens.length > 0) ||
-              (item.dietary && item.dietary.length > 0)) && (
-              <div className="mb-6">
-                <div className="flex flex-wrap gap-2">
-                  {item.allergens && item.allergens.map((allergen) => (
-                    <span
-                      key={`allergen-${allergen}`}
-                      className="px-3 py-1.5 bg-red-50 text-red-700 rounded-full text-xs font-medium"
-                    >
-                      ⚠️ {allergen}
-                    </span>
-                  ))}
-                  {item.dietary && item.dietary.map((diet) => (
-                    <span
-                      key={`dietary-${diet}`}
-                      className="px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-xs font-medium capitalize"
-                    >
-                      ✓ {diet}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
+        <div className="flex-1 overflow-y-auto scrollbar-hide pt-4">
           {/* Customization Options */}
           {hasCustomOptions && (
             <div className="px-6 pb-6">
               {item.customOptions?.map((option) => {
                 // Get current selection count for checkbox options
-                const currentSelectionCount = option.type === 'checkbox' && Array.isArray(selectedChoices[option.id])
-                  ? (selectedChoices[option.id] as string[]).length
-                  : 0;
+                const currentSelectionCount =
+                  option.type === "checkbox" &&
+                  Array.isArray(selectedChoices[option.id])
+                    ? (selectedChoices[option.id] as string[]).length
+                    : 0;
+
+                const isExpanded = expandedOptions.has(option.id);
 
                 return (
                   <div key={option.id} className="mb-6">
-                    <div className="mb-3">
-                      <h3 className="font-bold text-base">
-                        {option.name}
-                        {option.type === 'checkbox' && option.maxSelection && option.maxSelection > 1 && (
-                          <span className="text-gray-500 font-normal ml-1">
-                            ({currentSelectionCount}/{option.maxSelection})
-                          </span>
-                        )}
-                        {(option.required || (option.minSelection && option.minSelection > 0)) ? (
-                          <span className="text-red-500 ml-1">*</span>
-                        ): null}
-                      </h3>
-                      {option.type === 'checkbox' && option.maxSelection && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          {option.minSelection && option.minSelection > 0
-                            ? `Select ${option.minSelection} to ${option.maxSelection} options`
-                            : `Select up to ${option.maxSelection} options`}
-                        </p>
-                      )}
-                    </div>
-                  <div className="space-y-2">
-                    {option.choices.map((choice) => {
-                      // Check if this choice is selected
-                      const isSelected = option.type === 'radio'
-                        ? selectedChoices[option.id] === choice.id
-                        : Array.isArray(selectedChoices[option.id]) &&
-                          (selectedChoices[option.id] as string[]).includes(choice.id);
-
-                      return (
-                        <button
-                          key={choice.id}
-                          onClick={() => handleChoiceSelect(option.id, choice.id, option.type, option.maxSelection)}
-                          className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all border-2 ${
-                            isSelected
-                              ? 'bg-black text-white border-black'
-                              : 'bg-white border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          <span className="font-medium">{choice.label}</span>
-                          {choice.priceModifier > 0 && (
-                            <span className="font-bold">
-                              {option.type === 'radio'
-                                ? `$${(item.price + choice.priceModifier).toFixed(2)}`
-                                : `+$${choice.priceModifier.toFixed(2)}`
-                              }
+                    {/* Accordion Header */}
+                    <button
+                      onClick={() => toggleOption(option.id)}
+                      className="w-full flex items-center gap-3 mb-3"
+                    >
+                      <motion.div
+                        className="shrink-0 w-5 h-5 relative"
+                        animate={{ rotate: isExpanded ? 90 : 0 }}
+                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                      >
+                        <Image
+                          src="/icons/Chevron.png"
+                          alt={isExpanded ? "Collapse" : "Expand"}
+                          fill
+                          className="object-contain"
+                        />
+                      </motion.div>
+                      <div className="flex-1 text-left">
+                        <h3 className="font-bold text-lg">
+                          {option.name}
+                          {option.type === "checkbox" &&
+                          option.maxSelection &&
+                          option.maxSelection > 1 &&
+                          currentSelectionCount > 0 ? (
+                            <span className="text-gray-500 font-normal ml-1">
+                              ({currentSelectionCount}/{option.maxSelection})
                             </span>
-                          )}
-                        </button>
-                      );
-                    })}
+                          ) : null}
+                          {option.required ||
+                          (option.minSelection && option.minSelection > 0) ? (
+                            <span className="text-red-500 ml-1">*</span>
+                          ) : null}
+                        </h3>
+                        {/* {option.type === "checkbox" && option.maxSelection && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            {option.minSelection && option.minSelection > 0
+                              ? `Select ${option.minSelection} to ${option.maxSelection} options`
+                              : `Select up to ${option.maxSelection} options`}
+                          </p>
+                        )} */}
+                      </div>
+                    </button>
+
+                    {/* Accordion Content */}
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="space-y-2">
+                            {option.choices.map((choice) => {
+                              // Check if this choice is selected
+                              const isSelected =
+                                option.type === "radio"
+                                  ? selectedChoices[option.id] === choice.id
+                                  : Array.isArray(selectedChoices[option.id]) &&
+                                    (
+                                      selectedChoices[option.id] as string[]
+                                    ).includes(choice.id);
+
+                              return (
+                                <button
+                                  key={choice.id}
+                                  onClick={() =>
+                                    handleChoiceSelect(
+                                      option.id,
+                                      choice.id,
+                                      option.type,
+                                      option.maxSelection
+                                    )
+                                  }
+                                  className={`w-full flex items-center justify-between p-4 rounded-[12px] transition-all ${
+                                    isSelected
+                                      ? "bg-black text-white"
+                                      : "bg-white"
+                                  }`}
+                                >
+                                  <span className="font-medium text-sm">
+                                    {choice.label}
+                                  </span>
+                                  {choice.priceModifier > 0 && (
+                                    <span className="font-bold text-sm">
+                                      {option.type === "radio"
+                                        ? `$${(
+                                            item.price + choice.priceModifier
+                                          ).toFixed(2)}`
+                                        : `+$${choice.priceModifier.toFixed(
+                                            2
+                                          )}`}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
             </div>
           )}
 
-          {/* Quantity Selector */}
-          <div className="px-6 pb-6">
-            <h3 className="font-bold text-base mb-3">Quantity</h3>
-            <div className="flex items-center gap-6">
+        </div>
+
+        {/* Fixed Bottom Row with Quantity and Add to Cart Button */}
+        <div className="p-6 bg-[#F7F8F8]">
+          <div className="flex items-center gap-4">
+            {/* Quantity Selector - 30% width */}
+            <div className="flex items-center justify-between w-[30%] bg-white border-2 border-black rounded-[12px] py-[12px] px-3">
               <button
                 onClick={() => handleQuantityChange(-1)}
                 disabled={quantity <= 1}
-                className="w-12 h-12 border-2 border-gray-300 rounded-xl hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed font-bold text-xl"
+                className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 rounded-lg active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed font-bold text-lg text-black"
               >
                 −
               </button>
-              <span className="text-2xl font-bold min-w-[40px] text-center">{quantity}</span>
+              <span className="text-lg font-bold min-w-[30px] text-center">
+                {quantity}
+              </span>
               <button
                 onClick={() => handleQuantityChange(1)}
                 disabled={quantity >= 99}
-                className="w-12 h-12 border-2 border-gray-300 rounded-xl hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed font-bold text-xl"
+                className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 rounded-lg active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                +
+                <Image
+                  src="/icons/Plus.png"
+                  alt="Increase quantity"
+                  width={16}
+                  height={16}
+                  className="object-contain"
+                />
               </button>
             </div>
-            {existingQuantityInCart > 0 && (
-              <p className="text-sm text-gray-600 mt-3">
-                Already in cart: {existingQuantityInCart} item{existingQuantityInCart > 1 ? 's' : ''}
-              </p>
-            )}
-          </div>
-        </div>
 
-        {/* Fixed Bottom Button */}
-        <div className="p-6 border-t border-gray-200 bg-white">
-          <button
-            onClick={handleContinue}
-            disabled={!canContinue}
-            className="w-full py-4 bg-black text-white rounded-2xl font-bold text-lg hover:bg-gray-900 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Add to Cart • ${totalPrice.toFixed(2)}
-          </button>
+            {/* Add to Cart Button - 70% width */}
+            <button
+              onClick={handleContinue}
+              disabled={!canContinue}
+              className="flex-1 py-4 bg-black text-white rounded-[12px] font-bold text-lg hover:bg-gray-900 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add Item - ${totalPrice.toFixed(2)}
+            </button>
+          </div>
         </div>
       </div>
     </Modal>

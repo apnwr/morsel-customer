@@ -92,7 +92,7 @@ export const Modal: React.FC<ModalProps> = ({
           <motion.div
             ref={modalRef}
             className={`
-              relative w-full bg-white rounded-t-3xl shadow-xl
+              relative w-full bg-white rounded-t-[20px] shadow-xl
               ${sizeClasses[size]}
               overflow-y-auto
               focus:outline-none

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Share2, Loader2 } from 'lucide-react';
+import Image from 'next/image';
 import { Avatar } from '@/components/ui/Avatar';
 import { useSplit } from '@/contexts/SplitContext';
 import { useSession } from '@/contexts/SessionContext';
@@ -348,7 +349,13 @@ export function ParticipantsList() {
                 className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0"
               >
                 <div className="w-[50px] h-[50px] rounded-full bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
-                  <span className="text-2xl">+</span>
+                  <Image
+                    src="/icons/Plus.png"
+                    alt="Add participant"
+                    width={24}
+                    height={24}
+                    className="object-contain"
+                  />
                 </div>
                 <span className="text-xs font-black text-center text-black leading-tight opacity-40">
                   Invite
@@ -366,7 +373,13 @@ export function ParticipantsList() {
                 className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0"
               >
                 <div className="w-[50px] h-[50px] rounded-full bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
-                  <span className="text-2xl">+</span>
+                  <Image
+                    src="/icons/Plus.png"
+                    alt="Add participant"
+                    width={24}
+                    height={24}
+                    className="object-contain"
+                  />
                 </div>
                 <span className="text-xs font-black text-center text-black leading-tight opacity-40">
                   Invite
