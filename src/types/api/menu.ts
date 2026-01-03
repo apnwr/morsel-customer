@@ -25,6 +25,7 @@ export interface Menu {
   items?: MenuItem[]; // API now returns populated items directly
   sections?: MenuSection[]; // Sections for organizing items
   showName?: boolean; // Controls whether to display the menu name (defaults to false if not provided)
+  visibility?: 'active' | 'inactive' | string; // Controls menu name visibility (active = show, inactive/undefined = hide)
 }
 
 export interface MenuResponse {

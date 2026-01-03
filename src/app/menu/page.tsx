@@ -176,30 +176,29 @@ const MenuRenderer = React.memo(
 
       if (sectionsWithItems.length === 0) return null;
 
-      // Calculate total items after filtering
-      const totalMenuItems = sectionsWithItems.reduce(
-        (sum, { sectionItems }) => sum + sectionItems.length,
-        0
-      );
-
       return (
         <MenuWithRef ref={(el) => setCategoryRef(category.id, el)}>
-          <MenuAccordion
-            category={category}
-            items={Array(totalMenuItems).fill(null) as MenuItemType[]}
-            showItemCount={false}
-            showCategoryName={category.showMenuName ?? false}
-          >
-            {sectionsWithItems.map(({ section, sectionItems }) => (
-              <MenuSectionComponent
-                key={section.section_id || section.name}
-                section={section}
-                items={sectionItems}
-                onAddItem={handleAddItem}
-                setSectionRef={setSectionRef}
-              />
-            ))}
-          </MenuAccordion>
+          <div className="mb-5 pb-3 border-b border-gray-200 last:border-b-0">
+            {/* Menu Name Header - only show if visibility is active */}
+            {menu.visibility === 'active' && (
+              <div className="mb-4 pb-2 border-b-2 border-gray-400">
+                <h2 className="font-bold text-xl text-gray-900">{category.name}</h2>
+              </div>
+            )}
+
+            {/* Sections */}
+            <div className="space-y-3">
+              {sectionsWithItems.map(({ section, sectionItems }) => (
+                <MenuSectionComponent
+                  key={section.section_id || section.name}
+                  section={section}
+                  items={sectionItems}
+                  onAddItem={handleAddItem}
+                  setSectionRef={setSectionRef}
+                />
+              ))}
+            </div>
+          </div>
         </MenuWithRef>
       );
     } else {
@@ -215,15 +214,21 @@ const MenuRenderer = React.memo(
 
       return (
         <MenuWithRef ref={(el) => setCategoryRef(category.id, el)}>
-          <MenuAccordion
-            category={category}
-            items={filteredItems}
-            showItemCount={false}
-          >
-            {filteredItems.map((item) => (
-              <MenuItem key={item.id} item={item} onAdd={handleAddItem} />
-            ))}
-          </MenuAccordion>
+          <div className="mb-5 pb-3 border-b border-gray-200 last:border-b-0">
+            {/* Menu Name Header - only show if visibility is active */}
+            {menu.visibility === 'active' && (
+              <div className="mb-4 pb-2 border-b-2 border-gray-400">
+                <h2 className="font-bold text-xl text-gray-900">{category.name}</h2>
+              </div>
+            )}
+
+            {/* Items */}
+            <div className="space-y-3">
+              {filteredItems.map((item) => (
+                <MenuItem key={item.id} item={item} onAdd={handleAddItem} />
+              ))}
+            </div>
+          </div>
         </MenuWithRef>
       );
     }
@@ -383,14 +388,14 @@ export default function MenuPage() {
     return getMenuForRestaurant(context.restaurant.id);
   }, [useApiData, apiMenus, context.restaurant.id]);
 
-  // Collect all sections from all menus for navigation
-  const allSections = useMemo(() => {
+  // Group sections by menu for navigation popup
+  const menusWithSections = React.useMemo(() => {
     if (useApiData && apiMenus.length > 0) {
-      const sections: Array<{ id: string; name: string; order: number }> = [];
-
-      apiMenus
+      return apiMenus
         .filter((menu) => menu.status === "active")
-        .forEach((menu) => {
+        .map((menu) => {
+          const sections: Array<{ id: string; name: string; description?: string; order: number }> = [];
+
           if (menuUsesSections(menu)) {
             // Menu has sections
             const activeSections = (menu.sections || [])
@@ -401,16 +406,21 @@ export default function MenuPage() {
               sections.push({
                 id: section.section_id || section.name,
                 name: section.name,
+                description: section.description,
                 order: section.order,
               });
             });
           }
-        });
 
-      return sections;
+          return {
+            menuId: menu.id,
+            menuName: menu.name,
+            sections: sections,
+          };
+        })
+        .filter((menu) => menu.sections.length > 0); // Only include menus with sections
     }
-    // For mock data, return empty array (will use categories)
-    return [];
+    return undefined;
   }, [useApiData, apiMenus, menuUsesSections]);
 
   const handleAddItem = React.useCallback((item: MenuItemType) => {
@@ -567,7 +577,11 @@ export default function MenuPage() {
                     categoryRefs.current[category.id] = el;
                   }}
                 >
-                  <MenuAccordion category={category} items={filteredItems}>
+                  <MenuAccordion
+                    category={category}
+                    items={filteredItems}
+                    showCategoryName={false}
+                  >
                     {filteredItems.map((item) => (
                       <MenuItem
                         key={item.id}
@@ -593,7 +607,8 @@ export default function MenuPage() {
       {/* Menu Navigation Popup */}
       <MenuNavPopup
         isOpen={showMenuNav}
-        categories={allSections.length > 0 ? allSections : menuData.categories}
+        menusWithSections={menusWithSections}
+        categories={menusWithSections ? undefined : menuData.categories}
         onSelectCategory={handleSelectCategory}
         onClose={() => setShowMenuNav(false)}
       />
