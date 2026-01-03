@@ -69,18 +69,16 @@ export const drawerVariants: Variants = {
 export const accordionVariants: Variants = {
   collapsed: {
     height: 0,
-    opacity: 0,
     transition: {
-      duration: 0.3,
-      ease: 'easeInOut',
+      duration: 0.2,
+      ease: [0.4, 0, 0.2, 1], // Custom ease-in-out curve
     },
   },
   expanded: {
     height: 'auto',
-    opacity: 1,
     transition: {
-      duration: 0.3,
-      ease: 'easeInOut',
+      duration: 0.25,
+      ease: [0.4, 0, 0.2, 1],
     },
   },
 };

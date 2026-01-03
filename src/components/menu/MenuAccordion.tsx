@@ -2,47 +2,58 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import { MenuCategory, MenuItem } from '@/types/menu';
-import { accordionVariants, rotateVariants } from '@/lib/animations';
+import { accordionVariants } from '@/lib/animations';
 
 interface MenuAccordionProps {
   category: MenuCategory;
   items: MenuItem[];
   children: React.ReactNode;
   defaultExpanded?: boolean;
+  showItemCount?: boolean; // Whether to show item count (true for sections, false for menus)
+  showCategoryName?: boolean; // Whether to show the category name header (defaults to true)
 }
 
-export function MenuAccordion({ 
-  category, 
-  items, 
+export function MenuAccordion({
+  category,
+  items,
   children,
-  defaultExpanded = true 
+  defaultExpanded = true,
+  showItemCount = true,
+  showCategoryName = true
 }: MenuAccordionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   return (
-    <div className="mb-6">
+    <div>
       {/* Category Header */}
-      <motion.button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-3 w-full mb-3 hover:opacity-70 transition-opacity"
-        whileTap={{ scale: 0.98 }}
-      >
-        <motion.span 
-          className="text-black font-bold text-xl shrink-0"
-          variants={rotateVariants}
-          animate={isExpanded ? 'expanded' : 'collapsed'}
+      {showCategoryName && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center gap-3 w-full mb-4"
         >
-          ›
-        </motion.span>
-        <span className="font-semibold text-lg">
-          {category.name} ({items.length})
-        </span>
-      </motion.button>
+          <motion.div
+            className="shrink-0 w-5 h-5 relative"
+            animate={{ rotate: isExpanded ? 90 : 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+          >
+            <Image
+              src="/icons/Chevron.png"
+              alt={isExpanded ? 'Collapse' : 'Expand'}
+              fill
+              className="object-contain"
+            />
+          </motion.div>
+          <span className="font-bold text-sm">
+            {showItemCount ? `${category.name} (${items.length})` : category.name}
+          </span>
+        </button>
+      )}
 
       {/* Category Items */}
       <AnimatePresence initial={false}>
-        {isExpanded && (
+        {(showCategoryName ? isExpanded : true) && (
           <motion.div
             variants={accordionVariants}
             initial="collapsed"
@@ -50,7 +61,7 @@ export function MenuAccordion({
             exit="collapsed"
             className="overflow-hidden"
           >
-            <div className="space-y-3">
+            <div className="space-y-3 pb-3">
               {children}
             </div>
           </motion.div>

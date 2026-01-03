@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
 import { useOrder } from '@/contexts/OrderContext';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useSession } from '@/contexts/SessionContext';
 import { Badge } from '@/components/ui/Badge';
-import { ShoppingCart } from 'lucide-react';
+import Image from 'next/image';
 
 interface HeaderProps {
   showTimer?: boolean;
@@ -22,7 +22,13 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
   const { context } = useRestaurant();
   const { sessionData } = useSession();
   const [remainingMinutes, setRemainingMinutes] = useState(0);
-  const [mounted, setMounted] = useState(false);
+
+  // Handle hydration using useSyncExternalStore (recommended React pattern)
+  const mounted = useSyncExternalStore(
+    () => () => {}, // subscribe (no-op)
+    () => true, // client-side snapshot
+    () => false // server-side snapshot
+  );
 
   // Extract table number from space name or use fallback
   const getTableNumber = () => {
@@ -41,11 +47,6 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
 
   const tableNumber = getTableNumber();
   const participantCount = (sessionData?.participantsCount ?? 0) + 1;
-
-  // Handle hydration
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Update timer every second
   useEffect(() => {
@@ -133,9 +134,12 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
               >
                 $ {isCartEmpty ? '00.00' : cartTotal.toFixed(2)}
               </span>
-              <ShoppingCart 
-                className={`w-6 h-6 ${isCartEmpty ? 'text-[#B2B2B2]' : 'text-black'}`}
-                strokeWidth={3}
+              <Image
+                src="/icons/Diagonal_Arrow.png"
+                alt="Cart"
+                width={24}
+                height={24}
+                className={`shrink-0 ${isCartEmpty ? 'opacity-40' : ''}`}
               />
             </button>
           )}

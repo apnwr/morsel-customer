@@ -33,4 +33,5 @@ export interface MenuCategory {
   name: string;
   description?: string;
   order: number;
+  showMenuName?: boolean; // Controls whether to display the menu name (defaults to false)
 }

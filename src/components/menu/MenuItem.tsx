@@ -3,9 +3,9 @@
 import React, { useState } from 'react';
 import { MenuItem as MenuItemType } from '@/types/menu';
 import { useCart } from '@/contexts/CartContext';
-import Image from 'next/image';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Minus, Plus } from 'lucide-react';
+import { Minus } from 'lucide-react';
+import Image from 'next/image';
 import { VariationSelectionModal } from './VariationSelectionModal';
 
 interface MenuItemProps {
@@ -113,7 +113,7 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
             />
           </>
         ) : (
-          <div className="w-full h-full rounded-xl bg-[#F8F8F8] border-2 border-white flex items-center justify-center">
+          <div className="w-full h-full rounded-xl bg-[#E7E7E7] border-2 border-white flex items-center justify-center">
             <span className="text-lg font-bold text-purple-600">
               {getInitials(item.name)}
             </span>
@@ -124,12 +124,18 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
         {totalQuantityInCart === 0 ? (
           <button
             onClick={handleClick}
-            className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-[10px] px-2 py-1 bg-white border border-black rounded-[30px] text-[10px] font-bold text-black hover:bg-gray-50 transition-colors whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 w-[60px] h-[24px]"
+            className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-[10px] px-2 py-1 bg-white border border-black rounded-[30px] text-[10px] font-bold text-black hover:bg-gray-50 transition-colors whitespace-nowrap focus:outline-none w-[60px] h-[24px]"
             style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
             aria-label={item.isCustomizable ? `Customize ${item.name}` : `Add ${item.name} to cart`}
           >
             <span>Add</span>
-            <Plus className="w-[10px] h-[10px]" strokeWidth={1} />
+            {/* <Image
+              src="/icons/Plus.png"
+              alt="Add"
+              width={10}
+              height={10}
+              className="shrink-0"
+            /> */}
           </button>
         ) : (
           <div className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-1 px-1.5 py-1 bg-black text-white rounded-[30px] w-[60px] h-[24px]">
@@ -148,7 +154,13 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
               className="w-4 h-4 flex items-center justify-center hover:bg-gray-800 rounded transition-colors shrink-0"
               aria-label={`Increase quantity of ${item.name}`}
             >
-              <Plus className="w-2.5 h-2.5" />
+              <Image
+                src="/icons/Plus.png"
+                alt="Increase"
+                width={10}
+                height={10}
+                className="w-2.5 h-2.5"
+              />
             </button>
           </div>
         )}
