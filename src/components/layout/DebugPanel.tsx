@@ -86,7 +86,7 @@ export default function DebugPanel() {
       {/* Floating Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-4 right-4 w-12 h-12 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 active:scale-95 transition-all z-50 flex items-center justify-center"
+        className="fixed bottom-24 right-4 w-12 h-12 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 active:scale-95 transition-all z-50 flex items-center justify-center"
         aria-label="Toggle Debug Panel"
       >
         <svg

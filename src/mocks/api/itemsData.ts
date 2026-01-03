@@ -30,12 +30,19 @@ export const HARDCODED_ITEMS_DATA: ItemsResponse = {
       ],
       addons: [
         {
-          name: 'Irish flavour',
-          price: 2,
-        },
-        {
-          name: 'Extra whip-cream',
-          price: 1.5,
+          add_on_title: 'Flavors',
+          min_selection: 0,
+          max_selection: 2,
+          add_on_options: [
+            {
+              name: 'Irish flavour',
+              price: 2,
+            },
+            {
+              name: 'Extra whip-cream',
+              price: 1.5,
+            },
+          ],
         },
       ],
       createdAt: {
@@ -141,12 +148,19 @@ export const HARDCODED_ITEMS_DATA: ItemsResponse = {
       ],
       addons: [
         {
-          name: 'Avocado',
-          price: 2,
-        },
-        {
-          name: 'Extra Cheese',
-          price: 1.5,
+          add_on_title: 'Toppings',
+          min_selection: 0,
+          max_selection: 3,
+          add_on_options: [
+            {
+              name: 'Avocado',
+              price: 2,
+            },
+            {
+              name: 'Extra Cheese',
+              price: 1.5,
+            },
+          ],
         },
       ],
       createdAt: {
@@ -174,12 +188,19 @@ export const HARDCODED_ITEMS_DATA: ItemsResponse = {
       },
       addons: [
         {
-          name: 'Avocado',
-          price: 2,
-        },
-        {
-          name: 'Extra nuts',
-          price: 1.5,
+          add_on_title: 'Extras',
+          min_selection: 1,
+          max_selection: 2,
+          add_on_options: [
+            {
+              name: 'Avocado',
+              price: 2,
+            },
+            {
+              name: 'Extra nuts',
+              price: 1.5,
+            },
+          ],
         },
       ],
       name: 'Ice cream',

@@ -44,8 +44,8 @@ export function MenuNavPopup({ isOpen, categories, onSelectCategory, onClose }: 
       >
         {/* Header */}
         <div className="mb-4">
-          <h3 className="font-bold text-xl text-gray-900">Jump to Category</h3>
-          <p className="text-sm text-gray-500 mt-1">Select a category to browse</p>
+          <h3 className="font-bold text-xl text-gray-900">Jump to Section</h3>
+          <p className="text-sm text-gray-500 mt-1">Select a section to browse</p>
         </div>
 
         {/* Categories List */}

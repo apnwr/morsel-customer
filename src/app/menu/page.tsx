@@ -2,13 +2,13 @@
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import { Header } from "@/components/layout/Header";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { MenuAccordion } from "@/components/menu/MenuAccordion";
 import { MenuItem } from "@/components/menu/MenuItem";
 import { MenuNavPopup } from "@/components/menu/MenuNavPopup";
+import { SearchBar } from "@/components/menu/SearchBar";
 import { useSession } from "@/contexts/SessionContext";
 import { useCart } from "@/contexts/CartContext";
 import { getMenuForRestaurant, getItemsByCategory } from "@/mocks/menuData";
@@ -34,18 +34,22 @@ const MenuSectionComponent = React.memo(
     section,
     items,
     onAddItem,
+    setSectionRef,
   }: {
     section: NonNullable<MenuWithItems["sections"]>[number];
     items: MenuItemType[];
     onAddItem: (item: MenuItemType) => void;
+    setSectionRef?: (id: string, el: HTMLDivElement | null) => void;
   }) => {
     if (items.length === 0) return null;
 
+    const sectionId = section.section_id || section.name;
+
     return (
-      <div>
+      <div ref={(el) => setSectionRef?.(sectionId, el)}>
         <MenuAccordion
           category={{
-            id: section.section_id || section.name,
+            id: sectionId,
             name: section.name,
             description: section.description,
             order: section.order,
@@ -96,6 +100,9 @@ const MenuRenderer = React.memo(
     areSectionItemsObjects,
     handleAddItem,
     setCategoryRef,
+    setSectionRef,
+    filterItemsBySearch,
+    searchQuery,
   }: {
     menu: MenuWithItems;
     category: { id: string; name: string; description?: string; order: number; showMenuName?: boolean };
@@ -111,6 +118,9 @@ const MenuRenderer = React.memo(
     ) => items is MenuWithItems["items"];
     handleAddItem: (item: MenuItemType) => void;
     setCategoryRef: (id: string, el: HTMLDivElement | null) => void;
+    setSectionRef?: (id: string, el: HTMLDivElement | null) => void;
+    filterItemsBySearch: (items: MenuItemType[], query: string) => MenuItemType[];
+    searchQuery: string;
   }) => {
     if (menuUsesSections(menu)) {
       // Sections flow: Items are directly in sections as full objects
@@ -158,7 +168,9 @@ const MenuRenderer = React.memo(
               );
           }
 
-          return { section, sectionItems };
+          // Filter section items by search query
+          const filteredSectionItems = filterItemsBySearch(sectionItems, searchQuery);
+          return { section, sectionItems: filteredSectionItems };
         })
         .filter(({ sectionItems }) => sectionItems.length > 0);
 
@@ -184,6 +196,7 @@ const MenuRenderer = React.memo(
                 section={section}
                 items={sectionItems}
                 onAddItem={handleAddItem}
+                setSectionRef={setSectionRef}
               />
             ))}
           </MenuAccordion>
@@ -195,16 +208,19 @@ const MenuRenderer = React.memo(
         .filter((item) => item.status === "active")
         .map((item) => mapApiItemToMenuItem(item, category.id, restaurantId));
 
-      if (items.length === 0) return null;
+      // Filter items by search query
+      const filteredItems = filterItemsBySearch(items, searchQuery);
+
+      if (filteredItems.length === 0) return null;
 
       return (
         <MenuWithRef ref={(el) => setCategoryRef(category.id, el)}>
           <MenuAccordion
             category={category}
-            items={items}
+            items={filteredItems}
             showItemCount={false}
           >
-            {items.map((item) => (
+            {filteredItems.map((item) => (
               <MenuItem key={item.id} item={item} onAdd={handleAddItem} />
             ))}
           </MenuAccordion>
@@ -213,11 +229,12 @@ const MenuRenderer = React.memo(
     }
   },
   (prevProps, nextProps) => {
-    // Custom comparison - only rerender if menu or category changes
+    // Custom comparison - only rerender if menu, category, or search query changes
     return (
       prevProps.menu.id === nextProps.menu.id &&
       prevProps.category.id === nextProps.category.id &&
-      prevProps.restaurantId === nextProps.restaurantId
+      prevProps.restaurantId === nextProps.restaurantId &&
+      prevProps.searchQuery === nextProps.searchQuery
     );
   }
 );
@@ -237,7 +254,9 @@ export default function MenuPage() {
   const [apiMenus, setApiMenus] = useState<MenuWithItems[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [useApiData, setUseApiData] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Fetch menu data from API if session data is available
   useEffect(() => {
@@ -266,7 +285,7 @@ export default function MenuPage() {
   }, [sessionData?.business.id]);
 
   // Helper function to check if menu uses sections flow
-  const menuUsesSections = (menu: MenuWithItems): boolean => {
+  const menuUsesSections = React.useCallback((menu: MenuWithItems): boolean => {
     return !!(
       menu.sections &&
       menu.sections.length > 0 &&
@@ -275,17 +294,17 @@ export default function MenuPage() {
           section.items && section.items.length > 0 && section.isActive
       )
     );
-  };
+  }, []);
 
   // Helper to check if section items are full objects or just IDs
-  const areSectionItemsObjects = (
+  const areSectionItemsObjects = React.useCallback((
     items: string[] | MenuWithItems["items"]
   ): items is MenuWithItems["items"] => {
     return items.length > 0 && typeof items[0] !== "string";
-  };
+  }, []);
 
   // Helper function to map API items to MenuItem type
-  const mapApiItemToMenuItem = (
+  const mapApiItemToMenuItem = React.useCallback((
     apiItem: MenuWithItems["items"][0],
     categoryId: string,
     restaurantId: string
@@ -320,29 +339,29 @@ export default function MenuPage() {
                 choices: apiItem.variants.map((v, idx) => ({
                   id: `variant-${idx}`,
                   label: v.name,
-                  priceModifier: v.price - apiItem.price, // Price difference
+                  priceModifier: (v.price ?? 0) - apiItem.price, // Price difference, default to 0
                 })),
               },
             ]
           : []),
         ...(apiItem.addons.length > 0
-          ? [
-              {
-                id: "addons",
-                name: "Add-ons",
-                type: "checkbox" as const,
-                required: false,
-                choices: apiItem.addons.map((a, idx) => ({
-                  id: `addon-${idx}`,
-                  label: a.name,
-                  priceModifier: a.price,
-                })),
-              },
-            ]
+          ? apiItem.addons.map((addonGroup, groupIdx) => ({
+              id: `addon-group-${groupIdx}`,
+              name: addonGroup.add_on_title,
+              type: addonGroup.max_selection === 1 ? ("radio" as const) : ("checkbox" as const),
+              required: addonGroup.min_selection > 0,
+              minSelection: addonGroup.min_selection,
+              maxSelection: addonGroup.max_selection,
+              choices: addonGroup.add_on_options.map((option, optIdx) => ({
+                id: `addon-${groupIdx}-${optIdx}`,
+                label: option.name,
+                priceModifier: option.price ?? 0, // Default to 0 if undefined
+              })),
+            }))
           : []),
       ],
     };
-  };
+  }, []);
 
   // Load menu data - use API data if available, otherwise fallback to mock data
   const menuData = useMemo(() => {
@@ -364,6 +383,36 @@ export default function MenuPage() {
     return getMenuForRestaurant(context.restaurant.id);
   }, [useApiData, apiMenus, context.restaurant.id]);
 
+  // Collect all sections from all menus for navigation
+  const allSections = useMemo(() => {
+    if (useApiData && apiMenus.length > 0) {
+      const sections: Array<{ id: string; name: string; order: number }> = [];
+
+      apiMenus
+        .filter((menu) => menu.status === "active")
+        .forEach((menu) => {
+          if (menuUsesSections(menu)) {
+            // Menu has sections
+            const activeSections = (menu.sections || [])
+              .filter((section) => section.isActive && section.items && section.items.length > 0)
+              .sort((a, b) => a.order - b.order);
+
+            activeSections.forEach((section) => {
+              sections.push({
+                id: section.section_id || section.name,
+                name: section.name,
+                order: section.order,
+              });
+            });
+          }
+        });
+
+      return sections;
+    }
+    // For mock data, return empty array (will use categories)
+    return [];
+  }, [useApiData, apiMenus, menuUsesSections]);
+
   const handleAddItem = React.useCallback((item: MenuItemType) => {
     // Always open modal to show full item details
     // User can see description, allergens, dietary info, and customize if needed
@@ -380,11 +429,60 @@ export default function MenuPage() {
   );
 
   const handleSelectCategory = React.useCallback((categoryId: string) => {
-    const element = categoryRefs.current[categoryId];
+    // Try section refs first (for API data with sections), then fall back to category refs
+    const element = sectionRefs.current[categoryId] || categoryRefs.current[categoryId];
     if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Get the element's position
+      const headerHeight = 150; // Offset for fixed header + filter pills
+      const y = element.getBoundingClientRect().top + window.pageYOffset - headerHeight;
+
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
     }
   }, []);
+
+  // Helper function to filter items based on search query
+  // Only matches items where name starts with the search query
+  const filterItemsBySearch = React.useCallback(
+    (items: MenuItemType[], query: string): MenuItemType[] => {
+      if (!query.trim()) return items;
+
+      const lowerQuery = query.toLowerCase().trim();
+      return items.filter((item) =>
+        item.name.toLowerCase().startsWith(lowerQuery)
+      );
+    },
+    []
+  );
+
+  // Check if there are any items matching the search query
+  // Must be before early returns (React Hook rules)
+  const hasAnyFilteredItems = React.useMemo(() => {
+    if (!context?.restaurant) return true;
+    if (!searchQuery.trim()) return true; // No search means show all
+
+    // Check across all categories for any matching items
+    if (useApiData && apiMenus.length > 0) {
+      return apiMenus.some((menu) => {
+        if (menuUsesSections(menu)) {
+          return (menu.sections || []).some((section) => {
+            if (!section.isActive || !section.items) return false;
+            const items = areSectionItemsObjects(section.items)
+              ? section.items.map((item) => mapApiItemToMenuItem(item, menu.id, sessionData?.business.id || context.restaurant.id))
+              : [];
+            return filterItemsBySearch(items, searchQuery).length > 0;
+          });
+        } else {
+          const items = menu.items.map((item) => mapApiItemToMenuItem(item, menu.id, sessionData?.business.id || context.restaurant.id));
+          return filterItemsBySearch(items, searchQuery).length > 0;
+        }
+      });
+    } else {
+      return menuData.categories.some((category) => {
+        const items = getItemsByCategory(context.restaurant.id, category.id);
+        return filterItemsBySearch(items, searchQuery).length > 0;
+      });
+    }
+  }, [searchQuery, useApiData, apiMenus, menuData.categories, menuUsesSections, areSectionItemsObjects, mapApiItemToMenuItem, filterItemsBySearch, sessionData?.business.id, context?.restaurant]);
 
   // Don't render if no context (will redirect) - must be after ALL hooks
   if (!context || !context.restaurant) {
@@ -404,15 +502,21 @@ export default function MenuPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-24">
+    <div className="min-h-screen bg-white pb-[80px]">
       <Header showCart showFilters />
 
-      <div className="p-4">
+      <div className="p-4 bg-[#F7F8F8]">
         {menuData.categories.length === 0 ? (
           <EmptyState
             icon="🍽️"
             title="No menu available"
             description="We're currently updating our menu. Please check back soon!"
+          />
+        ) : searchQuery.trim() && !hasAnyFilteredItems ? (
+          <EmptyState
+            icon="🔍"
+            title="No items found"
+            description={`No menu items starting with "${searchQuery}". Please try a different search term.`}
           />
         ) : (
           menuData.categories.map((category) => {
@@ -437,6 +541,11 @@ export default function MenuPage() {
                   setCategoryRef={(id, el) => {
                     categoryRefs.current[id] = el;
                   }}
+                  setSectionRef={(id, el) => {
+                    sectionRefs.current[id] = el;
+                  }}
+                  filterItemsBySearch={filterItemsBySearch}
+                  searchQuery={searchQuery}
                 />
               );
             } else {
@@ -446,7 +555,10 @@ export default function MenuPage() {
                 category.id
               );
 
-              if (items.length === 0) return null;
+              // Filter items by search query
+              const filteredItems = filterItemsBySearch(items, searchQuery);
+
+              if (filteredItems.length === 0) return null;
 
               return (
                 <div
@@ -455,8 +567,8 @@ export default function MenuPage() {
                     categoryRefs.current[category.id] = el;
                   }}
                 >
-                  <MenuAccordion category={category} items={items}>
-                    {items.map((item) => (
+                  <MenuAccordion category={category} items={filteredItems}>
+                    {filteredItems.map((item) => (
                       <MenuItem
                         key={item.id}
                         item={item}
@@ -471,25 +583,17 @@ export default function MenuPage() {
         )}
       </div>
 
-      {/* Floating Menu Button */}
-      <button
-        onClick={() => setShowMenuNav(true)}
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-black text-white rounded-full shadow-lg hover:shadow-xl active:scale-95 transition-all flex items-center gap-2"
-      >
-        <Image
-          src="/icons/Hamburger_menu.png"
-          alt="Menu"
-          width={20}
-          height={20}
-          className="shrink-0"
-        />
-        <span className="font-medium">Menu</span>
-      </button>
+      {/* Sticky Search Bar */}
+      <SearchBar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onMenuClick={() => setShowMenuNav(true)}
+      />
 
       {/* Menu Navigation Popup */}
       <MenuNavPopup
         isOpen={showMenuNav}
-        categories={menuData.categories}
+        categories={allSections.length > 0 ? allSections : menuData.categories}
         onSelectCategory={handleSelectCategory}
         onClose={() => setShowMenuNav(false)}
       />

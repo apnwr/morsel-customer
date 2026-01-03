@@ -120,7 +120,7 @@ export function CustomizationModal({
     return price * quantity;
   }, [item, selectedChoices, quantity]);
 
-  const handleChoiceSelect = (optionId: string, choiceId: string, type: 'radio' | 'checkbox') => {
+  const handleChoiceSelect = (optionId: string, choiceId: string, type: 'radio' | 'checkbox', maxSelection?: number) => {
     setSelectedChoices((prev) => {
       if (type === 'radio') {
         // Radio: replace with new selection
@@ -133,12 +133,23 @@ export function CustomizationModal({
         const currentSelections = (prev[optionId] as string[]) || [];
         const isSelected = currentSelections.includes(choiceId);
 
-        return {
-          ...prev,
-          [optionId]: isSelected
-            ? currentSelections.filter(id => id !== choiceId)
-            : [...currentSelections, choiceId],
-        };
+        if (isSelected) {
+          // Deselecting - always allowed
+          return {
+            ...prev,
+            [optionId]: currentSelections.filter(id => id !== choiceId),
+          };
+        } else {
+          // Selecting - check max selection limit
+          if (maxSelection !== undefined && currentSelections.length >= maxSelection) {
+            // Max selections reached, don't add more
+            return prev;
+          }
+          return {
+            ...prev,
+            [optionId]: [...currentSelections, choiceId],
+          };
+        }
       }
     });
   };
@@ -199,13 +210,19 @@ export function CustomizationModal({
     if (!item.customOptions) return true;
 
     return item.customOptions.every((option) => {
-      if (option.required) {
-        const selection = selectedChoices[option.id];
-        if (option.type === 'radio') {
-          // Radio must have a string selection
+      const selection = selectedChoices[option.id];
+
+      if (option.type === 'radio') {
+        // Radio: check if required or has minSelection
+        if (option.required || (option.minSelection && option.minSelection > 0)) {
           return typeof selection === 'string';
-        } else if (option.type === 'checkbox') {
-          // Checkbox must have at least one selection
+        }
+      } else if (option.type === 'checkbox') {
+        // Checkbox: check minSelection requirement
+        if (option.minSelection && option.minSelection > 0) {
+          return Array.isArray(selection) && selection.length >= option.minSelection;
+        } else if (option.required) {
+          // Fallback to required flag if minSelection not set
           return Array.isArray(selection) && selection.length > 0;
         }
       }
@@ -293,12 +310,34 @@ export function CustomizationModal({
           {/* Customization Options */}
           {hasCustomOptions && (
             <div className="px-6 pb-6">
-              {item.customOptions?.map((option) => (
-                <div key={option.id} className="mb-6">
-                  <h3 className="font-bold text-base mb-3">
-                    {option.name}
-                    {option.required && <span className="text-red-500 ml-1">*</span>}
-                  </h3>
+              {item.customOptions?.map((option) => {
+                // Get current selection count for checkbox options
+                const currentSelectionCount = option.type === 'checkbox' && Array.isArray(selectedChoices[option.id])
+                  ? (selectedChoices[option.id] as string[]).length
+                  : 0;
+
+                return (
+                  <div key={option.id} className="mb-6">
+                    <div className="mb-3">
+                      <h3 className="font-bold text-base">
+                        {option.name}
+                        {option.type === 'checkbox' && option.maxSelection && option.maxSelection > 1 && (
+                          <span className="text-gray-500 font-normal ml-1">
+                            ({currentSelectionCount}/{option.maxSelection})
+                          </span>
+                        )}
+                        {(option.required || (option.minSelection && option.minSelection > 0)) ? (
+                          <span className="text-red-500 ml-1">*</span>
+                        ): null}
+                      </h3>
+                      {option.type === 'checkbox' && option.maxSelection && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {option.minSelection && option.minSelection > 0
+                            ? `Select ${option.minSelection} to ${option.maxSelection} options`
+                            : `Select up to ${option.maxSelection} options`}
+                        </p>
+                      )}
+                    </div>
                   <div className="space-y-2">
                     {option.choices.map((choice) => {
                       // Check if this choice is selected
@@ -310,7 +349,7 @@ export function CustomizationModal({
                       return (
                         <button
                           key={choice.id}
-                          onClick={() => handleChoiceSelect(option.id, choice.id, option.type)}
+                          onClick={() => handleChoiceSelect(option.id, choice.id, option.type, option.maxSelection)}
                           className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all border-2 ${
                             isSelected
                               ? 'bg-black text-white border-black'
@@ -318,18 +357,21 @@ export function CustomizationModal({
                           }`}
                         >
                           <span className="font-medium">{choice.label}</span>
-                          <span className="font-bold">
-                            {option.type === 'radio'
-                              ? `$${(item.price + choice.priceModifier).toFixed(2)}`
-                              : `+$${choice.priceModifier.toFixed(2)}`
-                            }
-                          </span>
+                          {choice.priceModifier > 0 && (
+                            <span className="font-bold">
+                              {option.type === 'radio'
+                                ? `$${(item.price + choice.priceModifier).toFixed(2)}`
+                                : `+$${choice.priceModifier.toFixed(2)}`
+                              }
+                            </span>
+                          )}
                         </button>
                       );
                     })}
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           )}
 

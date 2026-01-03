@@ -36,9 +36,16 @@ export interface ItemVariant {
   price: number;
 }
 
-export interface ItemAddon {
+export interface ItemAddonOption {
   name: string;
   price: number;
+}
+
+export interface ItemAddon {
+  add_on_title: string;
+  min_selection: number;
+  max_selection: number;
+  add_on_options: ItemAddonOption[];
 }
 
 export interface MenuItem {

@@ -144,22 +144,28 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
             </button>
           )}
 
-          {/* Restaurant Name - Right */}
-          <div className="flex-1 text-right min-w-0 shrink-0">
-            <h1 className="text-lg font-semibold truncate">{context.restaurant.name}</h1>
-          </div>
+          {/* Icon Button - Right */}
+          <button className="shrink-0 w-[50px] h-[50px] flex items-center justify-center">
+            <Image
+              src="/icons/icons.png"
+              alt="Menu"
+              width={50}
+              height={50}
+              className="object-contain"
+            />
+          </button>
         </div>
 
         {/* Filter Pills */}
         {showFilters && (
           <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-2">
-            <button className="px-4 py-2 bg-gray-100 rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">
+            <button className="px-[18px] py-2 bg-[#FFFFFF] rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">
               Filters
             </button>
-            <button className="px-4 py-2 bg-gray-100 rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">
+            <button className="px-[8px] py-2 bg-[#FFFFFF] rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">
               Bestseller
             </button>
-            <button className="px-4 py-2 bg-gray-100 rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">
+            {/* <button className="px-4 py-2 bg-gray-100 rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">
               Desserts
             </button>
             <button className="px-4 py-2 bg-gray-100 rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">
@@ -167,7 +173,7 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
             </button>
             <button className="px-4 py-2 bg-gray-100 rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">
               Spicy
-            </button>
+            </button> */}
           </div>
         )}
       </div>

@@ -124,7 +124,7 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
         {totalQuantityInCart === 0 ? (
           <button
             onClick={handleClick}
-            className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-[10px] px-2 py-1 bg-white border border-black rounded-[30px] text-[10px] font-bold text-black hover:bg-gray-50 transition-colors whitespace-nowrap focus:outline-none w-[60px] h-[24px]"
+            className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-[10px] px-2 py-1 bg-white border border-black rounded-[30px] text-[12px] font-bold text-black hover:bg-gray-50 transition-colors whitespace-nowrap focus:outline-none w-[60px] h-[24px]"
             style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
             aria-label={item.isCustomizable ? `Customize ${item.name}` : `Add ${item.name} to cart`}
           >
@@ -198,7 +198,7 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
               <span
                 key={tag}
                 role="listitem"
-                className="inline-flex items-center px-2 py-0.5 bg-gray-100 rounded-[30px] text-[10px] font-normal text-black capitalize"
+                className="inline-flex items-center px-2 py-0.5 bg-[#FFFFFF] rounded-[30px] text-[10px] font-normal text-black capitalize"
                 style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
               >
                 {tag}
@@ -209,7 +209,7 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
               <span
                 key={`allergen-${allergen}`}
                 role="listitem"
-                className="inline-flex items-center px-2 py-0.5 bg-gray-100 rounded-[30px] text-[10px] font-normal text-black capitalize"
+                className="inline-flex items-center px-2 py-0.5 bg-[#FFFFFF] rounded-[30px] text-[10px] font-normal text-black capitalize"
                 style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
               >
                 {allergen}
@@ -220,7 +220,7 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
               <span
                 key={`dietary-${diet}`}
                 role="listitem"
-                className="inline-flex items-center px-2 py-0.5 bg-gray-100 rounded-[30px] text-[10px] font-normal text-black capitalize"
+                className="inline-flex items-center px-2 py-0.5 bg-[#FFFFFF] rounded-[30px] text-[10px] font-normal text-black capitalize"
                 style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
               >
                 {diet}

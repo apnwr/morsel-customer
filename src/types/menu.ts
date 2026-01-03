@@ -10,6 +10,8 @@ export interface CustomOption {
   type: 'radio' | 'checkbox';
   required: boolean;
   choices: CustomChoice[];
+  minSelection?: number; // Minimum number of selections required
+  maxSelection?: number; // Maximum number of selections allowed
 }
 
 export interface MenuItem {
