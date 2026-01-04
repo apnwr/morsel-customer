@@ -16,7 +16,7 @@ interface SplitSettingsModalProps {
 }
 
 export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps) {
-  const { split, setSplitMode, addMockParticipant, removeParticipant, updateShare, calculateSplit, validateSplitShares } = useSplit();
+  const { split, setSplitMode, removeParticipant, updateShare, calculateSplit, validateSplitShares } = useSplit();
   const { cart } = useCart();
 
   // Get current user's sessionUserId to show "You" instead of name
@@ -33,6 +33,15 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
 
   const [localShares, setLocalShares] = useState<Record<string, string>>(initializeLocalShares);
   const [validationError, setValidationError] = useState<string>('');
+
+  // Calculate current sum for real-time validation feedback
+  const getCurrentSum = () => {
+    return Object.values(split.shares).reduce((sum, val) => sum + val, 0);
+  };
+
+  const currentSum = getCurrentSum();
+  const difference = cart.total - currentSum;
+  const isValidSum = Math.abs(difference) < 0.01; // Allow for rounding errors
 
   // Reset local state when modal opens
   useEffect(() => {
@@ -61,10 +70,6 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
   const handleModeChange = (mode: 'even' | 'custom' | 'self' | 'all') => {
     setSplitMode(mode);
     setValidationError('');
-  };
-
-  const handleAddParticipant = () => {
-    addMockParticipant();
   };
 
   const handleShareChange = (participantId: string, value: string) => {
@@ -127,7 +132,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
 
           {/* Modal content - bottom sheet style */}
           <motion.div
-            className="relative w-full bg-white rounded-t-3xl shadow-xl max-h-[90vh] overflow-y-auto"
+            className="relative w-full bg-white rounded-t-[12px] shadow-xl max-h-[90vh] overflow-y-auto"
             role="dialog"
             aria-modal="true"
             variants={modalVariants}
@@ -136,17 +141,16 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
             exit="exit"
           >
         {/* Header with Total and Save Button */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 p-6 z-10">
+        <div className="sticky top-0 bg-white p-6 pb-0 z-10">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-sm text-gray-500">Total Amount</p>
-              <p className="text-3xl font-bold">${cart.total.toFixed(2)}</p>
+              <p className="text-2xl font-black">${cart.total.toFixed(2)}</p>
             </div>
             <Button
               onClick={handleSave}
               variant="primary"
               size="md"
-              className="rounded-full px-6"
+              className="rounded-[40px] px-10"
             >
               Save
             </Button>
@@ -155,9 +159,158 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
 
         {/* Content */}
         <div className="p-6 space-y-6">
+          {/* Participants List - Horizontal Scroll (Cart Page Style) */}
+          <div className="border-[3px] border-[#ECECEC] rounded-[30px] bg-white p-5">
+            {/* Split Mode Info */}
+            <div className="mb-4">
+              <h3 className="font-bold text-xl leading-tight text-black">
+                {split.mode === 'even' ? 'Split evenly' : split.mode === 'custom' ? 'Custom split' : split.mode === 'all' ? 'Pay for everyone' : 'Pay for self'}
+              </h3>
+              <p className="text-[10px] leading-tight text-black opacity-40">
+                {split.mode === 'even' ? 'The bill will be divided equally among all participants.' : split.mode === 'custom' ? 'Each participant pays a custom amount.' : split.mode === 'all' ? 'You will pay for everyone in this session.' : 'You will only pay for your own items.'}
+              </p>
+            </div>
+
+            {/* Participants Row */}
+            <div className="flex items-start gap-5 overflow-x-auto pb-2 -mx-5 px-5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              {split.participants.length > 0 ? (
+                <>
+                  {[...split.participants].sort((a, b) => {
+                    // Sort to put current user first
+                    const aIsCurrent = a.id === currentSessionUserId;
+                    const bIsCurrent = b.id === currentSessionUserId;
+                    if (aIsCurrent && !bIsCurrent) return -1;
+                    if (!aIsCurrent && bIsCurrent) return 1;
+                    return 0;
+                  }).map((participant) => {
+                    const amount = split.shares[participant.id] || 0;
+                    const localAmount = localShares[participant.id] || '0.00';
+                    const isYou = participant.id === currentSessionUserId;
+                    const displayName = isYou ? 'You' : participant.name;
+
+                    return (
+                      <div
+                        key={participant.id}
+                        className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0 relative"
+                      >
+                        {/* Remove Button - Only show for mock participants */}
+                        {participant.isMock && (
+                          <button
+                            onClick={() => removeParticipant(participant.id)}
+                            className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors z-10"
+                            aria-label={`Remove ${participant.name}`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+
+                        <Avatar
+                          name={participant.name}
+                          className="w-[50px] h-[50px]"
+                        />
+                        <span className="text-xs font-black text-center text-black leading-tight">
+                          {displayName}
+                        </span>
+
+                        {split.mode === 'custom' ? (
+                          <div className="w-[60px]">
+                            <div className="relative">
+                              <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] font-black text-black">
+                                $
+                              </span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={localAmount}
+                                onChange={(e) => handleShareChange(participant.id, e.target.value)}
+                                onBlur={() => handleShareBlur(participant.id)}
+                                className="w-full pl-3 pr-1 py-1 text-xs font-black text-center text-black border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-lg font-black text-center text-black leading-tight">
+                            ${amount.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Add Participant Button */}
+                  <button
+                    onClick={() => console.log('Add clicked')}
+                    className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0"
+                  >
+                    <div className="w-[50px] h-[50px] rounded-full bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
+                      <Plus className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <span className="text-xs font-black text-center text-black leading-tight opacity-40">
+                      Add
+                    </span>
+                    <span className="text-lg font-black text-center text-transparent leading-tight select-none">
+                      $0.00
+                    </span>
+                  </button>
+                </>
+              ) : (
+                /* Empty state */
+                <div className="w-full text-center py-4">
+                  <p className="text-sm text-gray-500 mb-3">No participants yet</p>
+                  <button
+                    onClick={() => console.log('Add clicked')}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="text-sm font-medium">Add participant</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Real-time Validation for Custom Split */}
+          {split.mode === 'custom' && split.participants.length > 0 && (
+            <div className={`p-4 rounded-xl border-2 ${
+              isValidSum
+                ? 'bg-green-50 border-green-200'
+                : 'bg-orange-50 border-orange-200'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700">Current Total:</span>
+                <span className={`text-lg font-bold ${
+                  isValidSum ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  ${currentSum.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700">Required Total:</span>
+                <span className="text-lg font-bold text-gray-900">
+                  ${cart.total.toFixed(2)}
+                </span>
+              </div>
+              {!isValidSum && (
+                <div className="flex items-center justify-between pt-2 border-t border-orange-300">
+                  <span className="text-sm font-medium text-orange-700">Difference:</span>
+                  <span className="text-lg font-bold text-orange-600">
+                    ${Math.abs(difference).toFixed(2)} {difference > 0 ? 'short' : 'over'}
+                  </span>
+                </div>
+              )}
+              <p className={`text-xs mt-2 ${
+                isValidSum ? 'text-green-600' : 'text-orange-600'
+              }`}>
+                {isValidSum
+                  ? '✓ Split is valid'
+                  : '⚠ Adjust amounts to match the total'}
+              </p>
+            </div>
+          )}
+
           {/* Payment Mode Options */}
           <div>
-            <h3 className="font-semibold mb-3">Payment Mode</h3>
+            {/* <h3 className="font-semibold mb-3">Payment Mode</h3> */}
             <div className="space-y-2">
               <button
                 onClick={() => handleModeChange('all')}
@@ -219,103 +372,6 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
                 )}
               </button>
             </div>
-          </div>
-
-          {/* Participants Section */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold">
-                {split.mode === 'even' ? 'Split Evenly' : split.mode === 'custom' ? 'Custom Split' : 'Participants'}
-              </h3>
-              <button
-                onClick={handleAddParticipant}
-                className="flex items-center gap-1 text-sm text-gray-600 hover:text-black transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Add person
-              </button>
-            </div>
-
-            {/* Participants Grid */}
-            {split.participants.length > 0 ? (
-              <div className="grid grid-cols-3 gap-4">
-                {[...split.participants].sort((a, b) => {
-                  // Sort to put current user first
-                  const aIsCurrent = a.id === currentSessionUserId;
-                  const bIsCurrent = b.id === currentSessionUserId;
-
-                  if (aIsCurrent && !bIsCurrent) return -1;
-                  if (!aIsCurrent && bIsCurrent) return 1;
-                  return 0;
-                }).map((participant) => {
-                  const amount = split.shares[participant.id] || 0;
-                  const localAmount = localShares[participant.id] || '0.00';
-
-                  return (
-                    <div key={participant.id} className="flex flex-col items-center relative">
-                      {/* Remove Button */}
-                      <button
-                        onClick={() => removeParticipant(participant.id)}
-                        className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors z-10"
-                        aria-label={`Remove ${participant.name}`}
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                      
-                      <Avatar
-                        name={participant.name}
-                        color={participant.avatar}
-                        size="lg"
-                      />
-                      <span className="text-xs text-gray-600 mt-2 truncate max-w-full text-center">
-                        {participant.id === currentSessionUserId ? 'You' : participant.name}
-                      </span>
-                      
-                      {split.mode === 'custom' ? (
-                        <div className="mt-2 w-full">
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                              $
-                            </span>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={localAmount}
-                              onChange={(e) => handleShareChange(participant.id, e.target.value)}
-                              onBlur={() => handleShareBlur(participant.id)}
-                              className="w-full pl-5 pr-2 py-1 text-sm font-semibold text-center border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-sm font-semibold mt-2">
-                          ${amount.toFixed(2)}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Add Participant Button */}
-                <button
-                  onClick={handleAddParticipant}
-                  className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-gray-400 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded-full">
-                    <Plus className="w-8 h-8 text-gray-400" />
-                  </div>
-                  <span className="text-xs text-gray-500 mt-2">Add</span>
-                </button>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <p className="mb-4">No participants yet</p>
-                <Button onClick={handleAddParticipant} variant="secondary" size="sm">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add first participant
-                </Button>
-              </div>
-            )}
           </div>
 
           {/* Validation Error */}
