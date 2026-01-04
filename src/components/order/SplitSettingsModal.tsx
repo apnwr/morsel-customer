@@ -16,7 +16,7 @@ interface SplitSettingsModalProps {
 }
 
 export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps) {
-  const { split, setSplitMode, removeParticipant, updateShare, calculateSplit, validateSplitShares } = useSplit();
+  const { split, setSplitMode, removeParticipant, updateShare } = useSplit();
   const { cart } = useCart();
 
   // Get current user's sessionUserId to show "You" instead of name
@@ -31,12 +31,13 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
     return shares;
   };
 
+  const [localMode, setLocalMode] = useState<'even' | 'custom' | 'self' | 'all'>(split.mode);
   const [localShares, setLocalShares] = useState<Record<string, string>>(initializeLocalShares);
   const [validationError, setValidationError] = useState<string>('');
 
-  // Calculate current sum for real-time validation feedback
+  // Calculate current sum for real-time validation feedback from LOCAL state
   const getCurrentSum = () => {
-    return Object.values(split.shares).reduce((sum, val) => sum + val, 0);
+    return Object.values(localShares).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
   };
 
   const currentSum = getCurrentSum();
@@ -46,29 +47,63 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
   // Reset local state when modal opens
   useEffect(() => {
     if (isOpen) {
+      setLocalMode(split.mode);
       setLocalShares(initializeLocalShares());
       setValidationError('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  // Recalculate split when mode changes or participants change
+  // Calculate local shares when local mode changes (but not for custom mode)
   useEffect(() => {
-    if (isOpen && split.mode !== 'custom') {
-      calculateSplit(cart.total);
-    }
-  }, [isOpen, split.mode, split.participants.length, cart.total, calculateSplit]);
+    if (!isOpen || localMode === 'custom') return;
 
-  // Update local shares when split.shares changes (for non-custom modes)
-  useEffect(() => {
-    if (isOpen && split.mode !== 'custom') {
-      setLocalShares(initializeLocalShares());
+    const newLocalShares: Record<string, string> = {};
+
+    if (split.participants.length === 0) {
+      setLocalShares(newLocalShares);
+      return;
     }
+
+    switch (localMode) {
+      case 'even': {
+        const amountPerPerson = cart.total / split.participants.length;
+        split.participants.forEach(p => {
+          newLocalShares[p.id] = amountPerPerson.toFixed(2);
+        });
+        break;
+      }
+      case 'all': {
+        split.participants.forEach(p => {
+          if (p.id === currentSessionUserId) {
+            newLocalShares[p.id] = cart.total.toFixed(2);
+          } else {
+            newLocalShares[p.id] = '0.00';
+          }
+        });
+        break;
+      }
+      case 'self': {
+        const othersCount = split.participants.filter(p => p.id !== currentSessionUserId).length;
+        const amountPerOther = othersCount > 0 ? cart.total / othersCount : 0;
+        split.participants.forEach(p => {
+          if (p.id === currentSessionUserId) {
+            newLocalShares[p.id] = '0.00';
+          } else {
+            newLocalShares[p.id] = amountPerOther.toFixed(2);
+          }
+        });
+        break;
+      }
+    }
+
+    setLocalShares(newLocalShares);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, split.shares, split.mode]);
+  }, [isOpen, localMode, split.participants.length, cart.total]);
 
   const handleModeChange = (mode: 'even' | 'custom' | 'self' | 'all') => {
-    setSplitMode(mode);
+    // Only update local mode - don't update context until Save is clicked
+    setLocalMode(mode);
     setValidationError('');
   };
 
@@ -85,11 +120,9 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
   const handleShareBlur = (participantId: string) => {
     const value = localShares[participantId];
     const numValue = parseFloat(value) || 0;
-    
-    // Update context with validated number
-    updateShare(participantId, numValue);
-    
-    // Update local state with formatted value
+
+    // Only update local state with formatted value - don't update context yet
+    // Context will be updated when user clicks Save
     setLocalShares((prev) => ({
       ...prev,
       [participantId]: numValue.toFixed(2),
@@ -98,17 +131,44 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
 
   const handleSave = () => {
     // For custom mode, validate that shares sum to total
-    if (split.mode === 'custom') {
-      const isValid = validateSplitShares(cart.total);
-      
+    if (localMode === 'custom') {
+      // Validate local shares (not context shares)
+      const localSum = Object.values(localShares).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+      const isValid = Math.abs(cart.total - localSum) < 0.01;
+
       if (!isValid) {
-        const sum = Object.values(split.shares).reduce((acc, val) => acc + val, 0);
-        const difference = cart.total - sum;
-        setValidationError(
-          `Split amounts must equal $${cart.total.toFixed(2)}. Current difference: $${Math.abs(difference).toFixed(2)}`
-        );
+        // If validation fails, automatically switch to even split mode
+        console.log('[SplitSettingsModal] Custom split validation failed, switching to even split');
+        setSplitMode('even');
+
+        // Show a brief message that we switched to even split
+        setValidationError('Invalid custom split. Switched to even split.');
+
+        // Clear error and close after a longer delay to ensure state updates propagate
+        setTimeout(() => {
+          setValidationError('');
+          onClose();
+        }, 1500);
         return;
       }
+
+      // If valid, update mode and all shares in context from local state
+      console.log('[SplitSettingsModal] Custom split is valid, updating context');
+      setSplitMode(localMode);
+      Object.entries(localShares).forEach(([participantId, value]) => {
+        const numValue = parseFloat(value) || 0;
+        updateShare(participantId, numValue);
+      });
+    } else {
+      // For non-custom modes, update mode first, then shares
+      console.log('[SplitSettingsModal] Saving mode:', localMode);
+      setSplitMode(localMode);
+
+      // Update all shares from local state
+      Object.entries(localShares).forEach(([participantId, value]) => {
+        const numValue = parseFloat(value) || 0;
+        updateShare(participantId, numValue);
+      });
     }
 
     // Save and close
@@ -164,10 +224,10 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
             {/* Split Mode Info */}
             <div className="mb-4">
               <h3 className="font-bold text-xl leading-tight text-black">
-                {split.mode === 'even' ? 'Split evenly' : split.mode === 'custom' ? 'Custom split' : split.mode === 'all' ? 'Pay for everyone' : 'Pay for self'}
+                {localMode === 'even' ? 'Split evenly' : localMode === 'custom' ? 'Custom split' : localMode === 'all' ? 'Pay for everyone' : 'Pay for self'}
               </h3>
               <p className="text-[10px] leading-tight text-black opacity-40">
-                {split.mode === 'even' ? 'The bill will be divided equally among all participants.' : split.mode === 'custom' ? 'Each participant pays a custom amount.' : split.mode === 'all' ? 'You will pay for everyone in this session.' : 'You will only pay for your own items.'}
+                {localMode === 'even' ? 'The bill will be divided equally among all participants.' : localMode === 'custom' ? 'Each participant pays a custom amount.' : localMode === 'all' ? 'You will pay for everyone in this session.' : 'You will only pay for your own items.'}
               </p>
             </div>
 
@@ -183,8 +243,8 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
                     if (!aIsCurrent && bIsCurrent) return 1;
                     return 0;
                   }).map((participant) => {
-                    const amount = split.shares[participant.id] || 0;
                     const localAmount = localShares[participant.id] || '0.00';
+                    const amount = parseFloat(localAmount) || 0;
                     const isYou = participant.id === currentSessionUserId;
                     const displayName = isYou ? 'You' : participant.name;
 
@@ -212,7 +272,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
                           {displayName}
                         </span>
 
-                        {split.mode === 'custom' ? (
+                        {localMode === 'custom' ? (
                           <div className="w-[60px]">
                             <div className="relative">
                               <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] font-black text-black">
@@ -270,7 +330,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
           </div>
 
           {/* Real-time Validation for Custom Split */}
-          {split.mode === 'custom' && split.participants.length > 0 && (
+          {localMode === 'custom' && split.participants.length > 0 && (
             <div className={`p-4 rounded-xl border-2 ${
               isValidSum
                 ? 'bg-green-50 border-green-200'
@@ -315,13 +375,13 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
               <button
                 onClick={() => handleModeChange('all')}
                 className={`w-full flex items-center justify-between p-4 rounded-xl transition-colors ${
-                  split.mode === 'all'
+                  localMode === 'all'
                     ? 'bg-black text-white'
                     : 'bg-gray-50 hover:bg-gray-100'
                 }`}
               >
                 <span className="font-medium">Pay for everyone</span>
-                {split.mode === 'all' && (
+                {localMode === 'all' && (
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                     <path
                       fillRule="evenodd"
@@ -335,13 +395,13 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
               <button
                 onClick={() => handleModeChange('even')}
                 className={`w-full flex items-center justify-between p-4 rounded-xl transition-colors ${
-                  split.mode === 'even'
+                  localMode === 'even'
                     ? 'bg-black text-white'
                     : 'bg-gray-50 hover:bg-gray-100'
                 }`}
               >
                 <span className="font-medium">Split evenly</span>
-                {split.mode === 'even' && (
+                {localMode === 'even' && (
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                     <path
                       fillRule="evenodd"
@@ -355,13 +415,13 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
               <button
                 onClick={() => handleModeChange('custom')}
                 className={`w-full flex items-center justify-between p-4 rounded-xl transition-colors ${
-                  split.mode === 'custom'
+                  localMode === 'custom'
                     ? 'bg-black text-white'
                     : 'bg-gray-50 hover:bg-gray-100'
                 }`}
               >
                 <span className="font-medium">Custom split</span>
-                {split.mode === 'custom' && (
+                {localMode === 'custom' && (
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                     <path
                       fillRule="evenodd"

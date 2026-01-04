@@ -23,7 +23,7 @@ export const orderService = {
    * This is called whenever the cart changes (add/remove/update)
    *
    * @param sessionId - The ordering session ID
-   * @param data - Queue update payload with sessionUserId and items
+   * @param data - Queue update payload with sessionUserId and items (itemId, quantity)
    * @returns Updated queue information
    */
   updateQueue: async (
@@ -40,9 +40,10 @@ export const orderService = {
    * Confirm Order
    * Confirms the order and sends it to the kitchen
    * This clears the queue and creates a new order
+   * Note: Queue must be synced before calling this (via updateQueue)
    *
    * @param sessionId - The ordering session ID
-   * @param data - Confirmation payload with sessionUserId and paymentType
+   * @param data - Confirmation payload with sessionUserId and paymentType only
    * @returns Confirmed order details
    */
   confirmOrder: async (

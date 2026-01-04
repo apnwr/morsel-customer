@@ -36,6 +36,26 @@ export interface QueueUpdateResponse {
 }
 
 /**
+ * Order Item Addon
+ * Represents an addon group with selected options for an order item
+ */
+export interface OrderItemAddon {
+  addonIndex: number;          // Index of addon category (0-based)
+  selectedOptions: number[];   // Array of selected option indices (integers)
+}
+
+/**
+ * Order Confirm Item
+ * Represents an item in the order confirmation payload
+ */
+export interface OrderConfirmItem {
+  itemId: string;
+  quantity: number;
+  variantIndex: number;
+  addOns: OrderItemAddon[];
+}
+
+/**
  * Queue Confirm Request
  * Payload for confirming the order and sending to kitchen
  * POST /session/{sessionId}/queue/confirm

@@ -10,7 +10,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ParticipantsList } from "@/components/session/ParticipantsList";
 import { CartItem } from "@/components/cart/CartItem";
 import { CartItem as CartItemType } from "@/types/cart";
-import { BillModal } from "@/components/cart/BillModal";
 import { BillSection } from "@/components/cart/BillSection";
 import { getFromStorage } from "@/mocks/mockStorage";
 import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
@@ -31,12 +30,12 @@ export default function CartPage() {
   const currentSessionUserId = getFromStorage<string>("morsel_session_user_id");
   const [kitchenNote, setKitchenNote] = useState("");
   const [showNoteInput, setShowNoteInput] = useState(false);
-  const [showBillModal, setShowBillModal] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
 
-  // Mark as client-side on mount
+  // Mark as client-side on mount to prevent hydration mismatches
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsClient(true);
   }, []);
 
@@ -61,17 +60,17 @@ export default function CartPage() {
 
   // Handle place order - memoized
   const handlePlaceOrder = useCallback(
-    async (paymentType: "cash" | "card" | "upi") => {
+    async () => {
       setIsConfirming(true);
 
       try {
         // Confirm order via API
-        const result = await confirmOrder(paymentType);
+        // TODO: Add payment type selection UI - defaulting to 'cash' for now
+        const result = await confirmOrder('cash');
 
-        if (result.success) {
-          // Close modal
-          setShowBillModal(false);
+        console.log("[CartPage] Order confirmation result:", result);
 
+        if (result.success && result.orderId) {
           // Also update the old OrderContext for backward compatibility
           // Get customer name and dining type from localStorage
           const customerName =
@@ -82,8 +81,28 @@ export default function CartPage() {
             ) || "dine-in";
           placeOrder(restaurantContext, customerName, diningType, cart, split);
 
-          // Navigate to order summary
-          router.push("/order-summary");
+          // Navigate to order status page
+          const orderStatusUrl = `/order-status/${result.orderId}`;
+          console.log("[CartPage] Order confirmed successfully. Redirecting to:", orderStatusUrl);
+          
+          // Use both router and window.location as fallback to ensure navigation works
+          try {
+            router.replace(orderStatusUrl);
+            // Fallback: if router doesn't work, use window.location
+            setTimeout(() => {
+              if (window.location.pathname !== orderStatusUrl) {
+                console.log("[CartPage] Router navigation failed, using window.location");
+                window.location.href = orderStatusUrl;
+              }
+            }, 100);
+          } catch (navError) {
+            console.error("[CartPage] Navigation error:", navError);
+            window.location.href = orderStatusUrl;
+          }
+        } else {
+          console.error("[CartPage] Order confirmation failed - no orderId:", result);
+          alert("Failed to confirm order. Please try again.");
+          setIsConfirming(false);
         }
       } catch (error) {
         console.error("Order confirmation failed:", error);
@@ -93,7 +112,6 @@ export default function CartPage() {
             ? error.message
             : "Failed to confirm order. Please try again."
         );
-      } finally {
         setIsConfirming(false);
       }
     },
@@ -104,7 +122,10 @@ export default function CartPage() {
   const getUserAmount = () => {
     // If no split participants or split mode is disabled, return full amount
     if (!split.participants || split.participants.length === 0) {
-      console.log('[CartPage] 👤 No split participants, user pays full amount:', `$${cart.total.toFixed(2)}`);
+      console.log(
+        "[CartPage] 👤 No split participants, user pays full amount:",
+        `$${cart.total.toFixed(2)}`
+      );
       return cart.total;
     }
 
@@ -115,23 +136,25 @@ export default function CartPage() {
 
     // If current user not found in participants, return full amount
     if (!currentUser) {
-      console.warn('[CartPage] ⚠️ Current user not found in split participants, paying full amount');
+      console.warn(
+        "[CartPage] ⚠️ Current user not found in split participants, paying full amount"
+      );
       return cart.total;
     }
 
     // Return user's share from split, default to full amount if not found
     const userShare = split.shares[currentUser.id] ?? cart.total;
-    console.log('[CartPage] 💰 User share calculated:', {
-      userId: currentSessionUserId?.substring(0, 8) + '...',
+    console.log("[CartPage] 💰 User share calculated:", {
+      userId: currentSessionUserId?.substring(0, 8) + "...",
       userName: currentUser.name,
       userShare: `$${userShare.toFixed(2)}`,
       cartTotal: `$${cart.total.toFixed(2)}`,
       splitMode: split.mode,
       allShares: Object.entries(split.shares).map(([id, amount]) => ({
-        id: id.substring(0, 8) + '...',
-        name: split.participants.find(p => p.id === id)?.name || 'Unknown',
-        amount: `$${amount.toFixed(2)}`
-      }))
+        id: id.substring(0, 8) + "...",
+        name: split.participants.find((p) => p.id === id)?.name || "Unknown",
+        amount: `$${amount.toFixed(2)}`,
+      })),
     });
     return userShare;
   };
@@ -208,11 +231,11 @@ export default function CartPage() {
             </div>
 
             {/* Note to Kitchen */}
-            <div className="border-3 border-[#ECECEC] py-2 px-4 rounded-3xl w-fit">
+            <div className="border-3 border-[#ECECEC] py-2 px-4 rounded-[30px] w-auto">
               {!showNoteInput ? (
                 <button
                   onClick={() => setShowNoteInput(true)}
-                  className="flex items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors"
+                  className="w-[100%] flex justify-center items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   <span className="text-sm">Add a note to the kitchen</span>
                   <span className="text-xl">👩‍🍳</span>
@@ -220,14 +243,14 @@ export default function CartPage() {
               ) : (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xl">🍳</span>
+                    <span className="text-xl">👩‍🍳</span>
                     <span className="text-sm font-medium">Note to kitchen</span>
                   </div>
                   <textarea
                     value={kitchenNote}
                     onChange={(e) => setKitchenNote(e.target.value)}
                     placeholder="e.g., No onions, extra spicy..."
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-[24px] resize-none focus:outline-none  focus:border-[#000000]"
                     rows={3}
                     maxLength={200}
                   />
@@ -276,9 +299,11 @@ export default function CartPage() {
             {/* Preparation Time counter */}
             <div className="relative flex items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors py-6">
               <span className="text-xl w-[6%]">👩‍🍳</span>
-              <span className="border-b-2 border-dotted border-[#25A75C] w-[74%] h-[8px]"/>
+              <span className="border-b-2 border-dotted border-[#25A75C] w-[74%] h-[8px]" />
               <span className="text-sm w-auto text-right text-[#25A75C] font-bold">
-                {isClient && totalPreparationTime > 0 ? ` ${totalPreparationTime}mins` : " --"}
+                {isClient && totalPreparationTime > 0
+                  ? ` ${totalPreparationTime}mins`
+                  : " --"}
               </span>
             </div>
 
@@ -290,25 +315,53 @@ export default function CartPage() {
         )}
       </div>
 
-      {/* Floating Bill Button */}
+      {/* Place Order Button */}
       {cart.items.length > 0 && (
-        <div className="fixed bottom-6 left-0 right-0 px-4 z-20 flex justify-center">
+        <div className="fixed bottom-0 left-0 right-0 z-20 border-t rounded-t-xl overflow-hidden flex justify-center">
           <button
-            onClick={() => setShowBillModal(true)}
-            className="w-full max-w-2xl py-4 bg-black text-white rounded-xl font-medium shadow-lg hover:bg-gray-900 active:scale-95 transition-all"
+            onClick={() => handlePlaceOrder()}
+            disabled={isConfirming}
+            className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              fontFamily: "Helvetica Neue, sans-serif",
+              fontWeight: 500,
+              fontSize: "20px",
+              lineHeight: "1.22",
+            }}
           >
-            Bill · ${isClient ? userAmount.toFixed(2) : "0.00"}
+            <span className="pl-8">
+              {isConfirming ? "Placing order..." : "Place order"}
+            </span>
+            <span className="flex px-4 text-center">
+              ${" "}{isClient ? userAmount.toFixed(2) : "0.00"}
+            </span>
+            <div className="flex-1 h-6 justify-items-end pr-8">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="25"
+                height="25"
+                viewBox="0 0 25 25"
+                fill="none"
+              >
+                <path
+                  d="M4.84766 19.6943L19.6969 4.8451"
+                  stroke="white"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M10.0039 4.84522L19.6941 4.84522L19.6913 14.5326"
+                  stroke="white"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
           </button>
         </div>
       )}
-
-      {/* Bill Modal */}
-      <BillModal
-        isOpen={showBillModal}
-        onClose={() => setShowBillModal(false)}
-        onPlaceOrder={handlePlaceOrder}
-        isConfirming={isConfirming}
-      />
     </div>
   );
 }

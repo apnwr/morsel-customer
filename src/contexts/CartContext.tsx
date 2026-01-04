@@ -91,11 +91,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
    * This is called after every cart operation
    */
   const syncQueueWithAPI = async (cartItems: CartItem[]) => {
+    console.log('[CartContext] 🔄 syncQueueWithAPI called with', cartItems.length, 'items');
+
     // Only sync if we have an active session
     if (!sessionData?.session?.id) {
-      console.log('Active session not available, skipping queue sync');
+      console.warn('[CartContext] ⚠️ Active session not available, skipping queue sync');
+      console.log('[CartContext] Session data:', sessionData);
       return;
     }
+
+    console.log('[CartContext] ✅ Session available:', sessionData.session.id);
 
     try {
       // Convert cart items to queue items format
@@ -106,6 +111,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const itemId = cartItem.menuItem.id;
         const currentQuantity = queueItemsMap.get(itemId) || 0;
         queueItemsMap.set(itemId, currentQuantity + cartItem.quantity);
+        console.log('[CartContext] Adding to queue:', {
+          itemId,
+          name: cartItem.menuItem.name,
+          quantity: cartItem.quantity,
+          totalQuantity: currentQuantity + cartItem.quantity
+        });
       });
 
       // Convert map to array of QueueItems
@@ -121,17 +132,33 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (!sessionUserId) {
         sessionUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         setInStorage('morsel_session_user_id', sessionUserId);
+        console.log('[CartContext] Generated new sessionUserId:', sessionUserId);
+      } else {
+        console.log('[CartContext] Using existing sessionUserId:', sessionUserId.substring(0, 8) + '...');
       }
 
+      console.log('[CartContext] 📤 Calling updateQueue API with payload:', {
+        sessionId: sessionData.session.id,
+        sessionUserId: sessionUserId.substring(0, 8) + '...',
+        itemsCount: queueItems.length,
+        items: queueItems
+      });
+
       // Sync with API
-      await orderService.updateQueue(sessionData.session.id, {
+      const response = await orderService.updateQueue(sessionData.session.id, {
         sessionUserId,
         items: queueItems,
       });
 
-      console.log('Queue synced successfully');
+      console.log('[CartContext] ✅ Queue synced successfully:', response);
     } catch (error) {
-      console.error('Failed to sync queue with API:', error);
+      console.error('[CartContext] ❌ Failed to sync queue with API:', error);
+      if (error instanceof Error) {
+        console.error('[CartContext] Error details:', {
+          message: error.message,
+          stack: error.stack
+        });
+      }
       // Continue working offline - don't block cart operations
     }
   };
@@ -265,7 +292,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
         throw new Error('Session user ID not found. Please login again.');
       }
 
-      // Confirm the order via API
+      // Log the order confirmation payload for debugging
+      console.log('[CartContext] 📦 Confirming order with payload:', {
+        sessionUserId: sessionUserId.substring(0, 8) + '...',
+        paymentType
+      });
+
+      // Confirm the order via API (queue must already be synced)
       const response = await orderService.confirmOrder(sessionData.session.id, {
         sessionUserId,
         paymentType,
@@ -288,6 +321,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
         console.warn('[CartContext] Failed to refresh session after order confirmation:', refreshError);
         // Don't throw - continue even if refresh fails
       }
+
+      // Store order data temporarily for order-status page with timestamp
+      const orderWithTimestamp = {
+        ...response.data,
+        _placedAt: Date.now(), // Store when order was placed for timer calculation
+      };
+      setInStorage(`morsel_order_${response.data.id}`, orderWithTimestamp);
 
       // Clear the cart on successful order confirmation
       clearCart();
