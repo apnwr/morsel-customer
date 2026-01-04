@@ -28,7 +28,7 @@ const CACHE_DURATION = 30000; // 30 seconds
 const REFRESH_INTERVAL = 10000; // Refresh every 10 seconds to catch new participants
 
 export function ParticipantsList() {
-  const { split, calculateSplit, addParticipant } = useSplit();
+  const { split, calculateSplit, addParticipant, removeParticipant } = useSplit();
   const { sessionData } = useSession();
   const { cart } = useCart();
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
@@ -45,24 +45,65 @@ export function ParticipantsList() {
   // This will automatically trigger when API participants are synced to split
   useEffect(() => {
     if (split.participants.length > 0) {
+      console.log('[ParticipantsList] 🔄 Recalculating split:', {
+        cartTotal: `$${cart.total.toFixed(2)}`,
+        cartSubtotal: `$${cart.subtotal.toFixed(2)}`,
+        cartTax: `$${cart.tax.toFixed(2)}`,
+        participantsCount: split.participants.length,
+        splitMode: split.mode
+      });
       calculateSplit(cart.total);
+    } else {
+      console.log('[ParticipantsList] ⚠️ No participants yet, skipping split calculation');
     }
-  }, [cart.total, split.participants.length, calculateSplit]);
+  }, [cart.total, cart.subtotal, cart.tax, split.participants.length, split.mode, calculateSplit]);
 
   // Sync API participants with split participants
   const syncParticipantsWithSplit = useCallback(
     (apiParticipants: SessionDetail['participants']) => {
-      if (!apiParticipants || apiParticipants.length === 0) return;
+      if (!apiParticipants || apiParticipants.length === 0) {
+        console.log('[ParticipantsList] ⚠️ No API participants to sync');
+        return;
+      }
 
       // Get current sessionUserId to identify "You"
       const currentUserId = currentSessionUserId;
 
-      console.log('[ParticipantsList] Syncing participants:', {
+      console.log('[ParticipantsList] 🔄 Syncing participants:', {
         currentUserId,
+        apiParticipantsCount: apiParticipants.length,
         apiParticipants: apiParticipants.map(p => ({ sessionUserId: p.sessionUserId, guestName: p.guestName })),
-        currentSplitParticipants: split.participants.map(p => ({ id: p.id, name: p.name }))
+        currentSplitParticipantsCount: split.participants.length,
+        currentSplitParticipants: split.participants.map(p => ({ id: p.id, name: p.name, isMock: p.isMock }))
       });
 
+      // Step 1: Remove participants from split that are NOT in API response
+      // Safety: Only remove if they're marked as mock OR if they're not in the current session
+      const apiParticipantIds = new Set(apiParticipants.map(p => p.sessionUserId));
+      const participantsToRemove: string[] = [];
+
+      split.participants.forEach((splitParticipant) => {
+        if (!apiParticipantIds.has(splitParticipant.id)) {
+          // Determine if this participant should be removed
+          const reason = splitParticipant.isMock
+            ? 'Mock participant not in current session'
+            : 'Participant not in current session (stale from previous session)';
+
+          console.log('[ParticipantsList] 🗑️ Marking participant for removal:', {
+            id: splitParticipant.id.substring(0, 8) + '...',
+            name: splitParticipant.name,
+            isMock: splitParticipant.isMock,
+            reason
+          });
+
+          participantsToRemove.push(splitParticipant.id);
+        }
+      });
+
+      // Remove all marked participants
+      participantsToRemove.forEach(id => removeParticipant(id));
+
+      // Step 2: Add participants from API that are NOT in split
       apiParticipants.forEach((apiParticipant) => {
         // Check if this participant already exists in split
         const existsInSplit = split.participants.some(
@@ -78,12 +119,17 @@ export function ParticipantsList() {
             isMock: false, // API participants are real, not mock
           };
 
-          console.log('[ParticipantsList] Adding new participant to split:', newParticipant);
+          console.log('[ParticipantsList] ✅ Adding new participant to split:', {
+            id: newParticipant.id.substring(0, 8) + '...',
+            name: newParticipant.name
+          });
           addParticipant(newParticipant);
         }
       });
+
+      console.log('[ParticipantsList] ✓ Sync complete. Final split participants:', split.participants.length);
     },
-    [split.participants, addParticipant, currentSessionUserId]
+    [split.participants, addParticipant, removeParticipant, currentSessionUserId]
   );
 
   // Fetch session details with caching
@@ -184,7 +230,7 @@ export function ParticipantsList() {
   // Get participants from API, prioritizing API data but ensuring all are in split
   // Sort so current user appears first
   const participants = useMemo(() => {
-    let participantsList: any[] = [];
+    let participantsList: SessionDetail['participants'] = [];
 
     // Use API participants as source of truth
     if (sessionDetail?.participants && sessionDetail.participants.length > 0) {
@@ -224,9 +270,9 @@ export function ParticipantsList() {
   );
 
   // Get participants count
-  const participantsCount = useMemo(() => {
-    return participants.length || 0;
-  }, [participants.length]);
+  // const participantsCount = useMemo(() => {
+  //   return participants.length || 0;
+  // }, [participants.length]);
 
   // Map session participants to split participants for amount display
   const getParticipantAmount = useCallback(
@@ -235,10 +281,21 @@ export function ParticipantsList() {
       const splitParticipant = split.participants.find(
         (p) => p.id === sessionUserId
       );
-      if (splitParticipant) {
-        return split.shares[splitParticipant.id] || 0;
+
+      const amount = splitParticipant ? (split.shares[splitParticipant.id] || 0) : 0;
+
+      // Debug logging for ID matching
+      if (amount === 0 && split.participants.length > 0) {
+        console.warn('[ParticipantsList] ⚠️ Amount is $0 for participant:', {
+          sessionUserId: sessionUserId.substring(0, 8) + '...',
+          foundInSplit: !!splitParticipant,
+          allSplitParticipantIds: split.participants.map(p => p.id.substring(0, 8) + '...'),
+          allShareKeys: Object.keys(split.shares).map(k => k.substring(0, 8) + '...'),
+          shareAmount: splitParticipant ? split.shares[splitParticipant.id] : 'N/A'
+        });
       }
-      return 0;
+
+      return amount;
     },
     [split.participants, split.shares]
   );
@@ -285,7 +342,7 @@ export function ParticipantsList() {
 
   return (
     <>
-      <div className="border-[3px] border-gray-200 rounded-[30px] bg-white p-5 min-h-[200px] relative">
+      <div className="border-[3px] border-[#ECECEC] rounded-[30px] bg-white p-5 min-h-[200px] relative">
         {/* Loading Spinner - Bottom Right Corner */}
         {isLoading && (
           <div className="absolute bottom-3 right-3">
@@ -393,11 +450,11 @@ export function ParticipantsList() {
         </div>
 
         {/* Participants Count Text */}
-        {participantsCount > 0 && (
+        {/* {participantsCount > 0 && (
           <div className="mt-4 text-sm text-gray-600">
             {participantsCount} {participantsCount === 1 ? 'person' : 'people'} in this session
           </div>
-        )}
+        )} */}
 
         {/* Error State */}
         {error && (

@@ -13,9 +13,10 @@ interface HeaderProps {
   showTimer?: boolean;
   showCart?: boolean;
   showFilters?: boolean;
+  onRightIconClick?: () => void;
 }
 
-export function Header({ showTimer = false, showCart = true, showFilters = false }: HeaderProps) {
+export function Header({ showTimer = false, showCart = true, showFilters = false, onRightIconClick }: HeaderProps) {
   const router = useRouter();
   const { cart } = useCart();
   const { order } = useOrder();
@@ -73,7 +74,7 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
   return (
     <div className="sticky top-0 bg-[#F7F8F8] border-b border-gray-100 z-10">
       <div className="px-[18px] py-[10px]">
-        <div className="flex items-center justify-center gap-[23px] mb-4">
+        <div className="flex items-center justify-center gap-[23px]">
           {/* Table Number Circle */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="relative w-[50px] h-[50px] flex items-center justify-center mt-1">
@@ -145,7 +146,10 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
           )}
 
           {/* Icon Button - Right */}
-          <button className="shrink-0 w-[50px] h-[50px] flex items-center justify-center">
+          <button
+            onClick={onRightIconClick}
+            className="shrink-0 w-[50px] h-[50px] flex items-center justify-center"
+          >
             <Image
               src="/icons/icons.png"
               alt="Menu"
@@ -158,7 +162,7 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
 
         {/* Filter Pills */}
         {showFilters && (
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-2">
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-2 mt-4">
             <button className="px-[18px] py-2 bg-[#FFFFFF] rounded-full text-sm whitespace-nowrap hover:bg-gray-200 transition-colors min-h-[44px]">
               Filters
             </button>

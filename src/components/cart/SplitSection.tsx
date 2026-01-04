@@ -4,13 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { useSplit } from '@/contexts/SplitContext';
 import { useCart } from '@/contexts/CartContext';
 import { Avatar } from '@/components/ui/Avatar';
-import { ChevronRight, ChevronDown, Settings } from 'lucide-react';
+import { ChevronRight, Settings } from 'lucide-react';
 import { SplitSettingsModal } from '@/components/order/SplitSettingsModal';
 
 export function SplitSection() {
   const { split, calculateSplit } = useSplit();
   const { cart } = useCart();
-  const [isExpanded, setIsExpanded] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Recalculate split when cart total changes
@@ -37,7 +36,7 @@ export function SplitSection() {
 
   return (
     <>
-      <div className="border-b border-gray-100 pb-4 mb-4">
+      <div className="border-b border-gray-200 pb-4 mb-4">
         {/* Header Button */}
         <div className="flex items-center justify-between py-2">
           <button

@@ -48,12 +48,22 @@ function calculateCartTotals(items: CartItem[]): { subtotal: number; tax: number
   const subtotal = items.reduce((sum, item) => sum + item.itemTotal, 0);
   const tax = subtotal * TAX_RATE;
   const total = subtotal + tax;
-  
-  return {
+
+  const result = {
     subtotal: Math.round(subtotal * 100) / 100,
     tax: Math.round(tax * 100) / 100,
     total: Math.round(total * 100) / 100,
   };
+
+  console.log('[CartContext] 💵 Cart totals calculated:', {
+    itemsCount: items.length,
+    itemTotals: items.map(item => `${item.menuItem.name}: $${item.itemTotal.toFixed(2)} (qty: ${item.quantity})`),
+    subtotal: `$${result.subtotal.toFixed(2)}`,
+    tax: `$${result.tax.toFixed(2)} (${(TAX_RATE * 100).toFixed(0)}%)`,
+    total: `$${result.total.toFixed(2)}`
+  });
+
+  return result;
 }
 
 function generateCartItemId(): string {

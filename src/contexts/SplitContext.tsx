@@ -95,8 +95,15 @@ export function SplitProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const calculateSplit = useCallback((total: number) => {
+    // Validate input
+    if (typeof total !== 'number' || isNaN(total) || total < 0) {
+      console.error('[SplitContext] ❌ Invalid total provided to calculateSplit:', total);
+      return;
+    }
+
     setSplit((prev) => {
       if (prev.participants.length === 0) {
+        console.log('[SplitContext] No participants, clearing shares');
         return {
           ...prev,
           shares: {},
@@ -108,11 +115,13 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
 
       // Debug logging to understand ID matching
-      console.log('[SplitContext] calculateSplit called:', {
+      console.log('[SplitContext] ✓ calculateSplit called:', {
         mode: prev.mode,
         currentSessionUserId,
+        participantsCount: prev.participants.length,
         participants: prev.participants.map(p => ({ id: p.id, name: p.name, isMock: p.isMock })),
-        total
+        total,
+        formattedTotal: `$${total.toFixed(2)}`
       });
 
       let newShares: Record<string, number> = {};
@@ -120,6 +129,17 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       switch (prev.mode) {
         case 'even':
           newShares = calculateEvenSplit(total, prev.participants);
+          console.log('[SplitContext] 💰 Even split calculated:', {
+            total: `$${total.toFixed(2)}`,
+            participantsCount: prev.participants.length,
+            perPersonCalculated: `$${(total / prev.participants.length).toFixed(2)}`,
+            shares: Object.entries(newShares).map(([id, amount]) => ({
+              id: id.substring(0, 8) + '...',
+              name: prev.participants.find(p => p.id === id)?.name || 'Unknown',
+              amount: `$${amount.toFixed(2)}`
+            })),
+            totalOfShares: `$${Object.values(newShares).reduce((sum, val) => sum + val, 0).toFixed(2)}`
+          });
           break;
 
         case 'self':
