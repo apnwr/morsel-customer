@@ -1,16 +1,19 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { Cart, CartItem, Customization } from '@/types/cart';
 import { MenuItem } from '@/types/menu';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { sanitizeQuantity } from '@/lib/validation';
 import { useSession } from '@/contexts/SessionContext';
 import { orderService } from '@/services/order.service';
+import { sessionService } from '@/services/session.service';
 import type { QueueItem, OrderItemAddon } from '@/types/api/order';
+import type { SessionQueueItem } from '@/types/api/session';
 
 const STORAGE_KEY = 'morsel_cart';
 const TAX_RATE = 0.1; // 10% tax
+const QUEUE_SYNC_INTERVAL = 15000; // Sync queue every 15 seconds
 
 interface CartState {
   cart: Cart;
@@ -20,6 +23,7 @@ interface CartState {
   clearCart: () => void;
   getItemCount: () => number;
   confirmOrder: (paymentType: 'cash' | 'card' | 'upi' | string) => Promise<{ orderId: string; success: boolean }>;
+  syncCartFromQueue: () => Promise<void>;
 }
 
 const CartContext = createContext<CartState | undefined>(undefined);
@@ -84,6 +88,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     return getEmptyCart();
   });
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   /**
    * Sync Queue with API
@@ -216,6 +221,47 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setInStorage(STORAGE_KEY, cart);
   }, [cart]);
 
+  // Sync cart from queue when session becomes available or changes
+  useEffect(() => {
+    // Only sync if we have an active session
+    if (sessionData?.session?.id) {
+      console.log('[CartContext] 🔄 Session detected, triggering cart sync from queue');
+      syncCartFromQueue();
+    }
+  }, [sessionData?.session?.id]); // Trigger when session ID changes
+
+  // Set up periodic queue sync for real-time updates
+  useEffect(() => {
+    if (!sessionData?.session?.id) {
+      // Clear any existing interval if session ends
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Clear any existing interval
+    if (syncIntervalRef.current) {
+      clearInterval(syncIntervalRef.current);
+    }
+
+    // Set up periodic sync
+    console.log('[CartContext] ⏰ Setting up periodic queue sync every', QUEUE_SYNC_INTERVAL / 1000, 'seconds');
+    syncIntervalRef.current = setInterval(() => {
+      console.log('[CartContext] ⏰ Periodic queue sync triggered');
+      syncCartFromQueue();
+    }, QUEUE_SYNC_INTERVAL);
+
+    // Cleanup on unmount or when session changes
+    return () => {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
+      }
+    };
+  }, [sessionData?.session?.id]); // Re-setup interval when session changes
+
   const addItem = (menuItem: MenuItem, customizations: Customization[] = [], notes?: string, quantity: number = 1) => {
     const validQuantity = sanitizeQuantity(quantity);
     
@@ -322,6 +368,145 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return cart.items.reduce((sum, item) => sum + item.quantity, 0);
   };
 
+  /**
+   * Sync Cart from Queue
+   * Fetches the order queue from the session API and syncs it with the local cart
+   * This allows participants to see items added by others in the same session
+   */
+  const syncCartFromQueue = async (): Promise<void> => {
+    console.log('[CartContext] 🔄 syncCartFromQueue called');
+
+    // Only sync if we have an active session
+    if (!sessionData?.session?.id) {
+      console.warn('[CartContext] ⚠️ Active session not available, skipping cart sync from queue');
+      return;
+    }
+
+    // Get current sessionUserId
+    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+    if (!currentSessionUserId) {
+      console.warn('[CartContext] ⚠️ Session user ID not found, skipping cart sync');
+      return;
+    }
+
+    try {
+      console.log('[CartContext] 📥 Fetching session data to sync queue...');
+
+      // Fetch session details including orderQueue
+      const sessionResponse = await sessionService.getSessionById(sessionData.session.id);
+      const { orderQueue } = sessionResponse.data;
+
+      if (!orderQueue || orderQueue.length === 0) {
+        console.log('[CartContext] ℹ️ No queue data to sync');
+        return;
+      }
+
+      console.log('[CartContext] 📦 Found queue data:', {
+        queueEntries: orderQueue.length,
+        participants: orderQueue.map(q => ({
+          sessionUserId: q.sessionUserId.substring(0, 8) + '...',
+          itemsCount: q.items.length
+        }))
+      });
+
+      // Find the current user's queue
+      const currentUserQueue = orderQueue.find(q => q.sessionUserId === currentSessionUserId);
+
+      if (!currentUserQueue || currentUserQueue.items.length === 0) {
+        console.log('[CartContext] ℹ️ No items in current user\'s queue');
+        return;
+      }
+
+      console.log('[CartContext] 📋 Current user\'s queue:', {
+        itemsCount: currentUserQueue.items.length,
+        items: currentUserQueue.items.map(item => ({ name: item.name, quantity: item.quantity }))
+      });
+
+      // Get business ID for MenuItem creation
+      const businessId = sessionData.business?.id || 'unknown';
+
+      // Convert SessionQueueItem[] to CartItem[]
+      // Build MenuItem directly from queue data (no need to fetch menu items API)
+      const queueCartItems: CartItem[] = currentUserQueue.items.map((queueItem: SessionQueueItem) => {
+        // Create MenuItem from queue data
+        // Queue already has all necessary display information
+        const menuItem: MenuItem = {
+          id: queueItem.itemId,
+          restaurantId: businessId,
+          categoryId: 'unknown',
+          name: queueItem.name,
+          description: '',
+          price: queueItem.variantPrice, // Use variant price as base
+          image: '',
+          tags: [],
+          isCustomizable: queueItem.addOns.length > 0 || queueItem.variantIndex > 0,
+        };
+
+        // Build customizations array from variant and addons
+        const customizations: Customization[] = [];
+
+        // Add variant customization if present
+        if (queueItem.variantIndex !== undefined && queueItem.variantName) {
+          customizations.push({
+            optionId: 'variant',
+            optionName: 'Variant',
+            choiceId: `variant-${queueItem.variantIndex}`,
+            choiceLabel: queueItem.variantName,
+            priceModifier: 0, // Price already included in variantPrice
+          });
+        }
+
+        // Add addon customizations
+        queueItem.addOns.forEach((queueAddon) => {
+          queueAddon.selectedOptions.forEach((optionData) => {
+            customizations.push({
+              optionId: `addon-group-${queueAddon.addonIndex}`,
+              optionName: queueAddon.addonName,
+              choiceId: `addon-${queueAddon.addonIndex}-${optionData.name}`,
+              choiceLabel: optionData.name,
+              priceModifier: optionData.price,
+            });
+          });
+        });
+
+        return {
+          id: generateCartItemId(),
+          menuItem,
+          quantity: queueItem.quantity,
+          customizations,
+          itemTotal: queueItem.itemTotal,
+        };
+      });
+
+      console.log('[CartContext] ✅ Converted queue items to cart items:', queueCartItems.length);
+
+      // Merge with local cart
+      // Strategy: Replace local cart with queue data since queue is the source of truth
+      const totals = calculateCartTotals(queueCartItems);
+
+      const newCart = {
+        items: queueCartItems,
+        ...totals,
+      };
+
+      setCart(newCart);
+
+      console.log('[CartContext] ✅ Cart synced from queue successfully:', {
+        itemsCount: queueCartItems.length,
+        total: `$${totals.total.toFixed(2)}`
+      });
+    } catch (error) {
+      console.error('[CartContext] ❌ Failed to sync cart from queue:', error);
+      if (error instanceof Error) {
+        console.error('[CartContext] Error details:', {
+          message: error.message,
+          stack: error.stack
+        });
+      }
+      // Don't throw - continue working with local cart
+    }
+  };
+
   const confirmOrder = async (paymentType: 'cash' | 'card' | 'upi' | string): Promise<{ orderId: string; success: boolean }> => {
     // Validate session data
     if (!sessionData?.session?.id) {
@@ -398,6 +583,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     clearCart,
     getItemCount,
     confirmOrder,
+    syncCartFromQueue,
   };
 
   return (

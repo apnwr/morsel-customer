@@ -98,9 +98,30 @@ export interface SessionOrder {
   status: string;
 }
 
+export interface SessionQueueItem {
+  itemId: string;
+  name: string;
+  quantity: number;
+  variantIndex: number;
+  variantName: string;
+  variantPrice: number;
+  addOns: Array<{
+    addonIndex: number;
+    addonName: string;
+    selectedOptions: Array<{
+      name: string;
+      price: number;
+    }>;
+    optionsTotalPrice: number;
+  }>;
+  addonsTotalPrice: number;
+  unitPrice: number;
+  itemTotal: number;
+}
+
 export interface SessionOrderQueue {
   sessionUserId: string;
-  items: any[];
+  items: SessionQueueItem[];
   updatedAt: Timestamp;
 }
 
