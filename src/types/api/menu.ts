@@ -35,6 +35,8 @@ export interface MenuResponse {
 export interface ItemVariant {
   name: string;
   price: number;
+  description?: string;
+  images?: Array<{ url: string; path: string }>;
 }
 
 export interface ItemAddonOption {
@@ -43,10 +45,11 @@ export interface ItemAddonOption {
 }
 
 export interface ItemAddon {
-  add_on_title: string;
-  min_selection: number;
-  max_selection: number;
-  add_on_options: ItemAddonOption[];
+  id: string;
+  name: string;
+  minOptions: number;
+  maxOptions: number;
+  options: ItemAddonOption[];
 }
 
 export interface MenuItem {

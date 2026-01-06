@@ -300,7 +300,7 @@ export default function OrderStatusPage() {
                       className="text-black text-[14px] leading-[1.22] font-medium opacity-50"
                       style={{ fontFamily: "Helvetica Neue, sans-serif", fontWeight: 500 }}
                     >
-                      $ {item.totalPrice.toFixed(2)}
+                      $ {item.itemTotal.toFixed(2)}
                     </p>
                   </div>
                 </div>

@@ -20,7 +20,7 @@ export default function CartPage() {
   // Navigation guard - redirect to login if no restaurant context
   const restaurantContext = useRequireRestaurantContext();
   const { cart, updateQuantity, removeItem, confirmOrder } = useCart();
-  const { order, placeOrder } = useOrder();
+  const { placeOrder } = useOrder();
   const { split } = useSplit();
 
   // Session validation - checks session status and expiry
@@ -186,10 +186,10 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F8F8]">
+    <div className="min-h-screen bg-[#F7F8F8] overflow-x-hidden">
       {/* Header */}
       <Header
-        showTimer={!!order?.timerExpiresAt}
+        showTimer={false}
         showCart={true}
         showFilters={false}
         onRightIconClick={() => router.push("/menu")}
@@ -298,12 +298,12 @@ export default function CartPage() {
             </div>
             {/* Preparation Time counter */}
             <div className="relative flex items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors py-6">
-              <span className="text-xl w-[6%]">👩‍🍳</span>
-              <span className="border-b-2 border-dotted border-[#25A75C] w-[74%] h-[8px]" />
-              <span className="text-sm w-auto text-right text-[#25A75C] font-bold">
+              <span className="text-xl flex-shrink-0">👩‍🍳</span>
+              <span className="border-b-2 border-dotted border-[#25A75C] flex-1 h-[8px]" />
+              <span className="text-sm flex-shrink-0 text-right text-[#25A75C] font-bold whitespace-nowrap">
                 {isClient && totalPreparationTime > 0
-                  ? ` ${totalPreparationTime}mins`
-                  : " --"}
+                  ? `${totalPreparationTime}mins`
+                  : "--"}
               </span>
             </div>
 
@@ -317,11 +317,11 @@ export default function CartPage() {
 
       {/* Place Order Button */}
       {cart.items.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-20 border-t rounded-t-xl overflow-hidden flex justify-center">
+        <div className="fixed bottom-0 left-0 right-0 z-20 border-t rounded-t-xl overflow-hidden flex justify-center px-2 sm:px-0">
           <button
             onClick={() => handlePlaceOrder()}
             disabled={isConfirming}
-            className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-4 sm:px-6 gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
               fontFamily: "Helvetica Neue, sans-serif",
               fontWeight: 500,
@@ -329,13 +329,13 @@ export default function CartPage() {
               lineHeight: "1.22",
             }}
           >
-            <span className="pl-8">
+            <span className="flex-shrink-0">
               {isConfirming ? "Placing order..." : "Place order"}
             </span>
-            <span className="flex px-4 text-center">
-              ${" "}{isClient ? userAmount.toFixed(2) : "0.00"}
+            <span className="flex-shrink-0 text-center min-w-[80px]">
+              $ {isClient ? userAmount.toFixed(2) : "0.00"}
             </span>
-            <div className="flex-1 h-6 justify-items-end pr-8">
+            <div className="flex-shrink-0 flex items-center justify-end w-[25px]">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="25"

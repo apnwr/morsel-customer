@@ -373,7 +373,7 @@ export function ParticipantsList() {
         </div>
 
         {/* Participants Row */}
-        <div className="flex items-start gap-5 overflow-x-auto pb-2 -mx-5 px-5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="flex items-start gap-5 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {participants.length > 0 ? (
             <>
               {participants.map((participant) => {

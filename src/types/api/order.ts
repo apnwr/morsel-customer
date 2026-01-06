@@ -66,6 +66,20 @@ export interface QueueConfirmRequest {
 }
 
 /**
+ * Order Item Addon with Selected Options
+ * Represents selected options within an addon group in a confirmed order
+ */
+export interface OrderItemAddonWithDetails {
+  addonIndex: number;
+  addonName: string;
+  selectedOptions: Array<{
+    name: string;
+    price: number;
+  }>;
+  optionsTotalPrice: number;
+}
+
+/**
  * Order Item
  * Represents an item in a confirmed order
  */
@@ -73,8 +87,13 @@ export interface OrderItem {
   itemId: string;
   name: string;
   quantity: number;
+  variantIndex: number;
+  variantName: string;
+  variantPrice: number;
+  addOns: OrderItemAddonWithDetails[];
+  addonsTotalPrice: number;
   unitPrice: number;
-  totalPrice: number;
+  itemTotal: number;
 }
 
 /**

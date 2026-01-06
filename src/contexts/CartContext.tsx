@@ -7,7 +7,7 @@ import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { sanitizeQuantity } from '@/lib/validation';
 import { useSession } from '@/contexts/SessionContext';
 import { orderService } from '@/services/order.service';
-import type { QueueItem } from '@/types/api/order';
+import type { QueueItem, OrderItemAddon } from '@/types/api/order';
 
 const STORAGE_KEY = 'morsel_cart';
 const TAX_RATE = 0.1; // 10% tax
@@ -103,29 +103,72 @@ export function CartProvider({ children }: { children: ReactNode }) {
     console.log('[CartContext] ✅ Session available:', sessionData.session.id);
 
     try {
-      // Convert cart items to queue items format
-      // Group by menu item ID and sum quantities
-      const queueItemsMap = new Map<string, number>();
+      // Convert cart items to queue items format with variants and addons
+      // Each cart item becomes a separate queue item (no grouping by itemId)
+      const queueItems: QueueItem[] = cartItems.map((cartItem) => {
+        // Extract variant index from customizations
+        let variantIndex = 0;
+        const variantCustomization = cartItem.customizations.find(
+          (c) => c.optionId === 'variant'
+        );
+        if (variantCustomization) {
+          const match = variantCustomization.choiceId.match(/variant-(\d+)/);
+          if (match) {
+            variantIndex = parseInt(match[1], 10);
+          }
+        }
 
-      cartItems.forEach((cartItem) => {
-        const itemId = cartItem.menuItem.id;
-        const currentQuantity = queueItemsMap.get(itemId) || 0;
-        queueItemsMap.set(itemId, currentQuantity + cartItem.quantity);
-        console.log('[CartContext] Adding to queue:', {
-          itemId,
+        // Group addons by addon index and collect selected options
+        const addonsMap = new Map<number, Set<number>>();
+
+        cartItem.customizations.forEach((customization) => {
+          // Skip variant customizations
+          if (customization.optionId === 'variant') {
+            return;
+          }
+
+          // Parse addon group index from optionId (e.g., "addon-group-0" -> 0)
+          const groupMatch = customization.optionId.match(/addon-group-(\d+)/);
+          if (groupMatch) {
+            const addonIndex = parseInt(groupMatch[1], 10);
+
+            // Parse option index from choiceId (e.g., "addon-0-2" -> 2)
+            const optionMatch = customization.choiceId.match(/addon-\d+-(\d+)/);
+            if (optionMatch) {
+              const optionIndex = parseInt(optionMatch[1], 10);
+
+              // Add to map
+              if (!addonsMap.has(addonIndex)) {
+                addonsMap.set(addonIndex, new Set());
+              }
+              addonsMap.get(addonIndex)!.add(optionIndex);
+            }
+          }
+        });
+
+        // Convert map to array format, sorted by addon index
+        const addOns: OrderItemAddon[] = Array.from(addonsMap.entries())
+          .sort(([a], [b]) => a - b)
+          .map(([addonIndex, optionsSet]) => ({
+            addonIndex,
+            selectedOptions: Array.from(optionsSet).sort((a, b) => a - b),
+          }));
+
+        console.log('[CartContext] 📦 Adding to queue:', {
+          itemId: cartItem.menuItem.id,
           name: cartItem.menuItem.name,
           quantity: cartItem.quantity,
-          totalQuantity: currentQuantity + cartItem.quantity
+          variantIndex,
+          addOns: addOns.length > 0 ? addOns : []
         });
-      });
 
-      // Convert map to array of QueueItems
-      const queueItems: QueueItem[] = Array.from(queueItemsMap.entries()).map(
-        ([itemId, quantity]) => ({
-          itemId,
-          quantity,
-        })
-      );
+        return {
+          itemId: cartItem.menuItem.id,
+          quantity: cartItem.quantity,
+          variantIndex,
+          addOns,
+        };
+      });
 
       // Generate or retrieve sessionUserId (unique per user/device)
       let sessionUserId = getFromStorage<string>('morsel_session_user_id');
@@ -137,18 +180,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
         console.log('[CartContext] Using existing sessionUserId:', sessionUserId.substring(0, 8) + '...');
       }
 
-      console.log('[CartContext] 📤 Calling updateQueue API with payload:', {
-        sessionId: sessionData.session.id,
-        sessionUserId: sessionUserId.substring(0, 8) + '...',
-        itemsCount: queueItems.length,
-        items: queueItems
-      });
-
-      // Sync with API
-      const response = await orderService.updateQueue(sessionData.session.id, {
+      // Log the complete payload structure
+      const payload = {
         sessionUserId,
         items: queueItems,
+      };
+
+      console.log('[CartContext] 📤 Queue API Payload Structure:', {
+        sessionId: sessionData.session.id,
+        itemsCount: queueItems.length,
       });
+
+      console.log('[CartContext] 📋 Full Payload (matching API documentation):',
+        JSON.stringify(payload, null, 2)
+      );
+
+      // Sync with API
+      const response = await orderService.updateQueue(sessionData.session.id, payload);
 
       console.log('[CartContext] ✅ Queue synced successfully:', response);
     } catch (error) {

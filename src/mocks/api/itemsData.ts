@@ -30,10 +30,11 @@ export const HARDCODED_ITEMS_DATA: ItemsResponse = {
       ],
       addons: [
         {
-          add_on_title: 'Flavors',
-          min_selection: 0,
-          max_selection: 2,
-          add_on_options: [
+          id: '1',
+          name: 'Flavors',
+          minOptions: 0,
+          maxOptions: 2,
+          options: [
             {
               name: 'Irish flavour',
               price: 2,
@@ -148,10 +149,11 @@ export const HARDCODED_ITEMS_DATA: ItemsResponse = {
       ],
       addons: [
         {
-          add_on_title: 'Toppings',
-          min_selection: 0,
-          max_selection: 3,
-          add_on_options: [
+          id: '2',
+          name: 'Toppings',
+          minOptions: 0,
+          maxOptions: 3,
+          options: [
             {
               name: 'Avocado',
               price: 2,
@@ -188,10 +190,11 @@ export const HARDCODED_ITEMS_DATA: ItemsResponse = {
       },
       addons: [
         {
-          add_on_title: 'Extras',
-          min_selection: 1,
-          max_selection: 2,
-          add_on_options: [
+          id: '3',
+          name: 'Extras',
+          minOptions: 1,
+          maxOptions: 2,
+          options: [
             {
               name: 'Avocado',
               price: 2,

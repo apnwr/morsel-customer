@@ -352,12 +352,12 @@ export default function MenuPage() {
         ...(apiItem.addons.length > 0
           ? apiItem.addons.map((addonGroup, groupIdx) => ({
               id: `addon-group-${groupIdx}`,
-              name: addonGroup.add_on_title,
-              type: addonGroup.max_selection === 1 ? ("radio" as const) : ("checkbox" as const),
-              required: addonGroup.min_selection > 0,
-              minSelection: addonGroup.min_selection,
-              maxSelection: addonGroup.max_selection,
-              choices: addonGroup.add_on_options.map((option, optIdx) => ({
+              name: addonGroup.name,
+              type: addonGroup.maxOptions === 1 ? ("radio" as const) : ("checkbox" as const),
+              required: addonGroup.minOptions > 0,
+              minSelection: addonGroup.minOptions,
+              maxSelection: addonGroup.maxOptions,
+              choices: addonGroup.options.map((option, optIdx) => ({
                 id: `addon-${groupIdx}-${optIdx}`,
                 label: option.name,
                 priceModifier: option.price ?? 0, // Default to 0 if undefined
