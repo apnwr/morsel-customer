@@ -13,8 +13,8 @@ type DiningType = 'dine-in' | 'takeaway' | 'delivery';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { context } = useRestaurant();
-  const { sessionData, setSessionData } = useSession();
+  const { context, setContext } = useRestaurant();
+  const { previewSession, setSessionData } = useSession();
   const [customerName, setCustomerName] = useState('');
   const [diningType, setDiningType] = useState<DiningType>('dine-in');
   const [error, setError] = useState('');
@@ -36,54 +36,105 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // Store customer information in localStorage
+      console.log('[LoginPage] 🚀 Starting session join process...');
+
+      // Validate we have preview session from QR scan
+      if (!previewSession?.space?.id) {
+        throw new Error('No session preview available. Please scan the QR code again.');
+      }
+
+      console.log('[LoginPage] 📡 Calling /ordering-session/start API...');
+      console.log('[LoginPage] Request:', {
+        spaceId: previewSession.space.id,
+        guestName: sanitizedName,
+        existingSession: previewSession.session ? 'Will JOIN existing' : 'Will CREATE new',
+      });
+
+      // Call /start endpoint - this is smart and will:
+      // 1. Join existing active session for this space (if exists)
+      // 2. OR create a NEW session if no active session exists
+      // This is perfect for restaurant use case:
+      //    - First customer at table → Creates session
+      //    - Additional customers → Join existing session
+      const sessionResponse = await sessionService.startSession({
+        spaceId: previewSession.space.id,
+        guestName: sanitizedName,
+      });
+
+      console.log('[LoginPage] ✅ Session API response:', {
+        sessionId: sessionResponse.data.id,
+        status: sessionResponse.data.status,
+        participantsCount: sessionResponse.data.participants.length,
+      });
+
+      // Extract sessionUserId from the participant entry
+      const currentUser = sessionResponse.data.participants.find(
+        (p) => p.guestName === sanitizedName
+      );
+
+      if (!currentUser) {
+        throw new Error('Failed to join session - participant not found in response');
+      }
+
+      console.log('[LoginPage] ✅ Found current user in participants:', {
+        sessionUserId: currentUser.sessionUserId,
+        guestName: currentUser.guestName,
+      });
+
+      // ✅ NOW save everything to localStorage (user is confirmed participant)
+      console.log('[LoginPage] 💾 Saving session data to localStorage...');
+
+      // Store customer information
       setInStorage('morsel_customer_name', sanitizedName);
       setInStorage('morsel_dining_type', diningType);
       setInStorage('morsel_auth_method', authMethod);
 
-      // Start ordering session if we have sessionData
-      if (sessionData?.space?.id) {
-        const sessionResponse = await sessionService.startSession({
-          spaceId: sessionData.space.id,
-          guestName: sanitizedName,
-        });
+      // Store the API-provided sessionUserId (CRITICAL for cart sync)
+      setInStorage('morsel_session_user_id', currentUser.sessionUserId);
 
-        // ✅ Extract and store the sessionUserId from API response
-        const currentUser = sessionResponse.data.participants.find(
-          (p) => p.guestName === sanitizedName
-        );
+      // Update active session in context (this also saves to localStorage)
+      setSessionData({
+        ...previewSession,
+        session: sessionResponse.data,
+        participantsCount: sessionResponse.data.participants.length,
+      });
 
-        if (currentUser) {
-          // Store the API-provided sessionUserId
-          setInStorage('morsel_session_user_id', currentUser.sessionUserId);
-          console.log('Stored sessionUserId:', currentUser.sessionUserId);
-        } else {
-          console.warn('Current user not found in participants');
-        }
+      // Set restaurant context from API data (replaces mock data)
+      console.log('[LoginPage] 🏪 Setting restaurant context from API data');
+      setContext({
+        restaurant: {
+          id: previewSession.business.id,
+          name: previewSession.business.businessName,
+          themeColor: '#E68E2E', // Default theme color (API doesn't provide this yet)
+          logo: '', // API doesn't provide logo yet
+          branches: [{
+            id: previewSession.space.id,
+            name: previewSession.space.name,
+            tables: 50, // Default, not critical for functionality
+          }],
+        },
+        branch: {
+          id: previewSession.space.id,
+          name: previewSession.space.name,
+          tables: 50,
+        },
+        table: 1, // Not critical since we use space.name for display
+      });
 
-        // Update session data with active session
-        setSessionData({
-          ...sessionData,
-          session: sessionResponse.data,
-        });
-
-        console.log('Session started:', sessionResponse.data.id);
-      } else {
-        console.warn('No space data available, skipping session start');
-      }
+      console.log('[LoginPage] ✅ Session joined successfully!');
+      console.log('[LoginPage] 🎉 User is now a participant in session:', sessionResponse.data.id);
 
       // Navigate to menu page
       router.push('/menu');
     } catch (error) {
-      console.error('Failed to start session:', error);
-      // Don't block user - continue to menu even if session start fails
-      // The app will work offline, queue sync will be skipped
-      setError('Could not start session. Continuing in offline mode.');
+      console.error('[LoginPage] ❌ Failed to join session:', error);
 
-      // Still navigate after showing error briefly
-      setTimeout(() => {
-        router.push('/menu');
-      }, 1500);
+      // Show error to user - do NOT continue without valid session
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'Could not join the ordering session. Please try again.'
+      );
     } finally {
       setIsStarting(false);
     }
@@ -95,16 +146,16 @@ export default function LoginPage() {
       <div className="flex justify-center mb-8 mt-8">
         <div
           className=" h-32 rounded-2xl shadow-sm flex items-center justify-center text-2xl font-bold text-white px-4 text-center"
-          style={{ backgroundColor: context.restaurant.themeColor }}
+          style={{ backgroundColor: context?.restaurant.themeColor || '#E68E2E' }}
         >
-          {sessionData?.business.businessName || context.restaurant.name}
+          {previewSession?.business.businessName || context?.restaurant.name || 'morsel'}
         </div>
       </div>
 
       {/* Table Number and Name Input */}
       <div className="mb-6">
         <div className="text-sm font-semibold mb-2 text-gray-700">
-          {sessionData?.space.name || `Table ${context.table}`}
+          {previewSession?.space.name || (context?.table ? `Table ${context.table}` : 'Welcome')}
         </div>
         <input
           type="text"

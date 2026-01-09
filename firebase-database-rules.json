@@ -1,0 +1,33 @@
+{
+  "rules": {
+    "sessions": {
+      "$sessionId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".indexOn": ["status", "lastUpdated"],
+
+        "participants": {
+          ".indexOn": ["joinedAt"]
+        },
+
+        "orderQueue": {
+          "$sessionUserId": {
+            ".validate": "newData.hasChildren(['items', 'updatedAt'])"
+          }
+        },
+
+        "status": {
+          ".validate": "newData.isString() && (newData.val() === 'active' || newData.val() === 'inactive' || newData.val() === 'completed')"
+        },
+
+        "expiresAt": {
+          ".validate": "newData.isNumber()"
+        },
+
+        "lastUpdated": {
+          ".validate": "newData.isNumber()"
+        }
+      }
+    }
+  }
+}

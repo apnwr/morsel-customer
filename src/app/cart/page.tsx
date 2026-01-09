@@ -72,14 +72,17 @@ export default function CartPage() {
 
         if (result.success && result.orderId) {
           // Also update the old OrderContext for backward compatibility
-          // Get customer name and dining type from localStorage
-          const customerName =
-            getFromStorage<string>("morsel_customer_name") || "Guest";
-          const diningType =
-            getFromStorage<"dine-in" | "takeaway" | "delivery">(
-              "morsel_dining_type"
-            ) || "dine-in";
-          placeOrder(restaurantContext, customerName, diningType, cart, split);
+          // Only if restaurant context is available
+          if (restaurantContext) {
+            // Get customer name and dining type from localStorage
+            const customerName =
+              getFromStorage<string>("morsel_customer_name") || "Guest";
+            const diningType =
+              getFromStorage<"dine-in" | "takeaway" | "delivery">(
+                "morsel_dining_type"
+              ) || "dine-in";
+            placeOrder(restaurantContext, customerName, diningType, cart, split);
+          }
 
           // Navigate to order status page
           const orderStatusUrl = `/order-status/${result.orderId}`;

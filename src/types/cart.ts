@@ -15,6 +15,7 @@ export interface CartItem {
   customizations: Customization[];
   notes?: string;
   itemTotal: number;
+  sessionUserId?: string; // Track which participant added this item (for shared cart)
 }
 
 export interface Cart {

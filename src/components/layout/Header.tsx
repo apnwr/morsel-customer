@@ -43,11 +43,11 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
       return 'XX';
     }
     // Fallback to context table or default
-    return context.table?.toString() || '15';
+    return context?.table?.toString() || '15';
   };
 
   const tableNumber = getTableNumber();
-  const participantCount = (sessionData?.participantsCount ?? 0) + 1;
+  const participantCount = sessionData?.participantsCount ?? 0;
 
   // Update timer every second
   useEffect(() => {

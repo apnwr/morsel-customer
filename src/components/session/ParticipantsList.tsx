@@ -8,10 +8,11 @@ import { useSplit } from '@/contexts/SplitContext';
 import { useSession } from '@/contexts/SessionContext';
 import { useCart } from '@/contexts/CartContext';
 import { sessionService } from '@/services/session.service';
-import type { SessionDetail } from '@/types/api/session';
+import type { SessionDetail, SessionParticipant } from '@/types/api/session';
 import { SplitSettingsModal } from '@/components/order/SplitSettingsModal';
 import { getFromStorage } from '@/mocks/mockStorage';
 import type { Participant } from '@/types/cart';
+import { subscribeToParticipants, isFirebaseAvailable } from '@/lib/firebase';
 
 // Cache for session data to avoid unnecessary API calls
 let sessionCache: {
@@ -25,7 +26,7 @@ let sessionCache: {
 };
 
 const CACHE_DURATION = 30000; // 30 seconds
-const REFRESH_INTERVAL = 10000; // Refresh every 10 seconds to catch new participants
+const REFRESH_INTERVAL = 10000; // Refresh every 10 seconds (fallback when Firebase unavailable)
 
 export function ParticipantsList() {
   const { split, calculateSplit, addParticipant, removeParticipant } = useSplit();
@@ -37,6 +38,8 @@ export function ParticipantsList() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasSyncedRef = useRef(false);
+  const firebaseUnsubscribeRef = useRef<(() => void) | null>(null);
+  const isUsingFirebaseRef = useRef<boolean>(false);
 
   const sessionId = sessionData?.session?.id;
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
@@ -188,32 +191,95 @@ export function ParticipantsList() {
     [sessionId, syncParticipantsWithSplit]
   );
 
-  // Fetch on mount and when sessionId changes
+  // Hybrid Firebase + Polling sync for participants
+  // Uses Firebase Realtime DB if available, falls back to polling
   useEffect(() => {
-    fetchSessionDetails();
-  }, [fetchSessionDetails]);
+    // Cleanup function
+    const cleanup = () => {
+      // Unsubscribe from Firebase
+      if (firebaseUnsubscribeRef.current) {
+        console.log('[ParticipantsList] 🔌 Cleaning up Firebase listener');
+        firebaseUnsubscribeRef.current();
+        firebaseUnsubscribeRef.current = null;
+      }
+      // Clear polling interval
+      if (refreshIntervalRef.current) {
+        console.log('[ParticipantsList] ⏰ Clearing polling interval');
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      isUsingFirebaseRef.current = false;
+    };
 
-  // Set up periodic refresh to catch new participants
-  useEffect(() => {
-    if (!sessionId) return;
-
-    // Clear any existing interval
-    if (refreshIntervalRef.current) {
-      clearInterval(refreshIntervalRef.current);
+    // Early exit if no session
+    if (!sessionId) {
+      cleanup();
+      return;
     }
 
-    // Set up refresh interval
-    refreshIntervalRef.current = setInterval(() => {
-      fetchSessionDetails(true); // Force refresh to get new participants
-    }, REFRESH_INTERVAL);
+    console.log('[ParticipantsList] ✅ Valid session, setting up sync');
 
-    // Cleanup on unmount
-    return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
+    // Try Firebase first
+    if (isFirebaseAvailable()) {
+      console.log('[ParticipantsList] 🔥 Firebase available - setting up realtime listener');
+
+      const unsubscribe = subscribeToParticipants(
+        sessionId,
+        (participants: SessionParticipant[]) => {
+          console.log('[ParticipantsList] 🔥 Firebase update received:', participants.length, 'participants');
+
+          // Update session detail with new participants
+          setSessionDetail(prev => prev ? { ...prev, participants } : null);
+
+          // Sync participants with split
+          if (participants && participants.length > 0) {
+            syncParticipantsWithSplit(participants);
+            hasSyncedRef.current = true;
+          }
+        },
+        (error) => {
+          console.error('[ParticipantsList] 🔥❌ Firebase error, falling back to polling:', error);
+          // Firebase failed, fall back to polling
+          if (!refreshIntervalRef.current) {
+            setupPolling();
+          }
+        }
+      );
+
+      if (unsubscribe) {
+        firebaseUnsubscribeRef.current = unsubscribe;
+        isUsingFirebaseRef.current = true;
+        console.log('[ParticipantsList] ✅ Firebase listener active');
+        // Do initial fetch via API to get data immediately
+        fetchSessionDetails();
+      } else {
+        // Firebase subscription failed, use polling
+        console.log('[ParticipantsList] ⚠️ Firebase subscription failed, using polling');
+        setupPolling();
       }
-    };
-  }, [sessionId, fetchSessionDetails]);
+    } else {
+      // Firebase not available, use polling
+      console.log('[ParticipantsList] ℹ️ Firebase not available, using polling fallback');
+      setupPolling();
+    }
+
+    // Helper function to set up polling
+    function setupPolling() {
+      // Initial fetch
+      fetchSessionDetails();
+
+      // Set up interval
+      refreshIntervalRef.current = setInterval(() => {
+        console.log('[ParticipantsList] ⏰ Polling sync triggered');
+        fetchSessionDetails(true);
+      }, REFRESH_INTERVAL);
+
+      console.log('[ParticipantsList] ⏰ Polling active (every', REFRESH_INTERVAL / 1000, 'seconds)');
+    }
+
+    // Cleanup on unmount or session change
+    return cleanup;
+  }, [sessionId, fetchSessionDetails, syncParticipantsWithSplit]);
 
   // Refresh on window focus to catch new participants
   useEffect(() => {

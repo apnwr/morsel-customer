@@ -5,14 +5,22 @@ import type { OrderingSessionData, Timestamp } from '@/types/api/session';
 import { sessionService } from '@/services/session.service';
 
 const STORAGE_KEY = 'morsel_session_data';
+const STORAGE_KEY_USER_ID = 'morsel_session_user_id';
 
 interface SessionState {
+  // Preview session - ephemeral, not persisted (for QR scan preview before login)
+  previewSession: OrderingSessionData | null;
+  setPreviewSession: (data: OrderingSessionData | null) => void;
+
+  // Active session - persistent, only set after user joins (after login)
   sessionData: OrderingSessionData | null;
   setSessionData: (data: OrderingSessionData) => void;
   clearSession: () => void;
+
   isLoading: boolean;
   isSessionActive: () => boolean;
   isSessionExpired: () => boolean;
+  isUserParticipant: () => boolean;
   validateSession: () => { isValid: boolean; reason?: string };
   refreshSessionData: () => Promise<void>;
   endSession: (reason?: 'completed' | 'timeout' | 'left' | 'cancelled') => Promise<void>;
@@ -21,39 +29,77 @@ interface SessionState {
 const SessionContext = createContext<SessionState | undefined>(undefined);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  // Preview session: ephemeral state for QR scan preview (before login)
+  const [previewSession, setPreviewSessionState] = useState<OrderingSessionData | null>(null);
+
+  // Active session: persistent state for joined session (after login)
   const [sessionData, setSessionDataState] = useState<OrderingSessionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount and clean stale data
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
+      const storedUserId = localStorage.getItem(STORAGE_KEY_USER_ID);
+
       if (stored) {
         const parsed = JSON.parse(stored);
-        setSessionDataState(parsed);
+
+        // Check for stale data: session without userId = user scanned but never joined
+        if (!storedUserId) {
+          console.warn('[SessionContext] 🗑️ Clearing stale session data (no sessionUserId found)');
+          console.warn('[SessionContext] This happens when user scanned QR but never logged in');
+          localStorage.removeItem(STORAGE_KEY);
+          setSessionDataState(null);
+        } else {
+          // Valid session with userId - load it
+          console.log('[SessionContext] ✅ Loading saved session from localStorage');
+          setSessionDataState(parsed);
+        }
       }
     } catch (error) {
-      console.error('Error loading session data:', error);
+      console.error('[SessionContext] Error loading session data:', error);
+      // Clear corrupted data
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY_USER_ID);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const setSessionData = (data: OrderingSessionData) => {
+  // Set preview session (ephemeral, NOT persisted to localStorage)
+  const setPreviewSession = useCallback((data: OrderingSessionData | null) => {
+    console.log('[SessionContext] 👁️ Setting preview session (ephemeral, not saved)');
+    setPreviewSessionState(data);
+  }, []);
+
+  // Set active session (persistent, saved to localStorage)
+  // Should only be called AFTER user successfully joins as participant
+  const setSessionData = useCallback((data: OrderingSessionData) => {
     try {
+      console.log('[SessionContext] ✅ Setting active session (saving to localStorage)');
       setSessionDataState(data);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (error) {
-      console.error('Error saving session data:', error);
+      console.error('[SessionContext] Error saving session data:', error);
     }
-  };
+  }, []);
 
   const clearSession = useCallback(() => {
     try {
+      console.log('[SessionContext] 🗑️ Clearing session data');
       setSessionDataState(null);
+      setPreviewSessionState(null);
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY_USER_ID);
+      localStorage.removeItem('morsel_customer_name');
+      localStorage.removeItem('morsel_dining_type');
+      localStorage.removeItem('morsel_auth_method');
+      // Also clear restaurant context since it's tied to the session
+      localStorage.removeItem('morsel_restaurant_context');
+      console.log('[SessionContext] 🗑️ Cleared restaurant context (must scan QR again)');
     } catch (error) {
-      console.error('Error clearing session data:', error);
+      console.error('[SessionContext] Error clearing session data:', error);
     }
   }, []);
 
@@ -91,6 +137,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const now = Date.now();
     return now > expiresAtMs;
   }, [sessionData, timestampToMs]);
+
+  // Check if current user is actually a participant in the session
+  const isUserParticipant = useCallback((): boolean => {
+    if (!sessionData?.session?.participants) return false;
+
+    const sessionUserId = localStorage.getItem(STORAGE_KEY_USER_ID);
+    if (!sessionUserId) return false;
+
+    return sessionData.session.participants.some(
+      (p) => p.sessionUserId === sessionUserId
+    );
+  }, [sessionData]);
 
   // Validate session: combines status and expiry checks
   const validateSession = useCallback((): { isValid: boolean; reason?: string } => {
@@ -193,16 +251,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [sessionData, clearSession]);
 
   const value: SessionState = useMemo(() => ({
+    previewSession,
+    setPreviewSession,
     sessionData,
     setSessionData,
     clearSession,
     isLoading,
     isSessionActive,
     isSessionExpired,
+    isUserParticipant,
     validateSession,
     refreshSessionData,
     endSession,
-  }), [sessionData, setSessionData, clearSession, isLoading, isSessionActive, isSessionExpired, validateSession, refreshSessionData, endSession]);
+  }), [previewSession, setPreviewSession, sessionData, setSessionData, clearSession, isLoading, isSessionActive, isSessionExpired, isUserParticipant, validateSession, refreshSessionData, endSession]);
 
   return (
     <SessionContext.Provider value={value}>

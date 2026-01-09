@@ -9,7 +9,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 export default function SpacePage() {
   const params = useParams();
   const router = useRouter();
-  const { setSessionData } = useSession();
+  const { setPreviewSession } = useSession();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,16 +22,52 @@ export default function SpacePage() {
           return;
         }
 
-        // Fetch ordering session data
+        console.log('[SpacePage] 📡 Fetching session for spaceId:', spaceId);
+
+        // Fetch ordering session data (preview only, not persisted yet)
         const response = await sessionService.getSessionBySpaceId(spaceId);
 
-        // Store session data in context
-        setSessionData(response.data);
+        console.log('[SpacePage] ✅ Space/Session info fetched:', {
+          businessName: response.data.business?.businessName,
+          spaceName: response.data.space?.name,
+          hasActiveSession: !!response.data.session,
+          sessionStatus: response.data.session?.status || 'No session yet',
+          participantsCount: response.data.participantsCount || 0,
+        });
+
+        // Validate space and business (NOT session - session can be created later!)
+        if (!response.data.space) {
+          setError('Invalid space. Please check the QR code.');
+          return;
+        }
+
+        if (!response.data.business) {
+          setError('Business information not found. Please contact the restaurant staff.');
+          return;
+        }
+
+        // Check if there's an existing session and it's not active
+        // (Only block if session exists but is closed/ended)
+        if (response.data.session && response.data.session.status !== 'active') {
+          setError(`The ordering session for this table is ${response.data.session.status}. Please contact the restaurant staff or scan again.`);
+          return;
+        }
+
+        // Store as PREVIEW session only (ephemeral, not saved to localStorage)
+        // If no session exists yet, that's OK - user will create one when they login!
+        // If session exists and is active, user will join it when they login!
+        console.log('[SpacePage] 👁️ Setting preview session (NOT saved to localStorage yet)');
+        if (response.data.session) {
+          console.log('[SpacePage] ℹ️ Active session exists - user will JOIN it');
+        } else {
+          console.log('[SpacePage] ℹ️ No active session - user will CREATE one');
+        }
+        setPreviewSession(response.data);
 
         // Redirect to login page
         router.push('/login');
       } catch (err) {
-        console.error('Error fetching session data:', err);
+        console.error('[SpacePage] ❌ Error fetching session data:', err);
         setError(
           err instanceof Error
             ? err.message
@@ -41,7 +77,7 @@ export default function SpacePage() {
     };
 
     fetchSessionData();
-  }, [params.spaceId, router, setSessionData]);
+  }, [params.spaceId, router, setPreviewSession]);
 
   if (error) {
     return (

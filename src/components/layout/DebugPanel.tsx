@@ -35,11 +35,12 @@ export default function DebugPanel() {
     return isDevelopment || isEnabled;
   })();
 
-  if (!isVisible) {
+  if (!isVisible || !context) {
     return null;
   }
 
   const handleSwitchRestaurant = () => {
+    if (!context) return;
     const currentIndex = restaurants.findIndex((r) => r.id === context.restaurant.id);
     const nextIndex = (currentIndex + 1) % restaurants.length;
     const nextRestaurant = restaurants[nextIndex];
@@ -47,6 +48,7 @@ export default function DebugPanel() {
   };
 
   const handleSwitchBranch = () => {
+    if (!context) return;
     const currentIndex = context.restaurant.branches.findIndex(
       (b) => b.id === context.branch.id
     );
@@ -56,11 +58,13 @@ export default function DebugPanel() {
   };
 
   const handleChangeTable = () => {
+    if (!context) return;
     const randomTable = Math.floor(Math.random() * context.branch.tables) + 1;
     changeTable(randomTable);
   };
 
   const handleAddRandomItem = () => {
+    if (!context) return;
     const menu = getMenuForRestaurant(context.restaurant.id);
     if (menu.items.length > 0) {
       const randomIndex = Math.floor(Math.random() * menu.items.length);

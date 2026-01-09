@@ -384,9 +384,9 @@ export default function MenuPage() {
           })),
       };
     }
-    // Fallback to mock data
-    return getMenuForRestaurant(context.restaurant.id);
-  }, [useApiData, apiMenus, context.restaurant.id]);
+    // Fallback to mock data (context should always exist due to navigation guard)
+    return context ? getMenuForRestaurant(context.restaurant.id) : { categories: [] };
+  }, [useApiData, apiMenus, context]);
 
   // Group sections by menu for navigation popup
   const menusWithSections = React.useMemo(() => {

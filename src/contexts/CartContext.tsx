@@ -9,11 +9,12 @@ import { useSession } from '@/contexts/SessionContext';
 import { orderService } from '@/services/order.service';
 import { sessionService } from '@/services/session.service';
 import type { QueueItem, OrderItemAddon } from '@/types/api/order';
-import type { SessionQueueItem } from '@/types/api/session';
+import type { SessionQueueItem, SessionOrderQueue } from '@/types/api/session';
+import { subscribeToOrderQueue, isFirebaseAvailable } from '@/lib/firebase';
 
 const STORAGE_KEY = 'morsel_cart';
 const TAX_RATE = 0.1; // 10% tax
-const QUEUE_SYNC_INTERVAL = 15000; // Sync queue every 15 seconds
+const QUEUE_SYNC_INTERVAL = 15000; // Sync queue every 15 seconds (fallback)
 
 interface CartState {
   cart: Cart;
@@ -89,6 +90,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return getEmptyCart();
   });
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const firebaseUnsubscribeRef = useRef<(() => void) | null>(null);
+  const isUsingFirebaseRef = useRef<boolean>(false);
 
   /**
    * Sync Queue with API
@@ -221,46 +224,136 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setInStorage(STORAGE_KEY, cart);
   }, [cart]);
 
-  // Sync cart from queue when session becomes available or changes
+  // Hybrid Firebase + Polling sync for cart
+  // Uses Firebase Realtime DB if available, falls back to polling
   useEffect(() => {
-    // Only sync if we have an active session
-    if (sessionData?.session?.id) {
-      console.log('[CartContext] 🔄 Session detected, triggering cart sync from queue');
-      syncCartFromQueue();
-    }
-  }, [sessionData?.session?.id]); // Trigger when session ID changes
-
-  // Set up periodic queue sync for real-time updates
-  useEffect(() => {
-    if (!sessionData?.session?.id) {
-      // Clear any existing interval if session ends
+    // Cleanup function
+    const cleanup = () => {
+      // Unsubscribe from Firebase
+      if (firebaseUnsubscribeRef.current) {
+        console.log('[CartContext] 🔌 Cleaning up Firebase listener');
+        firebaseUnsubscribeRef.current();
+        firebaseUnsubscribeRef.current = null;
+      }
+      // Clear polling interval
       if (syncIntervalRef.current) {
+        console.log('[CartContext] ⏰ Clearing polling interval');
         clearInterval(syncIntervalRef.current);
         syncIntervalRef.current = null;
       }
+      isUsingFirebaseRef.current = false;
+    };
+
+    // Early exit if no session
+    if (!sessionData?.session?.id) {
+      cleanup();
       return;
     }
 
-    // Clear any existing interval
-    if (syncIntervalRef.current) {
-      clearInterval(syncIntervalRef.current);
+    // Validate session
+    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+    if (!currentSessionUserId) {
+      console.log('[CartContext] ⏭️ Skipping sync - user has not joined session yet');
+      cleanup();
+      return;
     }
 
-    // Set up periodic sync
-    console.log('[CartContext] ⏰ Setting up periodic queue sync every', QUEUE_SYNC_INTERVAL / 1000, 'seconds');
-    syncIntervalRef.current = setInterval(() => {
-      console.log('[CartContext] ⏰ Periodic queue sync triggered');
-      syncCartFromQueue();
-    }, QUEUE_SYNC_INTERVAL);
+    if (sessionData.session.status !== 'active') {
+      console.log('[CartContext] ⏭️ Skipping sync - session not active');
+      cleanup();
+      return;
+    }
 
-    // Cleanup on unmount or when session changes
-    return () => {
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
-        syncIntervalRef.current = null;
+    const isParticipant = sessionData.session.participants?.some(
+      p => p.sessionUserId === currentSessionUserId
+    );
+    if (!isParticipant) {
+      console.log('[CartContext] ⏭️ Skipping sync - user is not a participant');
+      cleanup();
+      return;
+    }
+
+    // Valid session - set up sync
+    console.log('[CartContext] ✅ Valid session detected, setting up sync');
+    console.log('[CartContext] 🔍 Session details:', {
+      sessionId: sessionData.session.id.substring(0, 8) + '...',
+      status: sessionData.session.status,
+      participantsCount: sessionData.session.participants?.length || 0
+    });
+
+    // Try Firebase first
+    const firebaseAvailable = isFirebaseAvailable();
+    console.log('[CartContext] 🔍 Firebase availability check result:', firebaseAvailable);
+
+    if (firebaseAvailable) {
+      console.log('[CartContext] 🔥 Firebase available - setting up realtime listener');
+
+      const unsubscribe = subscribeToOrderQueue(
+        sessionData.session.id,
+        (orderQueue) => {
+          console.log('[CartContext] 🔥 Firebase update received, processing data...');
+          isUsingFirebaseRef.current = true; // Mark that we're using Firebase
+          processOrderQueueData(orderQueue);
+        },
+        (error) => {
+          console.error('[CartContext] 🔥❌ Firebase error, falling back to polling:', error);
+          isUsingFirebaseRef.current = false;
+          // Firebase failed, fall back to polling
+          if (!syncIntervalRef.current) {
+            console.log('[CartContext] 🔥❌ Setting up polling fallback due to Firebase error');
+            setupPolling();
+          }
+        }
+      );
+
+      console.log('[CartContext] 🔍 subscribeToOrderQueue returned:', unsubscribe ? 'function' : 'null');
+
+      if (unsubscribe) {
+        firebaseUnsubscribeRef.current = unsubscribe;
+        isUsingFirebaseRef.current = true;
+        console.log('[CartContext] ✅ Firebase listener active - NO POLLING WILL BE USED');
+        // Do initial sync via API to get data immediately
+        syncCartFromQueue();
+      } else {
+        // Firebase subscription failed, use polling
+        console.log('[CartContext] ⚠️ Firebase subscription returned null, using polling');
+        isUsingFirebaseRef.current = false;
+        setupPolling();
       }
-    };
-  }, [sessionData?.session?.id]); // Re-setup interval when session changes
+    } else {
+      // Firebase not available, use polling
+      console.log('[CartContext] ℹ️ Firebase not available, using polling fallback');
+      isUsingFirebaseRef.current = false;
+      setupPolling();
+    }
+
+    // Helper function to set up polling
+    function setupPolling() {
+      console.log('[CartContext] 🔧 setupPolling called - initiating polling fallback');
+
+      // Initial sync
+      syncCartFromQueue();
+
+      // Set up interval
+      syncIntervalRef.current = setInterval(() => {
+        if (sessionData?.session?.status === 'active') {
+          console.log('[CartContext] ⏰ Polling sync triggered (Firebase not active)');
+          console.log('[CartContext] 🔍 Polling state:', {
+            isUsingFirebase: isUsingFirebaseRef.current,
+            hasFirebaseUnsubscribe: !!firebaseUnsubscribeRef.current,
+            hasPollInterval: !!syncIntervalRef.current
+          });
+          syncCartFromQueue();
+        }
+      }, QUEUE_SYNC_INTERVAL);
+
+      console.log('[CartContext] ⏰ Polling active (every', QUEUE_SYNC_INTERVAL / 1000, 'seconds)');
+      console.log('[CartContext] ⚠️ WARNING: Using polling instead of Firebase real-time sync');
+    }
+
+    // Cleanup on unmount or session change
+    return cleanup;
+  }, [sessionData?.session?.id, sessionData?.session?.status]);
 
   const addItem = (menuItem: MenuItem, customizations: Customization[] = [], notes?: string, quantity: number = 1) => {
     const validQuantity = sanitizeQuantity(quantity);
@@ -289,6 +382,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       });
     } else {
       // New item or has customizations - add as new entry
+      const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
       const newCartItem: CartItem = {
         id: generateCartItemId(),
         menuItem,
@@ -296,6 +390,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         customizations,
         notes,
         itemTotal: calculateItemTotal(menuItem, customizations, validQuantity),
+        sessionUserId: currentSessionUserId || undefined, // Tag with current user's ID
       };
       newItems = [...cart.items, newCartItem];
     }
@@ -314,6 +409,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const removeItem = (cartItemId: string) => {
+    // Check if user has permission to remove this item
+    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+    const itemToRemove = cart.items.find((item) => item.id === cartItemId);
+
+    if (itemToRemove?.sessionUserId && itemToRemove.sessionUserId !== currentSessionUserId) {
+      console.warn('[CartContext] ⚠️ Cannot remove item - belongs to another user');
+      return; // User can only remove their own items
+    }
+
     const newItems = cart.items.filter((item) => item.id !== cartItemId);
     const totals = calculateCartTotals(newItems);
 
@@ -331,6 +435,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const updateQuantity = (cartItemId: string, quantity: number) => {
     // Validate and sanitize quantity
     const validQuantity = sanitizeQuantity(quantity);
+
+    // Check if user has permission to update this item
+    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+    const itemToUpdate = cart.items.find((item) => item.id === cartItemId);
+
+    if (itemToUpdate?.sessionUserId && itemToUpdate.sessionUserId !== currentSessionUserId) {
+      console.warn('[CartContext] ⚠️ Cannot update item - belongs to another user');
+      return; // User can only update their own items
+    }
 
     const newItems = cart.items.map((item) => {
       if (item.id === cartItemId) {
@@ -369,74 +482,45 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   /**
-   * Sync Cart from Queue
-   * Fetches the order queue from the session API and syncs it with the local cart
-   * This allows participants to see items added by others in the same session
+   * Process order queue data and update cart
+   * Helper function used by both Firebase listeners and polling fallback
    */
-  const syncCartFromQueue = async (): Promise<void> => {
-    console.log('[CartContext] 🔄 syncCartFromQueue called');
-
-    // Only sync if we have an active session
+  const processOrderQueueData = (orderQueue: SessionOrderQueue[]) => {
     if (!sessionData?.session?.id) {
-      console.warn('[CartContext] ⚠️ Active session not available, skipping cart sync from queue');
       return;
     }
 
-    // Get current sessionUserId
-    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
-    if (!currentSessionUserId) {
-      console.warn('[CartContext] ⚠️ Session user ID not found, skipping cart sync');
+    if (!orderQueue || orderQueue.length === 0) {
+      console.log('[CartContext] ℹ️ No queue data to process');
+      setCart(getEmptyCart());
       return;
     }
 
-    try {
-      console.log('[CartContext] 📥 Fetching session data to sync queue...');
+    console.log('[CartContext] 📦 Processing queue data:', {
+      queueEntries: orderQueue.length,
+      participants: orderQueue.map(q => ({
+        sessionUserId: q.sessionUserId.substring(0, 8) + '...',
+        itemsCount: q.items.length
+      }))
+    });
 
-      // Fetch session details including orderQueue
-      const sessionResponse = await sessionService.getSessionById(sessionData.session.id);
-      const { orderQueue } = sessionResponse.data;
+    // Get business ID for MenuItem creation
+    const businessId = sessionData.business?.id || 'unknown';
 
-      if (!orderQueue || orderQueue.length === 0) {
-        console.log('[CartContext] ℹ️ No queue data to sync');
-        return;
-      }
+    // Merge ALL participants' items into shared cart (Option B: Shared Cart)
+    const allCartItems: CartItem[] = [];
 
-      console.log('[CartContext] 📦 Found queue data:', {
-        queueEntries: orderQueue.length,
-        participants: orderQueue.map(q => ({
-          sessionUserId: q.sessionUserId.substring(0, 8) + '...',
-          itemsCount: q.items.length
-        }))
-      });
-
-      // Find the current user's queue
-      const currentUserQueue = orderQueue.find(q => q.sessionUserId === currentSessionUserId);
-
-      if (!currentUserQueue || currentUserQueue.items.length === 0) {
-        console.log('[CartContext] ℹ️ No items in current user\'s queue');
-        return;
-      }
-
-      console.log('[CartContext] 📋 Current user\'s queue:', {
-        itemsCount: currentUserQueue.items.length,
-        items: currentUserQueue.items.map(item => ({ name: item.name, quantity: item.quantity }))
-      });
-
-      // Get business ID for MenuItem creation
-      const businessId = sessionData.business?.id || 'unknown';
-
-      // Convert SessionQueueItem[] to CartItem[]
-      // Build MenuItem directly from queue data (no need to fetch menu items API)
-      const queueCartItems: CartItem[] = currentUserQueue.items.map((queueItem: SessionQueueItem) => {
+    orderQueue.forEach((participantQueue) => {
+      // Convert each participant's SessionQueueItem[] to CartItem[]
+      const participantCartItems: CartItem[] = participantQueue.items.map((queueItem: SessionQueueItem) => {
         // Create MenuItem from queue data
-        // Queue already has all necessary display information
         const menuItem: MenuItem = {
           id: queueItem.itemId,
           restaurantId: businessId,
           categoryId: 'unknown',
           name: queueItem.name,
           description: '',
-          price: queueItem.variantPrice, // Use variant price as base
+          price: queueItem.variantPrice,
           image: '',
           tags: [],
           isCustomizable: queueItem.addOns.length > 0 || queueItem.variantIndex > 0,
@@ -445,18 +529,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
         // Build customizations array from variant and addons
         const customizations: Customization[] = [];
 
-        // Add variant customization if present
         if (queueItem.variantIndex !== undefined && queueItem.variantName) {
           customizations.push({
             optionId: 'variant',
             optionName: 'Variant',
             choiceId: `variant-${queueItem.variantIndex}`,
             choiceLabel: queueItem.variantName,
-            priceModifier: 0, // Price already included in variantPrice
+            priceModifier: 0,
           });
         }
 
-        // Add addon customizations
         queueItem.addOns.forEach((queueAddon) => {
           queueAddon.selectedOptions.forEach((optionData) => {
             customizations.push({
@@ -475,26 +557,79 @@ export function CartProvider({ children }: { children: ReactNode }) {
           quantity: queueItem.quantity,
           customizations,
           itemTotal: queueItem.itemTotal,
+          sessionUserId: participantQueue.sessionUserId,
         };
       });
 
-      console.log('[CartContext] ✅ Converted queue items to cart items:', queueCartItems.length);
+      allCartItems.push(...participantCartItems);
+    });
 
-      // Merge with local cart
-      // Strategy: Replace local cart with queue data since queue is the source of truth
-      const totals = calculateCartTotals(queueCartItems);
+    // Update cart with merged items
+    const totals = calculateCartTotals(allCartItems);
+    const newCart = {
+      items: allCartItems,
+      ...totals,
+    };
 
-      const newCart = {
-        items: queueCartItems,
-        ...totals,
-      };
+    setCart(newCart);
 
-      setCart(newCart);
+    console.log('[CartContext] ✅ Shared cart processed:', {
+      totalParticipants: orderQueue.length,
+      totalItems: allCartItems.length,
+      total: `$${totals.total.toFixed(2)}`
+    });
+  };
 
-      console.log('[CartContext] ✅ Cart synced from queue successfully:', {
-        itemsCount: queueCartItems.length,
-        total: `$${totals.total.toFixed(2)}`
-      });
+  /**
+   * Sync Cart from Queue (Polling fallback)
+   * Fetches the order queue from the session API and syncs it with the local cart
+   * This allows participants to see items added by others in the same session
+   */
+  const syncCartFromQueue = async (): Promise<void> => {
+    console.log('[CartContext] 🔄 syncCartFromQueue called');
+    console.log('[CartContext] 🔍 Sync trigger context:', {
+      isUsingFirebase: isUsingFirebaseRef.current,
+      hasActiveFirebaseListener: !!firebaseUnsubscribeRef.current,
+      hasPollingInterval: !!syncIntervalRef.current,
+      reason: isUsingFirebaseRef.current ? 'Initial sync (Firebase active)' : 'Polling fallback (Firebase not active)'
+    });
+
+    // Only sync if we have an active session
+    if (!sessionData?.session?.id) {
+      console.warn('[CartContext] ⚠️ Active session not available, skipping cart sync from queue');
+      return;
+    }
+
+    // Get current sessionUserId
+    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+    if (!currentSessionUserId) {
+      console.warn('[CartContext] ⚠️ Session user ID not found, skipping cart sync');
+      return;
+    }
+
+    try {
+      const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/ordering-session/session/${sessionData.session.id}`;
+      console.log('[CartContext] 📡 API CALL:', apiUrl);
+      console.log('[CartContext] 📥 Fetching session data via API...');
+
+      // Fetch session details including orderQueue
+      const sessionResponse = await sessionService.getSessionById(sessionData.session.id);
+      const { orderQueue } = sessionResponse.data;
+
+      console.log('[CartContext] ✅ API response received, processing queue data');
+
+      // Process the queue data (cart items)
+      processOrderQueueData(orderQueue);
+
+      // Also refresh session data (participants, counts, etc.)
+      // This ensures participant count and other session metadata stay in sync
+      try {
+        await refreshSessionData();
+        console.log('[CartContext] ✅ Session metadata refreshed (participants synced)');
+      } catch (refreshError) {
+        console.warn('[CartContext] ⚠️ Failed to refresh session metadata:', refreshError);
+        // Don't throw - cart sync is more critical
+      }
     } catch (error) {
       console.error('[CartContext] ❌ Failed to sync cart from queue:', error);
       if (error instanceof Error) {

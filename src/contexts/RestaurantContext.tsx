@@ -9,34 +9,25 @@ import { validateTableNumber } from '@/lib/validation';
 const STORAGE_KEY = 'morsel_restaurant_context';
 
 interface RestaurantState {
-  context: RestaurantContextType;
+  context: RestaurantContextType | null;
   switchRestaurant: (restaurantId: string) => void;
   switchBranch: (branchId: string) => void;
   changeTable: (tableNumber: number) => void;
   setContext: (context: RestaurantContextType) => void;
+  clearContext: () => void;
 }
 
 const RestaurantContext = createContext<RestaurantState | undefined>(undefined);
 
-function getDefaultContext(): RestaurantContextType {
-  const defaultRestaurant = restaurants[0];
-  const defaultBranch = defaultRestaurant.branches[0];
-  const defaultTable = 1;
-
-  return {
-    restaurant: defaultRestaurant,
-    branch: defaultBranch,
-    table: defaultTable,
-  };
-}
-
 export function RestaurantProvider({ children }: { children: ReactNode }) {
-  const [context, setContextState] = useState<RestaurantContextType>(() => {
-    // Initialize from localStorage or use default
+  const [context, setContextState] = useState<RestaurantContextType | null>(() => {
+    // ONLY initialize from localStorage if it exists
+    // Do NOT use mock data as fallback - user must scan QR code
     const stored = getFromStorage<RestaurantContextType>(STORAGE_KEY);
-    
+
     if (stored) {
-      // Validate stored data
+      console.log('[RestaurantContext] ✅ Loading saved restaurant context from localStorage');
+      // Validate stored data against mock data (for now, until API integration)
       const restaurant = getRestaurantById(stored.restaurant.id);
       if (restaurant) {
         const branch = getBranchById(restaurant, stored.branch.id);
@@ -49,9 +40,10 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-    
-    // Use default if no valid stored data
-    return getDefaultContext();
+
+    // Return null if no valid context - user MUST scan QR code
+    console.log('[RestaurantContext] ⚠️ No valid context found - user must scan QR code');
+    return null;
   });
 
   // Save to localStorage whenever context changes
@@ -79,6 +71,11 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   };
 
   const switchBranch = (branchId: string) => {
+    if (!context) {
+      console.warn('Cannot switch branch - no restaurant context available');
+      return;
+    }
+
     const branch = getBranchById(context.restaurant, branchId);
     if (!branch) {
       console.warn(`Branch with id ${branchId} not found`);
@@ -93,9 +90,14 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   };
 
   const changeTable = (tableNumber: number) => {
+    if (!context) {
+      console.warn('Cannot change table - no restaurant context available');
+      return;
+    }
+
     // Validate table number is within branch's table count
     const validation = validateTableNumber(tableNumber, context.branch.tables);
-    
+
     if (!validation.isValid) {
       console.warn(`Invalid table number ${tableNumber} for branch ${context.branch.name}: ${validation.error}`);
       return;
@@ -108,7 +110,14 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   };
 
   const setContext = (newContext: RestaurantContextType) => {
+    console.log('[RestaurantContext] ✅ Setting restaurant context');
     setContextState(newContext);
+  };
+
+  const clearContext = () => {
+    console.log('[RestaurantContext] 🗑️ Clearing restaurant context');
+    setContextState(null);
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   const value: RestaurantState = {
@@ -117,6 +126,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     switchBranch,
     changeTable,
     setContext,
+    clearContext,
   };
 
   return (

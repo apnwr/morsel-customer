@@ -8,7 +8,8 @@ import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useOrder } from '@/contexts/OrderContext';
 
 /**
- * Redirect to login if no restaurant context
+ * Redirect to home if no restaurant context
+ * This is used on pages that require context (menu, cart, etc.)
  */
 export function useRequireRestaurantContext() {
   const router = useRouter();
@@ -16,8 +17,8 @@ export function useRequireRestaurantContext() {
 
   useEffect(() => {
     if (!context || !context.restaurant) {
-      console.log('No restaurant context found. Redirecting to login.');
-      router.push('/login');
+      console.log('[useRequireRestaurantContext] ⚠️ No restaurant context found. Redirecting to home (user must scan QR code)');
+      router.push('/');
     }
   }, [context, router]);
 
