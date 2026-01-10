@@ -97,6 +97,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
    * Sync Queue with API
    * Converts cart items to queue items and syncs with the backend
    * This is called after every cart operation
+   *
+   * IMPORTANT: Only syncs the CURRENT USER's items, not other participants' items
+   * This prevents overwriting other users' queues
    */
   const syncQueueWithAPI = async (cartItems: CartItem[]) => {
     console.log('[CartContext] 🔄 syncQueueWithAPI called with', cartItems.length, 'items');
@@ -110,10 +113,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     console.log('[CartContext] ✅ Session available:', sessionData.session.id);
 
+    // Get current user's sessionUserId
+    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+    if (!currentSessionUserId) {
+      console.warn('[CartContext] ⚠️ No sessionUserId found, skipping queue sync');
+      return;
+    }
+
+    // CRITICAL FIX: Filter to only include THIS user's items
+    // This prevents sending other participants' items and overwriting their queues
+    const userItems = cartItems.filter(item =>
+      !item.sessionUserId || item.sessionUserId === currentSessionUserId
+    );
+
+    console.log('[CartContext] 📦 Filtered items:', {
+      totalItemsInCart: cartItems.length,
+      userItemsToSync: userItems.length,
+      otherUsersItems: cartItems.length - userItems.length
+    });
+
     try {
       // Convert cart items to queue items format with variants and addons
       // Each cart item becomes a separate queue item (no grouping by itemId)
-      const queueItems: QueueItem[] = cartItems.map((cartItem) => {
+      const queueItems: QueueItem[] = userItems.map((cartItem) => {
         // Extract variant index from customizations
         let variantIndex = 0;
         const variantCustomization = cartItem.customizations.find(
@@ -178,19 +200,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
         };
       });
 
-      // Generate or retrieve sessionUserId (unique per user/device)
-      let sessionUserId = getFromStorage<string>('morsel_session_user_id');
-      if (!sessionUserId) {
-        sessionUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        setInStorage('morsel_session_user_id', sessionUserId);
-        console.log('[CartContext] Generated new sessionUserId:', sessionUserId);
-      } else {
-        console.log('[CartContext] Using existing sessionUserId:', sessionUserId.substring(0, 8) + '...');
-      }
+      // Use the currentSessionUserId we already retrieved
+      console.log('[CartContext] Using sessionUserId:', currentSessionUserId.substring(0, 8) + '...');
 
       // Log the complete payload structure
       const payload = {
-        sessionUserId,
+        sessionUserId: currentSessionUserId,
         items: queueItems,
       };
 
@@ -357,12 +372,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = (menuItem: MenuItem, customizations: Customization[] = [], notes?: string, quantity: number = 1) => {
     const validQuantity = sanitizeQuantity(quantity);
-    
-    // Check if the same item (without customizations) already exists in cart
+    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+
+    // Check if the same item (without customizations) already exists in cart FOR THIS USER
+    // IMPORTANT: Only merge with user's own items, not other participants' items
     const existingItemIndex = cart.items.findIndex(
-      item => item.menuItem.id === menuItem.id && 
-              item.customizations.length === 0 && 
-              customizations.length === 0
+      item => item.menuItem.id === menuItem.id &&
+              item.customizations.length === 0 &&
+              customizations.length === 0 &&
+              (!item.sessionUserId || item.sessionUserId === currentSessionUserId) // Same user
     );
 
     let newItems: CartItem[];
@@ -382,7 +400,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       });
     } else {
       // New item or has customizations - add as new entry
-      const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
       const newCartItem: CartItem = {
         id: generateCartItemId(),
         menuItem,
