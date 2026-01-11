@@ -521,7 +521,7 @@ export default function MenuPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white">
-        <Header showCart showFilters />
+        <Header showCart />
         <div className="flex items-center justify-center p-8">
           <LoadingSpinner size="lg" />
         </div>
@@ -531,7 +531,7 @@ export default function MenuPage() {
 
   return (
     <div className="min-h-screen bg-white pb-[80px]">
-      <Header showCart showFilters />
+      <Header showCart />
 
       <div className="p-4 bg-[#F7F8F8]">
         {menuData.categories.length === 0 ? (

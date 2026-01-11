@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { CartItem as CartItemType } from '@/types/cart';
+import { OrderingSessionData } from '@/types/api/session';
 import { Minus } from 'lucide-react';
 import Image from 'next/image';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
@@ -10,10 +11,26 @@ interface CartItemProps {
   item: CartItemType;
   onUpdateQuantity: (itemId: string, quantity: number) => void;
   onCustomize?: (item: CartItemType) => void;
+  sessionData?: OrderingSessionData | null;
 }
 
-export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, onCustomize }: CartItemProps) {
+export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, onCustomize, sessionData }: CartItemProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Get participant name from sessionUserId
+  const getParticipantName = (): string | null => {
+    if (!item.sessionUserId || !sessionData?.session?.participants) {
+      return null;
+    }
+
+    const participant = sessionData.session.participants.find(
+      (p) => p.sessionUserId === item.sessionUserId
+    );
+
+    return participant ? participant.guestName : null;
+  };
+
+  const participantName = getParticipantName();
 
   const handleDecrement = () => {
     const newQuantity = item.quantity - 1;
@@ -62,14 +79,22 @@ export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, o
             )}
           </div>
 
-          {/* Icon/Badge - Placeholder for now */}
-          <div className="shrink-0 w-[25px] h-[25px]">
-            {/* Optional: Add icon/badge here if needed */}
-          </div>
+          {/* Participant Name Badge */}
+          {participantName && (
+            <div className="shrink-0">
+              <span
+                className="inline-block px-2 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full whitespace-nowrap"
+                style={{ fontFamily: 'Lato, sans-serif', fontSize: '10px' }}
+                title={`Ordered by ${participantName}`}
+              >
+                {participantName}
+              </span>
+            </div>
+          )}
 
           {/* Text Info */}
           <div className="flex flex-col gap-1 flex-1 min-w-0">
-            <h3 
+            <h3
               className="font-bold text-sm leading-[1.2] truncate"
               style={{ fontFamily: 'Lato, sans-serif' }}
             >

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/contexts/CartContext";
 import { useOrder } from "@/contexts/OrderContext";
 import { useSplit } from "@/contexts/SplitContext";
+import { useSession } from "@/contexts/SessionContext";
 import { Header } from "@/components/layout/Header";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ParticipantsList } from "@/components/session/ParticipantsList";
@@ -22,6 +23,7 @@ export default function CartPage() {
   const { cart, updateQuantity, removeItem, confirmOrder } = useCart();
   const { placeOrder } = useOrder();
   const { split } = useSplit();
+  const { sessionData } = useSession();
 
   // Session validation - checks session status and expiry
   useSessionValidation();
@@ -229,6 +231,7 @@ export default function CartPage() {
                   item={item}
                   onUpdateQuantity={handleUpdateQuantity}
                   onCustomize={handleCustomize}
+                  sessionData={sessionData}
                 />
               ))}
             </div>

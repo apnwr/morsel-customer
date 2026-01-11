@@ -273,18 +273,20 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
                         </span>
 
                         {localMode === 'custom' ? (
-                          <div className="w-[60px]">
+                          <div className="w-[80px]">
                             <div className="relative">
-                              <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] font-black text-black">
-                                $
-                              </span>
                               <input
                                 type="text"
                                 inputMode="decimal"
-                                value={localAmount}
-                                onChange={(e) => handleShareChange(participant.id, e.target.value)}
+                                value={`$${localAmount}`}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/^\$/, '');
+                                  handleShareChange(participant.id, val);
+                                }}
                                 onBlur={() => handleShareBlur(participant.id)}
-                                className="w-full pl-3 pr-1 py-1 text-xs font-black text-center text-black border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+                                autoFocus={isYou}
+                                className="w-full px-1 py-1 text-lg font-black text-center text-black bg-transparent focus:outline-none focus:bg-gray-50 rounded-lg transition-colors"
+                                aria-label={`Amount for ${displayName}`}
                               />
                             </div>
                           </div>
