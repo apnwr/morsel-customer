@@ -68,7 +68,8 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
     router.push('/cart');
   };
 
-  const cartTotal = mounted ? cart.total : 0;
+  // Show subtotal (without tax) in header, tax is added in cart page
+  const cartTotal = mounted ? cart.subtotal : 0;
   const isCartEmpty = cartTotal === 0;
 
   return (

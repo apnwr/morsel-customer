@@ -9,7 +9,7 @@ export const ORDER_TIMER_DURATION = 120;
  * Generate random ETA between 15-25 minutes
  */
 export function generateETA(): number {
-  return Math.floor(Math.random() * (25 - 15 + 1)) + 15;
+  return Math.floor(Math.random() * (25 - 15 + 1)) ;
 }
 
 /**

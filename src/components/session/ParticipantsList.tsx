@@ -434,7 +434,7 @@ export function ParticipantsList() {
             className="p-1 hover:opacity-70 transition-opacity shrink-0"
             aria-label="Share session"
           >
-            <Share2 className="w-5 h-5 text-black" />
+            <Share2 className="w-5 h-5 text-black rotate-90" />
           </button>
         </div>
 

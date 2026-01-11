@@ -13,6 +13,7 @@ import type { SessionQueueItem, SessionOrderQueue } from '@/types/api/session';
 import { subscribeToOrderQueue, isFirebaseAvailable } from '@/lib/firebase';
 
 const STORAGE_KEY = 'morsel_cart';
+const MENU_ITEMS_CACHE_KEY = 'morsel_menu_items_cache'; // Cache for full menu items with customOptions
 const TAX_RATE = 0.1; // 10% tax
 const QUEUE_SYNC_INTERVAL = 15000; // Sync queue every 15 seconds (fallback)
 
@@ -75,6 +76,34 @@ function generateCartItemId(): string {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substr(2, 9);
   return `cart_${timestamp}_${random}`;
+}
+
+/**
+ * Cache a menu item with full customOptions for later retrieval
+ * This allows us to restore customization options when syncing from API
+ */
+function cacheMenuItem(menuItem: MenuItem): void {
+  try {
+    const cache = getFromStorage<Record<string, MenuItem>>(MENU_ITEMS_CACHE_KEY) || {};
+    cache[menuItem.id] = menuItem;
+    setInStorage(MENU_ITEMS_CACHE_KEY, cache);
+  } catch (error) {
+    console.warn('[CartContext] Failed to cache menu item:', error);
+  }
+}
+
+/**
+ * Retrieve a cached menu item with full customOptions
+ * Returns the cached item or undefined if not found
+ */
+function getCachedMenuItem(itemId: string): MenuItem | undefined {
+  try {
+    const cache = getFromStorage<Record<string, MenuItem>>(MENU_ITEMS_CACHE_KEY) || {};
+    return cache[itemId];
+  } catch (error) {
+    console.warn('[CartContext] Failed to retrieve cached menu item:', error);
+    return undefined;
+  }
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -374,6 +403,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const validQuantity = sanitizeQuantity(quantity);
     const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
 
+    // Cache the full menu item (with customOptions) for later retrieval
+    // This ensures we can restore customization options when syncing from API
+    cacheMenuItem(menuItem);
+
     // Check if the same item (without customizations) already exists in cart FOR THIS USER
     // IMPORTANT: Only merge with user's own items, not other participants' items
     const existingItemIndex = cart.items.findIndex(
@@ -530,8 +563,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     orderQueue.forEach((participantQueue) => {
       // Convert each participant's SessionQueueItem[] to CartItem[]
       const participantCartItems: CartItem[] = participantQueue.items.map((queueItem: SessionQueueItem) => {
+        // Try to get the full menu item from cache (with customOptions)
+        const cachedMenuItem = getCachedMenuItem(queueItem.itemId);
+
         // Create MenuItem from queue data
-        const menuItem: MenuItem = {
+        // If cached item exists, use it but update price from API (to reflect variant price)
+        // If not cached, create a basic MenuItem without customOptions
+        const menuItem: MenuItem = cachedMenuItem ? {
+          ...cachedMenuItem,
+          price: queueItem.variantPrice, // Use API price (includes variant)
+          name: queueItem.name, // Use API name in case it changed
+        } : {
           id: queueItem.itemId,
           restaurantId: businessId,
           categoryId: 'unknown',
@@ -541,6 +583,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           image: '',
           tags: [],
           isCustomizable: queueItem.addOns.length > 0 || queueItem.variantIndex > 0,
+          customOptions: [], // Empty if not cached
         };
 
         // Build customizations array from variant and addons
@@ -556,12 +599,34 @@ export function CartProvider({ children }: { children: ReactNode }) {
           });
         }
 
+        // Reconstruct addon customizations with correct choiceId format
         queueItem.addOns.forEach((queueAddon) => {
           queueAddon.selectedOptions.forEach((optionData) => {
+            // Try to find the correct choiceId from cached menu item's customOptions
+            let choiceId = `addon-${queueAddon.addonIndex}-${optionData.name}`; // Fallback
+
+            if (menuItem.customOptions) {
+              const addonGroup = menuItem.customOptions.find(
+                opt => opt.id === `addon-group-${queueAddon.addonIndex}`
+              );
+
+              if (addonGroup && addonGroup.choices) {
+                // Find the choice by matching the label (option name)
+                const choice = addonGroup.choices.find(
+                  c => c.label === optionData.name
+                );
+
+                if (choice) {
+                  // Use the actual choice.id from customOptions (correct format: addon-X-Y)
+                  choiceId = choice.id;
+                }
+              }
+            }
+
             customizations.push({
               optionId: `addon-group-${queueAddon.addonIndex}`,
               optionName: queueAddon.addonName,
-              choiceId: `addon-${queueAddon.addonIndex}-${optionData.name}`,
+              choiceId: choiceId,
               choiceLabel: optionData.name,
               priceModifier: optionData.price,
             });

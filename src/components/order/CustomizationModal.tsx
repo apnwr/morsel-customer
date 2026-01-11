@@ -461,13 +461,7 @@ export function CustomizationModal({
                                   </span>
                                   {choice.priceModifier > 0 && (
                                     <span className="font-bold text-sm">
-                                      {option.type === "radio"
-                                        ? `$${(
-                                            item.price + choice.priceModifier
-                                          ).toFixed(2)}`
-                                        : `+$${choice.priceModifier.toFixed(
-                                            2
-                                          )}`}
+                                      + ${choice.priceModifier.toFixed(2)}
                                     </span>
                                   )}
                                 </button>

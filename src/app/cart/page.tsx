@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useCart } from "@/contexts/CartContext";
 import { useOrder } from "@/contexts/OrderContext";
 import { useSplit } from "@/contexts/SplitContext";
@@ -10,17 +11,26 @@ import { Header } from "@/components/layout/Header";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ParticipantsList } from "@/components/session/ParticipantsList";
 import { CartItem } from "@/components/cart/CartItem";
-import { CartItem as CartItemType } from "@/types/cart";
+import { CartItem as CartItemType, Customization } from "@/types/cart";
 import { BillSection } from "@/components/cart/BillSection";
 import { getFromStorage } from "@/mocks/mockStorage";
 import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
 
+// Lazy load CustomizationModal since it's only shown on demand
+const CustomizationModal = dynamic(
+  () =>
+    import("@/components/order/CustomizationModal").then((mod) => ({
+      default: mod.CustomizationModal,
+    })),
+  { ssr: false }
+);
+
 export default function CartPage() {
   const router = useRouter();
   // Navigation guard - redirect to login if no restaurant context
   const restaurantContext = useRequireRestaurantContext();
-  const { cart, updateQuantity, removeItem, confirmOrder } = useCart();
+  const { cart, updateQuantity, removeItem, confirmOrder, addItem } = useCart();
   const { placeOrder } = useOrder();
   const { split } = useSplit();
   const { sessionData } = useSession();
@@ -34,6 +44,7 @@ export default function CartPage() {
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [itemToCustomize, setItemToCustomize] = useState<CartItemType | null>(null);
 
   // Mark as client-side on mount to prevent hydration mismatches
   useEffect(() => {
@@ -56,9 +67,23 @@ export default function CartPage() {
 
   // Handle customize button click - memoized
   const handleCustomize = useCallback((item: CartItemType) => {
-    // TODO: Open customization modal with item details
-    console.log("Customize item:", item);
-  }, []);
+    setItemToCustomize(item);
+  }, [setItemToCustomize]);
+
+  // Handle updating customizations from modal
+  const handleUpdateCustomizations = useCallback(
+    (customizations: Customization[], quantity: number) => {
+      if (!itemToCustomize) return;
+
+      // Remove the old item and add the new one with updated customizations
+      removeItem(itemToCustomize.id);
+      addItem(itemToCustomize.menuItem, customizations, itemToCustomize.notes, quantity);
+
+      // Close modal
+      setItemToCustomize(null);
+    },
+    [itemToCustomize, removeItem, addItem, setItemToCustomize]
+  );
 
   // Handle place order - memoized
   const handlePlaceOrder = useCallback(
@@ -166,7 +191,7 @@ export default function CartPage() {
 
   const userAmount = getUserAmount();
 
-  // Calculate total preparation time: max prep time from all items + 15 mins
+  // Calculate total preparation time: max prep time from all items 
   const totalPreparationTime = useMemo(() => {
     if (!cart.items || cart.items.length === 0) {
       return 0;
@@ -182,7 +207,7 @@ export default function CartPage() {
     });
 
     const maxPrepTime = Math.max(...prepTimes, 0);
-    return maxPrepTime + 15; // Add 15 minutes to the maximum
+    return maxPrepTime; // Add 15 minutes to the maximum
   }, [cart.items]);
 
   // Don't render if no context (will redirect)
@@ -367,6 +392,18 @@ export default function CartPage() {
             </div>
           </button>
         </div>
+      )}
+
+      {/* Customization Modal */}
+      {itemToCustomize && (
+        <CustomizationModal
+          item={itemToCustomize.menuItem}
+          isOpen={!!itemToCustomize}
+          onClose={() => setItemToCustomize(null)}
+          onAddToCart={handleUpdateCustomizations}
+          lastCustomizations={itemToCustomize.customizations}
+          existingQuantityInCart={itemToCustomize.quantity}
+        />
       )}
     </div>
   );

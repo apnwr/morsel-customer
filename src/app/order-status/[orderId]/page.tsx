@@ -6,13 +6,11 @@ import { Header } from "@/components/layout/Header";
 import { getFromStorage } from "@/mocks/mockStorage";
 import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
-import { useSession } from "@/contexts/SessionContext";
-import { useRestaurant } from "@/contexts/RestaurantContext";
+
 import type { Order as APIOrder } from "@/types/api/order";
 import { getMenuItemById } from "@/mocks/menuData";
 import Image from "next/image";
 import { Avatar } from "@/components/ui/Avatar";
-import { Button } from "@/components/ui/Button";
 import { PaymentModal } from "@/components/order/PaymentModal";
 import { SplitSettingsModal } from "@/components/order/SplitSettingsModal";
 import { useSplit } from "@/contexts/SplitContext";
@@ -22,44 +20,45 @@ export default function OrderStatusPage() {
   const params = useParams();
   const orderId = params.orderId as string;
   const restaurantContext = useRequireRestaurantContext();
-  const { sessionData } = useSession();
-  const { context } = useRestaurant();
   const { split } = useSplit();
   
   // Session validation
   useSessionValidation();
 
-  const [orderData, setOrderData] = useState<APIOrder | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Initialize state with lazy initializer to avoid ESLint warnings
+  const [orderData] = useState<APIOrder | null>(() => {
+    if (!orderId) return null;
+    const storedOrder = getFromStorage<APIOrder & { _placedAt?: number }>(`morsel_order_${orderId}`);
+    if (storedOrder) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { _placedAt, ...order } = storedOrder;
+      return order;
+    }
+    return null;
+  });
+
+  const [remainingTime, setRemainingTime] = useState(() => {
+    if (!orderId) return 120;
+    const storedOrder = getFromStorage<APIOrder & { _placedAt?: number }>(`morsel_order_${orderId}`);
+    if (storedOrder?._placedAt) {
+      const elapsed = Math.floor((Date.now() - storedOrder._placedAt) / 1000);
+      return Math.max(0, 120 - elapsed);
+    }
+    return 120;
+  });
+
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
-  const [remainingTime, setRemainingTime] = useState(120); // 2 minutes default
 
-  // Load order data from storage
+  // Redirect if order not found
   useEffect(() => {
     if (!orderId) return;
 
     const storedOrder = getFromStorage<APIOrder & { _placedAt?: number }>(`morsel_order_${orderId}`);
-    if (storedOrder) {
-      // Extract timestamp if available
-      const { _placedAt, ...order } = storedOrder;
-      setOrderData(order);
-      
-      // Calculate remaining time from when order was placed (2 minutes = 120 seconds)
-      if (_placedAt) {
-        const elapsed = Math.floor((Date.now() - _placedAt) / 1000);
-        const remaining = Math.max(0, 120 - elapsed);
-        setRemainingTime(remaining);
-      } else {
-        // Fallback to 120 seconds if timestamp not available
-        setRemainingTime(120);
-      }
-    } else {
-      // If order not found, redirect to menu
+    if (!storedOrder) {
       router.push("/menu");
     }
-    setIsLoading(false);
   }, [orderId, router]);
 
   // Timer countdown
@@ -83,7 +82,7 @@ export default function OrderStatusPage() {
   const totalPreparationTime = useMemo(() => {
     if (!orderData?.items) return 0;
     
-    // Get max prep time from items (assuming 20 mins default per item + 15 mins)
+    // Get max prep time from items (assuming 20 mins default per item)
     // In a real app, this would come from the menu items
     return 35; // Default preparation time
   }, [orderData]);
@@ -136,23 +135,8 @@ export default function OrderStatusPage() {
     router.push("/menu");
   };
 
-  // Don't render if no context
-  if (!restaurantContext || !restaurantContext.restaurant) {
-    return null;
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#F7F8F8] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading order...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!orderData) {
+  // Don't render if no context or no order data
+  if (!restaurantContext || !restaurantContext.restaurant || !orderData) {
     return null;
   }
 

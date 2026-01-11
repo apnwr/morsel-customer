@@ -11,7 +11,7 @@ A modern restaurant ordering application built with Next.js, featuring real-time
 - **Bill Splitting**: Flexible splitting options (even split, custom amounts, pay for self, pay for all)
 - **Session Management**: Multi-user sessions with real-time participant synchronization
 - **Order Management**: Place orders with payment type selection and order tracking
-- **Preparation Time**: Dynamic calculation based on menu items (max prep time + 15 mins)
+- **Preparation Time**: Dynamic calculation based on menu items (max prep time)
 
 ### User Experience
 - **Responsive Design**: Mobile-first UI with Tailwind CSS
@@ -219,8 +219,8 @@ The app implements a robust participant sync mechanism:
 
 Calculates estimated preparation time:
 ```typescript
-// Finds max prep time from all cart items + 15 mins buffer
-maxPrepTime = Math.max(...allItemPrepTimes) + 15
+// Finds max prep time from all cart items 
+maxPrepTime = Math.max(...allItemPrepTimes) 
 ```
 
 ### Stale Participant Detection
