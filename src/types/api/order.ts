@@ -5,11 +5,14 @@
 
 /**
  * Queue Item
- * Represents an item in the customer's queue
+ * Represents an item in the customer's queue with variants and addons
+ * POST /ordering-session/session/{sessionId}/queue
  */
 export interface QueueItem {
   itemId: string;
   quantity: number;
+  variantIndex?: number;        // Index of selected variant (0-based), defaults to 0
+  addOns?: OrderItemAddon[];    // Array of addon selections with option indexes
 }
 
 /**

@@ -1,0 +1,1972 @@
+openapi: 3.0.0
+info:
+  title: Morsel Ordering & Session Management API
+  version: 1.0.0
+  description: APIs for managing ordering sessions, orders, and related workflows
+servers:
+  - url: https://us-central1-morsel-db7d8.cloudfunctions.net/app/api/v1
+
+tags:
+  - name: Ordering Session - Patron
+    description: Public APIs for patrons to start sessions and participate in ordering
+  - name: Ordering Session - Business
+    description: Business staff APIs to manage active ordering sessions
+  - name: Ordering Session - Staff
+    description: Staff-specific APIs to manage assigned sessions
+  - name: Orders - Business
+    description: Business order management and status tracking
+  - name: Workflow - Business
+    description: Business order workflow configuration and status management
+  - name: Menu - Public
+    description: Public menu APIs to retrieve business menus and items
+  - name: Items - Business
+    description: Business APIs to manage menu items, variants, and addons
+
+paths:
+  # ==================== MENU - PUBLIC APIS ====================
+  /business/menus/active/{businessId}:
+    get:
+      tags: [Menu - Public]
+      summary: Get all active menus with items for a business
+      description: Retrieve all active menus for a business with their menu items populated (public endpoint, no authentication required)
+      parameters:
+        - in: path
+          name: businessId
+          required: true
+          schema:
+            type: string
+          description: Business ID
+      responses:
+        '200':
+          description: List of active menus with items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: Menu ID
+                        businessId:
+                          type: string
+                          description: Business ID
+                        name:
+                          type: string
+                          description: Menu name
+                        description:
+                          type: string
+                          nullable: true
+                          description: Menu description
+                        type:
+                          type: string
+                          enum: [food, beverage, service, product]
+                          description: Menu type
+                        availability:
+                          type: object
+                          properties:
+                            startTime:
+                              type: string
+                              description: Menu availability start time
+                            endTime:
+                              type: string
+                              description: Menu availability end time
+                            days:
+                              type: array
+                              items:
+                                type: string
+                              description: Days when menu is available
+                        status:
+                          type: string
+                          enum: [active, inactive]
+                          description: Menu status
+                        itemIds:
+                          type: array
+                          items:
+                            type: string
+                          description: Array of menu item IDs
+                        items:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                description: Menu item ID
+                              name:
+                                type: string
+                                description: Item name
+                              description:
+                                type: string
+                                nullable: true
+                                description: Item description
+                              price:
+                                type: number
+                                description: Item price
+                              category:
+                                type: string
+                                description: Item category
+                              status:
+                                type: string
+                                enum: [active, inactive]
+                                description: Item status
+                              vegetarian:
+                                type: boolean
+                                description: Is item vegetarian
+                              vegan:
+                                type: boolean
+                                description: Is item vegan
+                              spicy:
+                                type: boolean
+                                description: Is item spicy
+                          description: Array of active menu items
+                        sections:
+                          type: array
+                          description: Array of menu sections with their items
+                          items:
+                            type: object
+                            properties:
+                              section_id:
+                                type: string
+                              name:
+                                type: string
+                              description:
+                                type: string
+                                nullable: true
+                              order:
+                                type: integer
+                              isActive:
+                                type: boolean
+                              category_type:
+                                type: string
+                                nullable: true
+                              items:
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    id:
+                                      type: string
+                                    name:
+                                      type: string
+                                    price:
+                                      type: number
+                        createdAt:
+                          type: string
+                          format: date-time
+                          description: Menu creation timestamp
+                        updatedAt:
+                          type: string
+                          format: date-time
+                          description: Menu last update timestamp
+        '404':
+          description: Business not found
+
+  # ==================== PATRON ORDERING SESSION APIS ====================
+  /ordering-session/space/{spaceId}:
+    get:
+      tags: [Ordering Session - Patron]
+      summary: Get space and active session info
+      description: Retrieve space details, business info, and active ordering session for a space (if any)
+      parameters:
+        - in: path
+          name: spaceId
+          required: true
+          schema:
+            type: string
+          description: Space ID
+      responses:
+        '200':
+          description: Space, business, and session information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      space:
+                        type: object
+                        description: Space details
+                      business:
+                        type: object
+                        description: Business details
+                      session:
+                        type: object
+                        nullable: true
+                        properties:
+                          id:
+                            type: string
+                          status:
+                            type: string
+                          expiresAt:
+                            type: string
+                            format: date-time
+                      participantsCount:
+                        type: integer
+        '404':
+          description: Space not found
+
+  /ordering-session/start:
+    post:
+      tags: [Ordering Session - Patron]
+      summary: Start or join an ordering session
+      description: Start a new ordering session for a space or join an existing active session. Patron ID is extracted from auth token if logged in; otherwise treated as guest.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - spaceId
+              properties:
+                spaceId:
+                  type: string
+                  description: Space ID where the session is being started
+                guestName:
+                  type: string
+                  nullable: true
+                  description: Guest name (required if not authenticated)
+      responses:
+        '201':
+          description: Session created or joined successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      spaceId:
+                        type: string
+                      businessId:
+                        type: string
+                      status:
+                        type: string
+                      participants:
+                        type: array
+                        items:
+                          type: object
+                      orders:
+                        type: array
+                        items:
+                          type: object
+                      expiresAt:
+                        type: string
+                        format: date-time
+                      createdAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: Invalid request - missing spaceId or authentication/guestName
+
+  /ordering-session/session/{sessionId}:
+    get:
+      tags: [Ordering Session - Patron]
+      summary: Get session details
+      description: Retrieve full ordering session details with expiry check
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+          description: Ordering session ID
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+        '404':
+          description: Session not found or expired
+
+  /ordering-session/session/{sessionId}/participant:
+    post:
+      tags: [Ordering Session - Patron]
+      summary: Add participant to session
+      description: Add a new participant (patron or guest) to an existing ordering session
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+          description: Ordering session ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                patronId:
+                  type: string
+                  nullable: true
+                  description: Patron ID (from auth token if logged in)
+                guestName:
+                  type: string
+                  nullable: true
+                  description: Guest name (required if patronId is null)
+      responses:
+        '200':
+          description: Participant added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+        '400':
+          description: Either patronId or guestName must be provided
+        '404':
+          description: Session not found
+
+  /ordering-session/session/{sessionId}/queue:
+    post:
+      tags: [Ordering Session - Patron]
+      summary: Upsert order queue for session user
+      description: Add or update queued items for a participant before confirming order
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+          description: Ordering session ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sessionUserId
+                - items
+              properties:
+                sessionUserId:
+                  type: string
+                  description: Unique session user ID
+                items:
+                  type: array
+                  description: Array of items to queue with variants and addons
+                  items:
+                    type: object
+                    required:
+                      - itemId
+                      - quantity
+                    properties:
+                      itemId:
+                        type: string
+                        description: Menu item ID
+                      quantity:
+                        type: integer
+                        description: Quantity of this item
+                      variantIndex:
+                        type: integer
+                        default: 0
+                        description: Index of the selected variant (0-based)
+                      addOns:
+                        type: array
+                        description: Array of addon selections with options
+                        items:
+                          type: object
+                          required:
+                            - addonIndex
+                            - selectedOptions
+                          properties:
+                            addonIndex:
+                              type: integer
+                              description: Index of addon in MenuItem.addons array (0-based)
+                            selectedOptions:
+                              type: array
+                              description: Array of option indexes to select from addon.options
+                              items:
+                                type: integer
+      responses:
+        '200':
+          description: Queue updated successfully with resolved variant and addon names
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+
+  /ordering-session/session/{sessionId}/queue/confirm:
+    post:
+      tags: [Ordering Session - Patron]
+      summary: Confirm queued items and create order
+      description: Convert queued items into a confirmed order
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+          description: Ordering session ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sessionUserId
+              properties:
+                sessionUserId:
+                  type: string
+                  description: Unique session user ID
+                paymentType:
+                  type: string
+                  enum: [cash, card, online]
+                  default: cash
+      responses:
+        '201':
+          description: Order created successfully with variant and addon details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      sessionId:
+                        type: string
+                      items:
+                        type: array
+                        description: Detailed items with variant and addon information
+                        items:
+                          type: object
+                          properties:
+                            itemId:
+                              type: string
+                            name:
+                              type: string
+                            quantity:
+                              type: integer
+                            variantIndex:
+                              type: integer
+                            variantName:
+                              type: string
+                            variantPrice:
+                              type: number
+                            addOns:
+                              type: array
+                              description: Detailed addon information with selected options and pricing
+                              items:
+                                type: object
+                                properties:
+                                  addonIndex:
+                                    type: integer
+                                  addonName:
+                                    type: string
+                                  selectedOptions:
+                                    type: array
+                                    items:
+                                      type: object
+                                      properties:
+                                        name:
+                                          type: string
+                                        price:
+                                          type: number
+                                  optionsTotalPrice:
+                                    type: number
+                            addonsTotalPrice:
+                              type: number
+                            unitPrice:
+                              type: number
+                            itemTotal:
+                              type: number
+                      total:
+                        type: number
+                      status:
+                        type: string
+        '400':
+          description: Invalid session user or no queued items
+
+  /ordering-session/session/{sessionId}/call-attendant:
+    post:
+      tags: [Ordering Session - Patron]
+      summary: Call attendant for assistance
+      description: Send an attendant call request from a patron to business staff
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+          description: Ordering session ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for calling attendant
+      responses:
+        '200':
+          description: Attendant call sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      sessionId:
+                        type: string
+                      spaceId:
+                        type: string
+                      attendantCallRequested:
+                        type: boolean
+        '404':
+          description: Session not found
+
+  /ordering-session/session/{sessionId}/end:
+    put:
+      tags: [Ordering Session - Patron]
+      summary: End ordering session
+      description: Manually end an ordering session
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+          description: Ordering session ID
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                endedBy:
+                  type: string
+                  default: manual
+      responses:
+        '200':
+          description: Session ended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+
+  # ==================== BUSINESS ORDERING SESSION APIS ====================
+  /ordering-session/business/active:
+    get:
+      tags: [Ordering Session - Business]
+      summary: Get all active ordering sessions for business
+      description: Retrieve all active ordering sessions managed by this business
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of active sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        spaceId:
+                          type: string
+                        businessId:
+                          type: string
+                        status:
+                          type: string
+                        participantsCount:
+                          type: integer
+                        ordersCount:
+                          type: integer
+                        expiresAt:
+                          type: string
+                          format: date-time
+                        notes:
+                          type: string
+                          nullable: true
+                        createdAt:
+                          type: string
+                          format: date-time
+                        updatedAt:
+                          type: string
+                          format: date-time
+        '401':
+          description: Unauthorized - authentication required
+        '403':
+          description: Forbidden - insufficient permissions
+
+  /ordering-session/business/session/{sessionId}:
+    put:
+      tags: [Ordering Session - Business]
+      summary: Update ordering session details
+      description: Update session expiry time, notes, and other metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+          description: Ordering session ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sessionExpiryMinutes:
+                  type: integer
+                  minimum: 10
+                  description: Session expiry in minutes from now
+                notes:
+                  type: string
+                  nullable: true
+                  description: Business notes about the session
+      responses:
+        '200':
+          description: Session updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+        '400':
+          description: Invalid expiry minutes (must be >= 10)
+        '403':
+          description: Session does not belong to this business
+
+  /ordering-session/business/session/{sessionId}/assign-staff:
+    put:
+      tags: [Ordering Session - Business]
+      summary: Assign staff member to session
+      description: Assign a staff member to manage an ordering session
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+          description: Ordering session ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - staffId
+              properties:
+                staffId:
+                  type: string
+                  description: Staff member ID to assign
+      responses:
+        '200':
+          description: Staff assigned to session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      assignedStaffId:
+                        type: string
+                      assignedAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: Invalid staff ID or staff does not belong to business
+        '403':
+          description: Unauthorized access to session
+        '404':
+          description: Session or staff not found
+
+  /ordering-session/business/session/{sessionId}/acknowledge-call:
+    put:
+      tags: [Ordering Session - Business]
+      summary: Acknowledge attendant call
+      description: Business staff acknowledges an attendant call request from patron
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+          description: Ordering session ID
+      responses:
+        '200':
+          description: Attendant call acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                      sessionId:
+                        type: string
+                      attendantCallRequested:
+                        type: boolean
+        '403':
+          description: Session does not belong to this business
+        '404':
+          description: Session not found
+
+  # ==================== STAFF ORDERING SESSION APIS ====================
+  /ordering-session/staff/sessions:
+    get:
+      tags: [Ordering Session - Staff]
+      summary: Get all sessions assigned to staff
+      description: Retrieve all active ordering sessions assigned to the authenticated staff member
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of assigned sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        spaceId:
+                          type: string
+                        businessId:
+                          type: string
+                        status:
+                          type: string
+                        participantsCount:
+                          type: integer
+                        ordersCount:
+                          type: integer
+                        assignedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        expiresAt:
+                          type: string
+                          format: date-time
+                        notes:
+                          type: string
+                          nullable: true
+                        createdAt:
+                          type: string
+                          format: date-time
+                        updatedAt:
+                          type: string
+                          format: date-time
+        '401':
+          description: Unauthorized - authentication required
+
+  /ordering-session/staff/session/{sessionId}:
+    put:
+      tags: [Ordering Session - Staff]
+      summary: Update assigned session
+      description: Update limited fields of a session assigned to the authenticated staff member
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+          description: Ordering session ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+                  nullable: true
+                  description: Staff notes about the session
+                status:
+                  type: string
+                  description: Session status
+                clearAttendantCall:
+                  type: boolean
+                  description: Clear any pending attendant call when true
+                unassign:
+                  type: boolean
+                  description: Unassign self from session when true
+      responses:
+        '200':
+          description: Session updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+        '400':
+          description: No valid fields to update
+        '403':
+          description: Session not assigned to this staff member or unauthorized access
+        '404':
+          description: Session not found
+
+  # ==================== ORDERS - BUSINESS APIS ====================
+  /orders/fetch/{id}:
+    get:
+      tags: [Orders - Business]
+      summary: Get order by ID
+      description: Retrieve detailed order information by order ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Order ID
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      businessId:
+                        type: string
+                      spaceId:
+                        type: string
+                      sessionId:
+                        type: string
+                      sessionUserId:
+                        type: string
+                      patronId:
+                        type: string
+                        nullable: true
+                      guestName:
+                        type: string
+                        nullable: true
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            itemId:
+                              type: string
+                            name:
+                              type: string
+                            quantity:
+                              type: number
+                            unitPrice:
+                              type: number
+                            totalPrice:
+                              type: number
+                      total:
+                        type: number
+                      status:
+                        type: string
+                        enum: [pending, confirmed, preparing, ready, served, completed, cancelled, refunded]
+                      payment:
+                        type: object
+                        properties:
+                          type:
+                            type: string
+                          paid:
+                            type: boolean
+                      createdAt:
+                        type: string
+                        format: date-time
+                      updatedAt:
+                        type: string
+                        format: date-time
+        '404':
+          description: Order not found
+
+  /orders/{id}/status:
+    put:
+      tags: [Orders - Business]
+      summary: Update order status
+      description: Change the status of an order (e.g., preparing, ready, served, completed)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Order ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [pending, confirmed, preparing, ready, served, completed, cancelled, refunded]
+                  description: New order status
+      responses:
+        '200':
+          description: Order status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      status:
+                        type: string
+                      updatedAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: Invalid status value
+        '404':
+          description: Order not found
+
+  /orders/{id}/split:
+    post:
+      tags: [Orders - Business]
+      summary: Split bill for an order
+      description: Divide an order bill among multiple participants
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Order ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - splits
+              properties:
+                splits:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - amount
+                    properties:
+                      amount:
+                        type: number
+                        description: Amount for this split
+                      description:
+                        type: string
+                        nullable: true
+                        description: Optional description (e.g., participant name)
+              description: Array of split amounts
+      responses:
+        '200':
+          description: Bill split successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: boolean
+        '400':
+          description: Split amounts do not match total or invalid input
+        '404':
+          description: Order not found
+
+  /orders/business:
+    get:
+      tags: [Orders - Business]
+      summary: Get all orders by business
+      description: Retrieve all orders placed for this business
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: Filter by order status (optional)
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+          description: Maximum number of orders to return
+      responses:
+        '200':
+          description: List of business orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          description: Unauthorized - authentication required
+        '403':
+          description: Forbidden - insufficient permissions
+
+  /orders/space/{spaceId}/session:
+    get:
+      tags: [Orders - Business]
+      summary: Get orders for active space session
+      description: Retrieve all orders in the active ordering session for a specific space
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: spaceId
+          required: true
+          schema:
+            type: string
+          description: Space ID
+      responses:
+        '200':
+          description: List of orders in active session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          description: Unauthorized - authentication required
+        '403':
+          description: Forbidden - insufficient permissions
+        '404':
+          description: Space or active session not found
+
+  /orders/space/{spaceId}/add:
+    post:
+      tags: [Orders - Business]
+      summary: Add order to space
+      description: Create a new order for a space, creating a session if needed
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: spaceId
+          required: true
+          schema:
+            type: string
+          description: Space ID where order is being placed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - items
+              properties:
+                items:
+                  type: array
+                  description: Array of items with variants and addons
+                  items:
+                    type: object
+                    required:
+                      - itemId
+                      - quantity
+                    properties:
+                      itemId:
+                        type: string
+                        description: Menu item ID
+                      quantity:
+                        type: number
+                        description: Quantity to order
+                      variantIndex:
+                        type: integer
+                        default: 0
+                        description: Index of the selected variant (0-based)
+                      addOns:
+                        type: array
+                        description: Array of addon selections with options
+                        items:
+                          type: object
+                          required:
+                            - addonIndex
+                            - selectedOptions
+                          properties:
+                            addonIndex:
+                              type: integer
+                              description: Index of addon in MenuItem.addons array (0-based)
+                            selectedOptions:
+                              type: array
+                              description: Array of option indexes to select from addon.options
+                              items:
+                                type: integer
+              guestName:
+                type: string
+                nullable: true
+                description: Guest name (optional, if not authenticated)
+              paymentType:
+                type: string
+                default: cash
+                description: Payment method
+      responses:
+        '201':
+          description: Order created successfully with variant and addon details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      orderId:
+                        type: string
+                      sessionId:
+                        type: string
+                      items:
+                        type: array
+                        description: Detailed items with variant and addon information
+                        items:
+                          type: object
+                          properties:
+                            itemId:
+                              type: string
+                            name:
+                              type: string
+                            quantity:
+                              type: integer
+                            variantIndex:
+                              type: integer
+                            variantName:
+                              type: string
+                            variantPrice:
+                              type: number
+                            addOns:
+                              type: array
+                              description: Detailed addon information with selected options and pricing
+                              items:
+                                type: object
+                                properties:
+                                  addonIndex:
+                                    type: integer
+                                  addonName:
+                                    type: string
+                                  selectedOptions:
+                                    type: array
+                                    items:
+                                      type: object
+                                      properties:
+                                        name:
+                                          type: string
+                                        price:
+                                          type: number
+                                  optionsTotalPrice:
+                                    type: number
+                            addonsTotalPrice:
+                              type: number
+                            unitPrice:
+                              type: number
+                            itemTotal:
+                              type: number
+                      total:
+                        type: number
+                      status:
+                        type: string
+                      createdAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: Invalid input or no items provided
+        '401':
+          description: Unauthorized - authentication required
+        '403':
+          description: Forbidden - insufficient permissions
+        '404':
+          description: Space or menu items not found
+
+  /orders/incoming:
+    get:
+      tags: [Orders - Business]
+      summary: Get incoming confirmed orders
+      description: Fetch all confirmed/incoming orders for a business with optional filters by branch, area, or space
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: branchId
+          required: false
+          schema:
+            type: string
+          description: Filter by branch ID
+        - in: query
+          name: areaId
+          required: false
+          schema:
+            type: string
+          description: Filter by area ID
+        - in: query
+          name: spaceId
+          required: false
+          schema:
+            type: string
+          description: Filter by space ID
+      responses:
+        '200':
+          description: Incoming orders retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        orderId:
+                          type: string
+                          description: Order ID
+                        spaceId:
+                          type: string
+                          description: Space where order was placed
+                        spaceName:
+                          type: string
+                          nullable: true
+                          description: Space name
+                        areaId:
+                          type: string
+                          nullable: true
+                          description: Area ID
+                        areaName:
+                          type: string
+                          nullable: true
+                          description: Area name
+                        branchId:
+                          type: string
+                          nullable: true
+                          description: Branch ID
+                        branchName:
+                          type: string
+                          nullable: true
+                          description: Branch name
+                        sessionId:
+                          type: string
+                          nullable: true
+                          description: Ordering session ID
+                        sessionUserId:
+                          type: string
+                          nullable: true
+                          description: Session user ID
+                        patronId:
+                          type: string
+                          nullable: true
+                          description: Patron ID if authenticated
+                        guestName:
+                          type: string
+                          nullable: true
+                          description: Guest name if not authenticated
+                        items:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              itemId:
+                                type: string
+                              name:
+                                type: string
+                              quantity:
+                                type: number
+                              unitPrice:
+                                type: number
+                              totalPrice:
+                                type: number
+                        total:
+                          type: number
+                          description: Order total amount
+                        status:
+                          type: string
+                          enum: [CONFIRMED]
+                          description: Order status
+                        payment:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                              enum: [cash, card, online]
+                            paid:
+                              type: boolean
+                        createdAt:
+                          type: string
+                          format: date-time
+                          description: Order creation timestamp
+                        updatedAt:
+                          type: string
+                          format: date-time
+                          description: Order last update timestamp
+                  count:
+                    type: number
+                    description: Total number of incoming orders
+        '400':
+          description: Invalid query parameters
+        '401':
+          description: Unauthorized - authentication required
+        '403':
+          description: Forbidden - insufficient permissions
+        '404':
+          description: Business not found
+
+  # ==================== ORDER WORKFLOW APIS ====================
+  /business/workflow/order/{branchId}:
+    parameters:
+      - in: path
+        name: branchId
+        required: true
+        schema:
+          type: string
+        description: Branch ID
+    get:
+      tags: [Workflow - Business]
+      summary: Get order workflow for branch
+      description: Retrieve all order workflow statuses configured for a specific branch
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of workflow statuses
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        title:
+                          type: string
+                        color:
+                          type: string
+                        order:
+                          type: integer
+                        createdAt:
+                          type: string
+                          format: date-time
+        '401':
+          description: Unauthorized - authentication required
+        '403':
+          description: Insufficient permissions
+        '404':
+          description: Branch not found
+
+  /business/workflow/status/{branchId}:
+    parameters:
+      - in: path
+        name: branchId
+        required: true
+        schema:
+          type: string
+        description: Branch ID
+    post:
+      tags: [Workflow - Business]
+      summary: Add workflow status to branch
+      description: Create a new order workflow status for a specific branch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - color
+              properties:
+                title:
+                  type: string
+                  description: Status title (e.g., 'Preparing', 'Ready')
+                color:
+                  type: string
+                  description: Hex color code for status (e.g., '#FF5733')
+      responses:
+        '201':
+          description: Workflow status created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      title:
+                        type: string
+                      color:
+                        type: string
+                      order:
+                        type: integer
+                      createdAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: Missing required fields (title, color)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Insufficient permissions
+        '404':
+          description: Branch not found
+
+  /business/workflow/status/{branchId}/{statusId}:
+    parameters:
+      - in: path
+        name: branchId
+        required: true
+        schema:
+          type: string
+        description: Branch ID
+      - in: path
+        name: statusId
+        required: true
+        schema:
+          type: string
+        description: Workflow status ID
+    put:
+      tags: [Workflow - Business]
+      summary: Update workflow status
+      description: Update an existing order workflow status for a branch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: Updated status title
+                color:
+                  type: string
+                  description: Updated hex color code
+      responses:
+        '200':
+          description: Status updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+        '400':
+          description: At least one of title or color must be provided
+        '401':
+          description: Unauthorized
+        '404':
+          description: Status or branch not found
+
+    delete:
+      tags: [Workflow - Business]
+      summary: Delete workflow status
+      description: Remove an order workflow status from a branch
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Status deleted successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Insufficient permissions
+        '404':
+          description: Status or branch not found
+
+  /business/workflow/reorder/{branchId}:
+    parameters:
+      - in: path
+        name: branchId
+        required: true
+        schema:
+          type: string
+        description: Branch ID
+    put:
+      tags: [Workflow - Business]
+      summary: Reorder workflow statuses
+      description: Change the order/sequence of workflow statuses for display in a branch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - statusIds
+              properties:
+                statusIds:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of status IDs in desired order
+      responses:
+        '200':
+          description: Workflow reordered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+        '400':
+          description: Invalid or empty statusIds array
+        '401':
+          description: Unauthorized
+        '403':
+          description: Insufficient permissions
+        '404':
+          description: Branch not found
+
+  /business/workflow/setup-default/{branchId}:
+    parameters:
+      - in: path
+        name: branchId
+        required: true
+        schema:
+          type: string
+        description: Branch ID
+    post:
+      tags: [Workflow - Business]
+      summary: Setup default 5-step workflow
+      description: |
+        Initialize a default 5-step workflow for a branch if no workflow exists.
+        Creates the following status sequence:
+        1. Incoming (Blue #3B82F6)
+        2. Accepted (Purple #8B5CF6)
+        3. Ready (Amber #F59E0B)
+        4. Served (Green #10B981)
+        5. Billing Completed (Cyan #06B6D4)
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Default workflow setup successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Default workflow setup successfully"
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        title:
+                          type: string
+                        color:
+                          type: string
+                        order:
+                          type: integer
+                        createdAt:
+                          type: string
+                          format: date-time
+        '400':
+          description: Workflow already exists for this branch
+        '401':
+          description: Unauthorized
+        '403':
+          description: Insufficient permissions
+        '404':
+          description: Branch not found
+
+  /orders/{orderId}/workflow-status:
+    put:
+      tags: [Orders - Business]
+      summary: Update order workflow status
+      description: Assign or change the workflow status of a confirmed order (e.g., move from Incoming to Accepted, Ready, Served, etc.)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+          description: Order ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - workflowStatus
+              properties:
+                workflowStatus:
+                  type: string
+                  description: Workflow status name (e.g., 'Incoming', 'Accepted', 'Ready', 'Served')
+      responses:
+        '200':
+          description: Order workflow status updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      orderId:
+                        type: string
+                        description: Order ID
+                      workflowStatus:
+                        type: string
+                        description: Assigned workflow status name
+        '400':
+          description: Missing required field (workflowStatus)
+        '401':
+          description: Unauthorized - authentication required
+        '403':
+          description: Unauthorized access to order or invalid branch
+        '404':
+          description: Order or workflow status not found in branch workflow
+
+  # ==================== ITEMS - BUSINESS APIS ====================
+  /business/items:
+    post:
+      tags: [Items - Business]
+      summary: Create a new menu item
+      description: Create a new menu item with optional variants and addons. Addons support multiple options with individual pricing and min/max constraints.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - price
+              properties:
+                name:
+                  type: string
+                  description: Item name
+                description:
+                  type: string
+                  description: Item description
+                price:
+                  type: number
+                  description: Base price of the item
+                image:
+                  type: string
+                  description: Image URL
+                category:
+                  type: string
+                  description: Item category
+                isVegetarian:
+                  type: boolean
+                  default: false
+                  description: Whether item is vegetarian
+                variants:
+                  type: array
+                  description: Optional variants with different prices
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - price
+                    properties:
+                      name:
+                        type: string
+                        description: Variant name (e.g., Small, Large)
+                      price:
+                        type: number
+                        description: Price for this variant
+                addons:
+                  type: array
+                  description: Optional addon categories with selectable options and pricing
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - minOptions
+                      - maxOptions
+                      - options
+                    properties:
+                      name:
+                        type: string
+                        description: Addon category name (e.g., Sauces, Bread Type, Cheese)
+                      minOptions:
+                        type: integer
+                        minimum: 0
+                        description: Minimum number of options customer must select from this addon
+                      maxOptions:
+                        type: integer
+                        minimum: 1
+                        description: Maximum number of options customer can select from this addon
+                      options:
+                        type: array
+                        description: Available options for this addon category
+                        items:
+                          type: object
+                          required:
+                            - name
+                            - price
+                          properties:
+                            name:
+                              type: string
+                              description: Option name (e.g., Harissa, Sweet chilli, Garlic aioli)
+                            price:
+                              type: number
+                              description: Price of this option added to item base price
+      responses:
+        '201':
+          description: Menu item created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: Unique menu item ID
+                      name:
+                        type: string
+                      description:
+                        type: string
+                      price:
+                        type: number
+                      image:
+                        type: string
+                      category:
+                        type: string
+                      isVegetarian:
+                        type: boolean
+                      variants:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            price:
+                              type: number
+                      addons:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            minOptions:
+                              type: integer
+                            maxOptions:
+                              type: integer
+                            options:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  name:
+                                    type: string
+                                  price:
+                                    type: number
+                      status:
+                        type: string
+                        enum: [active, inactive]
+                      createdAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: Invalid input - name and price are required
+        '401':
+          description: Unauthorized - authentication required
+        '403':
+          description: Forbidden - insufficient permissions to manage items
+
+  /business/items/{itemId}/addons:
+    post:
+      tags: [Items - Business]
+      summary: Add an addon category to an existing menu item
+      description: Add a new addon category with options to an existing menu item. Addon includes min/max constraints and options with pricing.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: itemId
+          required: true
+          schema:
+            type: string
+          description: Menu item ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - minOptions
+                - maxOptions
+                - options
+              properties:
+                name:
+                  type: string
+                  description: Addon category name
+                minOptions:
+                  type: integer
+                  minimum: 0
+                maxOptions:
+                  type: integer
+                  minimum: 1
+                options:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - price
+                    properties:
+                      name:
+                        type: string
+                      price:
+                        type: number
+      responses:
+        '200':
+          description: Addon added and item updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      addons:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            minOptions:
+                              type: integer
+                            maxOptions:
+                              type: integer
+                            options:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  name:
+                                    type: string
+                                  price:
+                                    type: number
+        '400':
+          description: Invalid input
+        '401':
+          description: Unauthorized
+        '404':
+          description: Item not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase Authentication JWT token

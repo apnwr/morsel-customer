@@ -332,37 +332,55 @@ export default function MenuPage() {
       allergens: apiItem.allergens || [],
       dietary: apiItem.dietary || [],
       preparationTime: apiItem.preparationTime,
-      isCustomizable: apiItem.variants.length > 0 || apiItem.addons.length > 0,
+      isCustomizable: (apiItem.variants && apiItem.variants.length > 0) || (apiItem.addons && apiItem.addons.length > 0),
       customOptions: [
-        ...(apiItem.variants.length > 0
+        ...(apiItem.variants && apiItem.variants.length > 0
           ? [
               {
                 id: "variant",
                 name: "Size",
                 type: "radio" as const,
                 required: true,
-                choices: apiItem.variants.map((v, idx) => ({
-                  id: `variant-${idx}`,
-                  label: v.name,
-                  priceModifier: (v.price ?? 0) - apiItem.price, // Price difference, default to 0
-                })),
+                choices: apiItem.variants
+                  // Defensive: Filter out malformed variants without required fields
+                  .filter((v) => {
+                    if (!v.name || v.price === undefined || v.price === null) {
+                      console.warn(`[MenuPage] Malformed variant for item "${apiItem.name}" - missing name or price (violates API spec)`);
+                      return false;
+                    }
+                    return true;
+                  })
+                  .map((v, idx) => ({
+                    id: `variant-${idx}`,
+                    label: v.name,
+                    priceModifier: (v.price ?? 0) - apiItem.price, // Price difference, default to 0
+                  })),
               },
             ]
           : []),
         ...(apiItem.addons.length > 0
-          ? apiItem.addons.map((addonGroup, groupIdx) => ({
-              id: `addon-group-${groupIdx}`,
-              name: addonGroup.name,
-              type: addonGroup.maxOptions === 1 ? ("radio" as const) : ("checkbox" as const),
-              required: addonGroup.minOptions > 0,
-              minSelection: addonGroup.minOptions,
-              maxSelection: addonGroup.maxOptions,
-              choices: addonGroup.options.map((option, optIdx) => ({
-                id: `addon-${groupIdx}-${optIdx}`,
-                label: option.name,
-                priceModifier: option.price ?? 0, // Default to 0 if undefined
-              })),
-            }))
+          ? apiItem.addons
+              // Defensive: Filter out malformed addons without options (violates API spec but prevents crashes)
+              .filter((addonGroup) => {
+                if (!addonGroup.options || addonGroup.options.length === 0) {
+                  console.warn(`[MenuPage] Malformed addon "${addonGroup.name}" for item "${apiItem.name}" - missing options array (violates API spec)`);
+                  return false;
+                }
+                return true;
+              })
+              .map((addonGroup, groupIdx) => ({
+                id: `addon-group-${groupIdx}`,
+                name: addonGroup.name,
+                type: addonGroup.maxOptions === 1 ? ("radio" as const) : ("checkbox" as const),
+                required: addonGroup.minOptions > 0,
+                minSelection: addonGroup.minOptions,
+                maxSelection: addonGroup.maxOptions,
+                choices: addonGroup.options.map((option, optIdx) => ({
+                  id: `addon-${groupIdx}-${optIdx}`,
+                  label: option.name,
+                  priceModifier: option.price ?? 0, // Default to 0 if undefined
+                })),
+              }))
           : []),
       ],
     };
