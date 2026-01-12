@@ -6,13 +6,18 @@
 export {
   getFirebaseApp,
   getFirebaseDatabase,
+  getFirebaseAuth,
+  initializeFirebaseAuth,
+  isFirebaseAuthenticated,
   isFirebaseAvailable,
   ENABLE_FIREBASE_REALTIME,
 } from './config';
 
 export {
   subscribeToSession,
+  subscribeToSessionBySpace,
   subscribeToOrderQueue,
+  subscribeToOrderQueueBySpace,
   subscribeToParticipants,
   getConnectionState,
   onConnectionStateChange,

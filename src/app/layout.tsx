@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { FirebaseAuthProvider } from "@/components/providers/FirebaseAuthProvider";
 import { RestaurantProvider } from "@/contexts/RestaurantContext";
 import { CartProvider } from "@/contexts/CartContext";
 import { OrderProvider } from "@/contexts/OrderContext";
@@ -34,20 +35,22 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SessionProvider>
-          <RestaurantProvider>
-            <ThemeProvider>
-              <CartProvider>
-                <OrderProvider>
-                  <SplitProvider>
-                    {children}
-                    <DebugPanelWrapper />
-                  </SplitProvider>
-                </OrderProvider>
-              </CartProvider>
-            </ThemeProvider>
-          </RestaurantProvider>
-        </SessionProvider>
+        <FirebaseAuthProvider>
+          <SessionProvider>
+            <RestaurantProvider>
+              <ThemeProvider>
+                <CartProvider>
+                  <OrderProvider>
+                    <SplitProvider>
+                      {children}
+                      <DebugPanelWrapper />
+                    </SplitProvider>
+                  </OrderProvider>
+                </CartProvider>
+              </ThemeProvider>
+            </RestaurantProvider>
+          </SessionProvider>
+        </FirebaseAuthProvider>
       </body>
     </html>
   );

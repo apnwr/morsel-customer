@@ -6,6 +6,7 @@ import { sessionService } from '@/services/session.service';
 
 const STORAGE_KEY = 'morsel_session_data';
 const STORAGE_KEY_USER_ID = 'morsel_session_user_id';
+const STORAGE_KEY_ACTIVE_ORDER = 'morsel_active_order_id';
 
 interface SessionState {
   // Preview session - ephemeral, not persisted (for QR scan preview before login)
@@ -16,6 +17,11 @@ interface SessionState {
   sessionData: OrderingSessionData | null;
   setSessionData: (data: OrderingSessionData) => void;
   clearSession: () => void;
+
+  // Active order ID - tracks which order tab is currently active
+  activeOrderId: string | null;
+  setActiveOrderId: (orderId: string | null) => void;
+  clearActiveOrder: () => void;
 
   isLoading: boolean;
   isSessionActive: () => boolean;
@@ -35,6 +41,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Active session: persistent state for joined session (after login)
   const [sessionData, setSessionDataState] = useState<OrderingSessionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Active order ID: tracks which order tab is currently active
+  const [activeOrderId, setActiveOrderIdState] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(STORAGE_KEY_ACTIVE_ORDER);
+    }
+    return null;
+  });
 
   // Load from localStorage on mount and clean stale data
   useEffect(() => {
@@ -85,13 +99,36 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Set active order ID (persisted to localStorage)
+  const setActiveOrderId = useCallback((orderId: string | null) => {
+    try {
+      console.log('[SessionContext] 📍 Setting active order ID:', orderId);
+      setActiveOrderIdState(orderId);
+      if (orderId) {
+        localStorage.setItem(STORAGE_KEY_ACTIVE_ORDER, orderId);
+      } else {
+        localStorage.removeItem(STORAGE_KEY_ACTIVE_ORDER);
+      }
+    } catch (error) {
+      console.error('[SessionContext] Error saving active order ID:', error);
+    }
+  }, []);
+
+  // Clear active order ID (convenience method)
+  const clearActiveOrder = useCallback(() => {
+    console.log('[SessionContext] 🗑️ Clearing active order ID');
+    setActiveOrderId(null);
+  }, [setActiveOrderId]);
+
   const clearSession = useCallback(() => {
     try {
       console.log('[SessionContext] 🗑️ Clearing session data');
       setSessionDataState(null);
       setPreviewSessionState(null);
+      setActiveOrderIdState(null);
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem(STORAGE_KEY_USER_ID);
+      localStorage.removeItem(STORAGE_KEY_ACTIVE_ORDER);
       localStorage.removeItem('morsel_customer_name');
       localStorage.removeItem('morsel_dining_type');
       localStorage.removeItem('morsel_auth_method');
@@ -256,6 +293,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     sessionData,
     setSessionData,
     clearSession,
+    activeOrderId,
+    setActiveOrderId,
+    clearActiveOrder,
     isLoading,
     isSessionActive,
     isSessionExpired,
@@ -263,7 +303,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     validateSession,
     refreshSessionData,
     endSession,
-  }), [previewSession, setPreviewSession, sessionData, setSessionData, clearSession, isLoading, isSessionActive, isSessionExpired, isUserParticipant, validateSession, refreshSessionData, endSession]);
+  }), [previewSession, setPreviewSession, sessionData, setSessionData, clearSession, activeOrderId, setActiveOrderId, clearActiveOrder, isLoading, isSessionActive, isSessionExpired, isUserParticipant, validateSession, refreshSessionData, endSession]);
 
   return (
     <SessionContext.Provider value={value}>

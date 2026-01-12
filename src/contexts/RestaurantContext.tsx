@@ -1,8 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { RestaurantContext as RestaurantContextType } from '@/types/restaurant';
-import { restaurants, getRestaurantById, getBranchById } from '@/mocks/restaurants';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { validateTableNumber } from '@/lib/validation';
 
@@ -27,17 +26,16 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
     if (stored) {
       console.log('[RestaurantContext] ✅ Loading saved restaurant context from localStorage');
-      // Validate stored data against mock data (for now, until API integration)
-      const restaurant = getRestaurantById(stored.restaurant.id);
-      if (restaurant) {
-        const branch = getBranchById(restaurant, stored.branch.id);
-        if (branch) {
-          return {
-            restaurant,
-            branch,
-            table: stored.table,
-          };
-        }
+
+      // Trust the stored context directly (comes from API during login)
+      // No need to validate against mock data since we're using real API data
+      if (stored.restaurant && stored.branch) {
+        console.log('[RestaurantContext] ✅ Valid context loaded:', {
+          restaurant: stored.restaurant.name,
+          branch: stored.branch.name,
+          table: stored.table,
+        });
+        return stored;
       }
     }
 
@@ -54,39 +52,17 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   }, [context]);
 
   const switchRestaurant = (restaurantId: string) => {
-    const restaurant = getRestaurantById(restaurantId);
-    if (!restaurant) {
-      console.warn(`Restaurant with id ${restaurantId} not found`);
-      return;
-    }
-
-    const branch = restaurant.branches[0];
-    const table = 1;
-
-    setContextState({
-      restaurant,
-      branch,
-      table,
-    });
+    // Note: With API-based flow, restaurant switching is not supported
+    // Users must scan QR code to change restaurant/branch
+    console.warn('[RestaurantContext] switchRestaurant() is deprecated with API flow. User must scan new QR code.');
+    console.warn('[RestaurantContext] Attempted restaurant switch to:', restaurantId);
   };
 
   const switchBranch = (branchId: string) => {
-    if (!context) {
-      console.warn('Cannot switch branch - no restaurant context available');
-      return;
-    }
-
-    const branch = getBranchById(context.restaurant, branchId);
-    if (!branch) {
-      console.warn(`Branch with id ${branchId} not found`);
-      return;
-    }
-
-    setContextState({
-      ...context,
-      branch,
-      table: 1,
-    });
+    // Note: With API-based flow, branch switching is not supported
+    // Users must scan QR code to change restaurant/branch
+    console.warn('[RestaurantContext] switchBranch() is deprecated with API flow. User must scan new QR code.');
+    console.warn('[RestaurantContext] Attempted branch switch to:', branchId);
   };
 
   const changeTable = (tableNumber: number) => {

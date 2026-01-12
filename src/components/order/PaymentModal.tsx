@@ -10,10 +10,35 @@ interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onStartNewOrder: () => void;
+  onPaymentComplete?: () => Promise<void>;
   amount: number;
 }
 
-export function PaymentModal({ isOpen, onClose, onStartNewOrder, amount }: PaymentModalProps) {
+export function PaymentModal({ isOpen, onClose, onStartNewOrder, onPaymentComplete, amount }: PaymentModalProps) {
+  const [isProcessing, setIsProcessing] = React.useState(false);
+
+  // Handle payment completion (simulated)
+  const handlePaymentSuccess = async () => {
+    if (onPaymentComplete) {
+      setIsProcessing(true);
+      try {
+        await onPaymentComplete();
+        console.log('[PaymentModal] ✅ Session ended after payment');
+      } catch (error) {
+        console.error('[PaymentModal] ❌ Failed to end session:', error);
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
+
+  // Call handlePaymentSuccess when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      handlePaymentSuccess();
+    }
+  }, [isOpen]);
+
   return (
     <AnimatePresence>
       {isOpen && (

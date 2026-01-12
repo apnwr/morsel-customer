@@ -7,16 +7,21 @@ import { useOrder } from '@/contexts/OrderContext';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useSession } from '@/contexts/SessionContext';
 import { Badge } from '@/components/ui/Badge';
+import { OrderTabs } from '@/components/session/OrderTabs';
 import Image from 'next/image';
 
 interface HeaderProps {
   showTimer?: boolean;
   showCart?: boolean;
   showFilters?: boolean;
+  showOrderTabs?: boolean;
+  orderIds?: string[];
+  activeOrderId?: string | null;
+  onTabClick?: (orderId: string | null) => void;
   onRightIconClick?: () => void;
 }
 
-export function Header({ showTimer = false, showCart = true, showFilters = false, onRightIconClick }: HeaderProps) {
+export function Header({ showTimer = false, showCart = true, showFilters = false, showOrderTabs = false, orderIds = [], activeOrderId = null, onTabClick, onRightIconClick }: HeaderProps) {
   const router = useRouter();
   const { cart } = useCart();
   const { order } = useOrder();
@@ -72,9 +77,25 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
   const cartTotal = mounted ? cart.subtotal : 0;
   const isCartEmpty = cartTotal === 0;
 
+  // Convert orderIds to TabInfo format for OrderTabs
+  const tabs = orderIds.map((orderId, index) => ({
+    id: orderId,
+    label: `Order #${index + 1}`,
+    isNewOrder: false,
+  }));
+
   return (
-    <div className="sticky top-0 bg-[#F7F8F8] border-b border-gray-100 z-10">
-      <div className="px-[18px] py-[10px]">
+    <div className="sticky top-0 bg-[#F7F8F8] z-10">
+      {/* Order Tabs - Show when multiple orders exist */}
+      {showOrderTabs && tabs.length > 0 && onTabClick && (
+        <OrderTabs
+          tabs={tabs}
+          activeTabId={activeOrderId}
+          onTabClick={onTabClick}
+        />
+      )}
+
+      <div className="px-[18px] py-[10px] border-b border-gray-100">
         <div className="flex items-center justify-center gap-[23px]">
           {/* Table Number Circle */}
           <div className="flex items-center gap-3 shrink-0">

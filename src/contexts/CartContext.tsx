@@ -773,9 +773,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
 
       // Store order data temporarily for order-status page with timestamp
+      // Also store participant mapping for each item
+      const itemParticipantMap: Record<string, string> = {};
+      cart.items.forEach(cartItem => {
+        if (cartItem.sessionUserId) {
+          itemParticipantMap[cartItem.menuItem.id] = cartItem.sessionUserId;
+        }
+      });
+
       const orderWithTimestamp = {
         ...response.data,
         _placedAt: Date.now(), // Store when order was placed for timer calculation
+        _itemParticipants: itemParticipantMap, // Map itemId -> sessionUserId
       };
       setInStorage(`morsel_order_${response.data.id}`, orderWithTimestamp);
 

@@ -10,6 +10,7 @@
 
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getDatabase, Database, enableLogging } from 'firebase/database';
+import { getAuth, signInAnonymously, Auth, onAuthStateChanged } from 'firebase/auth';
 
 // Firebase configuration from environment variables
 const firebaseConfig = {
@@ -24,6 +25,9 @@ export const ENABLE_FIREBASE_REALTIME = process.env.NEXT_PUBLIC_ENABLE_FIREBASE 
 
 let firebaseApp: FirebaseApp | null = null;
 let firebaseDatabase: Database | null = null;
+let firebaseAuth: Auth | null = null;
+let authInitialized = false;
+let authInitPromise: Promise<void> | null = null;
 
 /**
  * Initialize Firebase app (singleton pattern)
@@ -98,6 +102,99 @@ export function getFirebaseDatabase(): Database | null {
     console.error('[Firebase] ❌ Failed to initialize Firebase Realtime Database:', error);
     return null;
   }
+}
+
+/**
+ * Get Firebase Auth instance
+ * Returns null if Firebase is disabled or initialization failed
+ */
+export function getFirebaseAuth(): Auth | null {
+  // Return existing auth if already initialized
+  if (firebaseAuth) {
+    return firebaseAuth;
+  }
+
+  // Get Firebase app
+  const app = getFirebaseApp();
+  if (!app) {
+    return null;
+  }
+
+  // Initialize auth
+  try {
+    firebaseAuth = getAuth(app);
+    console.log('[Firebase] ✅ Firebase Auth initialized');
+    return firebaseAuth;
+  } catch (error) {
+    console.error('[Firebase] ❌ Failed to initialize Firebase Auth:', error);
+    return null;
+  }
+}
+
+/**
+ * Initialize Firebase Authentication (Anonymous Sign-in)
+ * This is required for Firebase Realtime Database access
+ * Returns a promise that resolves when auth is complete
+ */
+export async function initializeFirebaseAuth(): Promise<void> {
+  // Return existing promise if already initializing
+  if (authInitPromise) {
+    return authInitPromise;
+  }
+
+  // Return immediately if already initialized
+  if (authInitialized) {
+    return Promise.resolve();
+  }
+
+  // Create initialization promise
+  authInitPromise = (async () => {
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      console.log('[Firebase Auth] Auth not available, skipping initialization');
+      return;
+    }
+
+    try {
+      // Check if already signed in
+      if (auth.currentUser) {
+        console.log('[Firebase Auth] ✅ Already signed in:', auth.currentUser.uid.substring(0, 8) + '...');
+        authInitialized = true;
+        return;
+      }
+
+      // Sign in anonymously
+      console.log('[Firebase Auth] 🔐 Signing in anonymously...');
+      const userCredential = await signInAnonymously(auth);
+      console.log('[Firebase Auth] ✅ Anonymous sign-in successful:', userCredential.user.uid.substring(0, 8) + '...');
+      authInitialized = true;
+
+      // Listen to auth state changes
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          console.log('[Firebase Auth] 👤 Auth state: signed in', user.uid.substring(0, 8) + '...');
+        } else {
+          console.log('[Firebase Auth] 👤 Auth state: signed out');
+          authInitialized = false;
+        }
+      });
+    } catch (error) {
+      console.error('[Firebase Auth] ❌ Anonymous sign-in failed:', error);
+      authInitialized = false;
+      authInitPromise = null;
+      throw error;
+    }
+  })();
+
+  return authInitPromise;
+}
+
+/**
+ * Check if user is authenticated with Firebase
+ */
+export function isFirebaseAuthenticated(): boolean {
+  const auth = getFirebaseAuth();
+  return auth !== null && auth.currentUser !== null;
 }
 
 /**
