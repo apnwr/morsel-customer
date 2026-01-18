@@ -53,11 +53,12 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
     return storedOrder?._itemParticipants || {};
   }, [orderId]);
 
-  // Track remaining time for countdown - use orderId as key to reset state
+  // Track remaining time for countdown. Use _placedAt only when > 0 (ours); orders from API use _placedAt=0, so no countdown.
   const [remainingTime, setRemainingTime] = useState(() => {
     const storedOrder = getFromStorage<APIOrder & { _placedAt?: number }>(`morsel_order_${orderId}`);
-    const placedAt = storedOrder?._placedAt || Date.now();
-    const elapsed = Math.floor((Date.now() - placedAt) / 1000);
+    const p = storedOrder?._placedAt;
+    const placedAt = p != null && p > 0 ? p : 0;
+    const elapsed = placedAt > 0 ? Math.floor((Date.now() - placedAt) / 1000) : 999;
     return Math.max(0, 120 - elapsed);
   });
 
@@ -178,9 +179,9 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
             </p>
           </div>
 
-          {/* Timer and Edit Section */}
+          {/* Timer and Edit Section. Edit only for orders placed by the current user. */}
           <div className="flex items-center justify-between mb-3">
-            {isEditable && (
+            {isEditable && orderData?.sessionUserId === currentSessionUserId && (
               <button
                 onClick={() => router.push('/cart')}
                 className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all"

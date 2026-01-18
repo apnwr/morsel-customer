@@ -91,11 +91,25 @@ export interface StartSessionResponse {
   data: Session;
 }
 
+/** Item shape in orders from API/Real-time DB when orders include full details */
+export interface SessionOrderItem {
+  itemId: string;
+  name: string;
+  quantity: number;
+  itemTotal: number;
+  unitPrice: number;
+  variantIndex: number;
+  variantPrice: number;
+  addonsTotalPrice?: number;
+}
+
 export interface SessionOrder {
   orderId: string;
   sessionUserId: string;
   total: number;
   status: string;
+  /** When present, enables PostOrderView for all participants (not just the placer) */
+  items?: SessionOrderItem[];
 }
 
 export interface SessionQueueItem {

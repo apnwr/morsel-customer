@@ -381,20 +381,20 @@ export function ParticipantsList() {
     }
   };
 
-  const getModeDescription = () => {
-    switch (split.mode) {
-      case 'even':
-        return 'The bill will be divided equally among all participants.';
-      case 'custom':
-        return 'Each participant pays a custom amount.';
-      case 'all':
-        return 'You will pay for everyone in this session.';
-      case 'self':
-        return 'You will only pay for your own items.';
-      default:
-        return 'Choose how to split the bill.';
-    }
-  };
+  // const getModeDescription = () => {
+  //   switch (split.mode) {
+  //     case 'even':
+  //       return 'The bill will be divided equally among all participants.';
+  //     case 'custom':
+  //       return 'Each participant pays a custom amount.';
+  //     case 'all':
+  //       return 'You will pay for everyone in this session.';
+  //     case 'self':
+  //       return 'You will only pay for your own items.';
+  //     default:
+  //       return 'Choose how to split the bill.';
+  //   }
+  // };
 
   const handleShare = () => {
     // TODO: Implement share functionality
@@ -422,12 +422,18 @@ export function ParticipantsList() {
             onClick={() => setShowSettingsModal(true)}
             className="flex flex-col gap-1 text-left hover:opacity-70 transition-opacity flex-1"
           >
+            <div className="flex items-center gap-3">
             <h3 className="font-bold text-xl leading-tight text-black">
               {getModeLabel()}
             </h3>
-            <p className="text-[10px] leading-tight text-black opacity-40">
+            <span className="bg-[#ECECEC] rounded-[12px] px-3 py-2 text-xs cursor-pointer">
+              Edit
+            </span>
+            </div>
+            {/* <p className="text-[10px] leading-tight text-black opacity-40">
               {getModeDescription()}
-            </p>
+            </p> */}
+            
           </button>
           <button
             onClick={handleShare}
@@ -467,7 +473,7 @@ export function ParticipantsList() {
               })}
 
               {/* Invite Card */}
-              <button
+              {/* <button
                 onClick={handleInvite}
                 className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0"
               >
@@ -486,7 +492,7 @@ export function ParticipantsList() {
                 <span className="text-lg font-black text-center text-transparent leading-tight select-none">
                   $0.00
                 </span>
-              </button>
+              </button> */}
             </>
           ) : (
             <>

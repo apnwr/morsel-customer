@@ -1,9 +1,11 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
-import type { OrderingSessionData, Timestamp, SessionParticipant } from '@/types/api/session';
+import type { OrderingSessionData, Timestamp, SessionParticipant, SessionOrder } from '@/types/api/session';
 import { sessionService } from '@/services/session.service';
 import { subscribeToParticipantsBySpace, isFirebaseAvailable } from '@/lib/firebase/realtime.service';
+import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
+import { mapSessionOrderToAPIOrder } from '@/lib/order-mapping';
 
 const STORAGE_KEY = 'morsel_session_data';
 const STORAGE_KEY_USER_ID = 'morsel_session_user_id';
@@ -222,13 +224,30 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Fetch latest session detail from API
       const response = await sessionService.getSessionById(sessionData.session.id);
 
+      // Persist full order (with items) to localStorage when API returns it, so all participants can view any tab. Skip if key exists to avoid overwriting our own order (_placedAt, _itemParticipants).
+      const sessionId = response.data.id;
+      const businessId = response.data.businessId || sessionData?.business?.id || sessionData?.business?.businessId || '';
+      const spaceId = response.data.spaceId || sessionData?.space?.id || '';
+      for (const o of response.data.orders || []) {
+        const order = typeof o === 'object' && o && 'orderId' in o ? (o as SessionOrder) : null;
+        if (order?.items && Array.isArray(order.items) && order.items.length > 0) {
+          const key = `morsel_order_${order.orderId}`;
+          if (!getFromStorage(key)) {
+            const mapped = mapSessionOrderToAPIOrder(order, sessionId, businessId, spaceId);
+            setInStorage(key, mapped);
+          }
+        }
+      }
+
       // Update session data with fresh data from API
       // Merge with existing business and space data
       const updatedSessionData: OrderingSessionData = {
         ...sessionData,
         session: {
           ...sessionData.session,
-          orders: response.data.orders.map(o => o.orderId), // Update orders array
+          orders: (response.data.orders || []).map((o: SessionOrder | string) =>
+            typeof o === 'string' ? o : (o as SessionOrder).orderId
+          ),
           participants: response.data.participants, // Update participants
         },
         participantsCount: response.data.participants.length,

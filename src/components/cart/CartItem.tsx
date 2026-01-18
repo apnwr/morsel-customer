@@ -14,7 +14,7 @@ interface CartItemProps {
   sessionData?: OrderingSessionData | null;
 }
 
-export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, onCustomize, sessionData }: CartItemProps) {
+export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, sessionData }: CartItemProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Get participant name from sessionUserId
@@ -111,7 +111,7 @@ export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, o
         </div>
 
         {/* Customize Button */}
-        {item.menuItem.isCustomizable && onCustomize && (
+        {/* {item.menuItem.isCustomizable && onCustomize && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => onCustomize(item)}
@@ -130,7 +130,7 @@ export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, o
               />
             </button>
           </div>
-        )}
+        )} */}
       </div>
 
       {/* Right Section - Quantity Controls & Total */}

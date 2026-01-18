@@ -575,8 +575,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     console.log('[CartContext] 📦 Processing queue data:', {
       queueEntries: orderQueue.length,
       participants: orderQueue.map(q => ({
-        sessionUserId: q.sessionUserId.substring(0, 8) + '...',
-        itemsCount: q.items.length
+        sessionUserId: (q.sessionUserId ?? '').substring(0, 8) + '...',
+        itemsCount: (q.items ?? []).length
       }))
     });
 
@@ -587,7 +587,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const allCartItems: CartItem[] = [];
 
     orderQueue.forEach((participantQueue) => {
-      const items = participantQueue.items ?? [];
+      const items = (participantQueue?.items) ?? [];
       // Convert each participant's SessionQueueItem[] to CartItem[]
       const participantCartItems: CartItem[] = items.map((queueItem: SessionQueueItem) => {
         // Try to get the full menu item from cache (with customOptions)

@@ -155,7 +155,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
         </div>
 
         {/* Note to Kitchen */}
-        <div className="border-3 border-[#ECECEC] py-2 px-4 rounded-[30px] w-auto">
+        <div className="border-3 border-[#ECECEC] py-2 px-3 rounded-[30px] w-fit">
           {!showNoteInput ? (
             <button
               onClick={() => setShowNoteInput(true)}
@@ -165,7 +165,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
               <span className="text-xl">👩‍🍳</span>
             </button>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 w-[80vw]">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-xl">👩‍🍳</span>
                 <span className="text-sm font-medium">Note to kitchen</span>
@@ -233,7 +233,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
       </div>
 
       {/* Place Order Button */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 border-t rounded-t-xl overflow-hidden flex justify-center px-2 sm:px-0">
+      <div className="fixed bottom-0 left-0 right-0 z-20 border-t rounded-t-xl overflow-hidden flex justify-center">
         <button
           onClick={onPlaceOrder}
           disabled={isPlacingOrder}

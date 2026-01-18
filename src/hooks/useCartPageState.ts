@@ -11,9 +11,12 @@ import { useSession } from '@/contexts/SessionContext';
 import { useCart } from '@/contexts/CartContext';
 import { useOrder } from '@/contexts/OrderContext';
 import { useSplit } from '@/contexts/SplitContext';
-import { getFromStorage } from '@/mocks/mockStorage';
+import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
+import { sessionService } from '@/services/session.service';
+import { mapSessionOrderToAPIOrder } from '@/lib/order-mapping';
 import type { Order as APIOrder } from '@/types/api/order';
 import type { RestaurantContext } from '@/types/restaurant';
+import type { SessionOrder } from '@/types/api/session';
 
 export type PageState = 'pre-order' | 'post-order';
 
@@ -44,7 +47,7 @@ export interface CartPageState {
 export function useCartPageState(): CartPageState {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { sessionData, activeOrderId, setActiveOrderId } = useSession();
+  const { sessionData, activeOrderId, setActiveOrderId, refreshSessionData } = useSession();
   const { cart, confirmOrder, clearCart } = useCart();
   const { placeOrder: placeOrderLegacy } = useOrder();
   const { split } = useSplit();
@@ -61,16 +64,23 @@ export function useCartPageState(): CartPageState {
     return sessionData?.session?.orders?.map((o: any) => (typeof o === 'string' ? o : o.orderId)) || [];
   }, [sessionData]);
 
+  // On cart mount, refresh session so we get latest order IDs (including orders placed by other participants) and persist orders with items
+  useEffect(() => {
+    if (sessionData?.session?.id) {
+      refreshSessionData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when session is available
+  }, [sessionData?.session?.id]);
+
   // Handle URL query param for orderId (deep linking)
   useEffect(() => {
     const queryOrderId = searchParams.get('orderId');
     if (queryOrderId && queryOrderId !== activeOrderId) {
-      console.log('[useCartPageState] Setting activeOrderId from URL:', queryOrderId);
       setActiveOrderId(queryOrderId);
     }
   }, [searchParams, activeOrderId, setActiveOrderId]);
 
-  // Load order data when activeOrderId changes
+  // Load order data when activeOrderId changes. Use localStorage first; if missing (e.g. order placed by another participant), fetch from session API when orders include items.
   useEffect(() => {
     if (!activeOrderId) {
       setOrderData(null);
@@ -78,25 +88,54 @@ export function useCartPageState(): CartPageState {
       return;
     }
 
-    console.log('[useCartPageState] Loading order data for:', activeOrderId);
+    const storedOrder = getFromStorage<APIOrder>(`morsel_order_${activeOrderId}`);
+    if (storedOrder) {
+      setOrderData(storedOrder);
+      setIsLoading(false);
+      return;
+    }
 
-    try {
-      const storedOrder = getFromStorage<APIOrder>(`morsel_order_${activeOrderId}`);
-      if (storedOrder) {
-        console.log('[useCartPageState] ✅ Order found in localStorage');
-        setOrderData(storedOrder);
-        setIsLoading(false);
-      } else {
-        console.warn('[useCartPageState] ⚠️ Order not found in localStorage');
-        setOrderData(null);
-        setIsLoading(false);
-      }
-    } catch (error) {
-      console.error('[useCartPageState] Error loading order:', error);
+    const sessionId = sessionData?.session?.id;
+    const businessId = sessionData?.business?.id || sessionData?.business?.businessId;
+    const spaceId = sessionData?.space?.id;
+
+    if (!sessionId || !businessId || !spaceId) {
       setOrderData(null);
       setIsLoading(false);
+      return;
     }
-  }, [activeOrderId]);
+
+    let cancelled = false;
+    setIsLoading(true);
+
+    sessionService
+      .getSessionById(sessionId)
+      .then((res) => {
+        if (cancelled) return;
+        const orders = res.data?.orders ?? [];
+        const o = orders.find(
+          (x: string | SessionOrder) =>
+            (typeof x === 'object' && x && (x as SessionOrder).orderId === activeOrderId) || x === activeOrderId
+        ) as SessionOrder | undefined;
+        if (o && typeof o === 'object' && Array.isArray(o.items) && o.items.length > 0) {
+          const mapped = mapSessionOrderToAPIOrder(o, sessionId, businessId, spaceId);
+          setInStorage(`morsel_order_${activeOrderId}`, mapped);
+          setOrderData(mapped);
+        } else {
+          setOrderData(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setOrderData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrderId, sessionData?.session?.id, sessionData?.business?.id, sessionData?.business?.businessId, sessionData?.space?.id]);
 
   // Determine page state: pre-order or post-order
   const pageState: PageState = useMemo(() => {

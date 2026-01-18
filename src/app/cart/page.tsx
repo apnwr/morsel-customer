@@ -41,8 +41,9 @@ function CartPageContent() {
     return null;
   }
 
-  // Show loading only on initial mount when we don't know the state yet
-  const showInitialLoading = isLoading && !orderData && cartItemsCount === 0;
+  // Show loading: initial mount, or when fetching an order (e.g. another participant's) by tab
+  const showInitialLoading =
+    (isLoading && !orderData && cartItemsCount === 0) || (!!activeOrderId && !orderData && isLoading);
 
   // Empty state - no orders and no cart items (only in pre-order state)
   const showEmptyState = pageState === 'pre-order' && cartItemsCount === 0 && !isLoading;
