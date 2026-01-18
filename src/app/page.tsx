@@ -55,7 +55,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
       <div
-        className={`flex flex-col items-center text-center transition-opacity duration-700 ${
+        className={`flex flex-col w-full items-center text-center transition-opacity duration-700 ${
           isVisible ? 'opacity-100' : 'opacity-0'
         }`}
       >
@@ -84,13 +84,13 @@ export default function HomePage() {
         <h2 className="text-2xl font-semibold text-gray-800 mb-3">
           Please Scan QR Code
         </h2>
-        <p className="text-gray-600 max-w-md">
+        <p className="text-gray-600">
           To start ordering, scan the QR code on your table using your camera app.
         </p>
 
         {/* Development Note - Remove in production */}
         {process.env.NODE_ENV === 'development' && (
-          <div className="mt-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg max-w-md">
+          <div className="mt-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-xs text-yellow-800">
               <strong>Development Mode:</strong> QR codes should contain URLs like:
               <br />
