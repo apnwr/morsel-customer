@@ -82,7 +82,7 @@ export default function SpacePage() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="text-center max-w-md">
+        <div className="flex flex-col text-center">
           <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
@@ -98,7 +98,7 @@ export default function SpacePage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
+      <div className="text-center flex flex-col items-center">
         <LoadingSpinner size="lg" />
         <p className="mt-4 text-gray-600">Loading your session...</p>
       </div>
