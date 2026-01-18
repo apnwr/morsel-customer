@@ -285,7 +285,7 @@ export function CustomizationModal({
       size="full"
       showCloseButton={false}
     >
-      <div className="flex flex-col h-[90vh] bg-[#F7F8F8]">
+      <div className="flex flex-col max-h-[90vh] bg-[#F7F8F8]">
         {/* Header with Item Info and Close Button */}
         <div className="p-4 pt-5 border-b border-gray-200 bg-[#F7F8F8]">
           <div className="flex items-start gap-3 mb-3">
@@ -359,7 +359,7 @@ export function CustomizationModal({
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide pt-4">
+        <div className="shrink min-h-0 overflow-y-auto scrollbar-hide pt-4">
           {/* Customization Options */}
           {hasCustomOptions && (
             <div className="px-6 pb-6">

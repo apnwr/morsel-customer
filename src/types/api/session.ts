@@ -105,16 +105,16 @@ export interface SessionQueueItem {
   variantIndex: number;
   variantName: string;
   variantPrice: number;
-  addOns: Array<{
+  addOns?: Array<{
     addonIndex: number;
     addonName: string;
-    selectedOptions: Array<{
+    selectedOptions?: Array<{
       name: string;
       price: number;
     }>;
     optionsTotalPrice: number;
   }>;
-  addonsTotalPrice: number;
+  addonsTotalPrice?: number;
   unitPrice: number;
   itemTotal: number;
 }

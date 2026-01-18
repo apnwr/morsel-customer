@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '@/contexts/CartContext';
 import { useOrder } from '@/contexts/OrderContext';
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -9,6 +11,8 @@ import { useSession } from '@/contexts/SessionContext';
 import { Badge } from '@/components/ui/Badge';
 import { OrderTabs } from '@/components/session/OrderTabs';
 import Image from 'next/image';
+
+const SNACKBAR_DURATION_MS = 2000;
 
 interface HeaderProps {
   showTimer?: boolean;
@@ -23,7 +27,9 @@ interface HeaderProps {
 
 export function Header({ showTimer = false, showCart = true, showFilters = false, showOrderTabs = false, orderIds = [], activeOrderId = null, onTabClick, onRightIconClick }: HeaderProps) {
   const router = useRouter();
-  const { cart } = useCart();
+  const { cart, lastCartAction, clearLastCartAction } = useCart();
+  const [snackbar, setSnackbar] = useState<{ type: 'added' | 'removed'; count: number } | null>(null);
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { order } = useOrder();
   const { context } = useRestaurant();
   const { sessionData } = useSession();
@@ -69,6 +75,28 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
     }
   }, [showTimer, order]);
 
+  // Consume lastCartAction (add/remove) once when cart CTA is shown: display snackbar and clear context.
+  // Defer setState to avoid synchronous cascading renders (React recommendation).
+  useEffect(() => {
+    if (showCart && lastCartAction && !snackbar) {
+      const { type, count } = lastCartAction;
+      clearLastCartAction();
+      queueMicrotask(() => setSnackbar({ type, count }));
+    }
+  }, [showCart, lastCartAction, snackbar, clearLastCartAction]);
+
+  // Auto-dismiss snackbar after SNACKBAR_DURATION_MS; cleanup on unmount
+  useEffect(() => {
+    if (!snackbar) return;
+    dismissTimerRef.current = setTimeout(() => setSnackbar(null), SNACKBAR_DURATION_MS);
+    return () => {
+      if (dismissTimerRef.current) {
+        clearTimeout(dismissTimerRef.current);
+        dismissTimerRef.current = null;
+      }
+    };
+  }, [snackbar]);
+
   const handleCartClick = () => {
     router.push('/cart');
   };
@@ -97,10 +125,15 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
 
       <div className="px-[18px] py-[10px] border-b border-gray-100">
         <div className="flex items-center justify-center gap-[23px]">
-          {/* Table Number Circle */}
+          {/* Table Number Circle - clickable, navigates to My Tab */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="relative w-[50px] h-[50px] flex items-center justify-center mt-1">
-              <div className="absolute inset-0 border-[3px] border-black rounded-full"></div>
+            <button
+              type="button"
+              onClick={() => router.push('/my-tab')}
+              className="relative w-[50px] h-[50px] flex items-center justify-center mt-1 p-0 border-0 bg-transparent cursor-pointer rounded-full hover:opacity-90 active:opacity-80 transition-opacity"
+              aria-label="View table details"
+            >
+              <div className="absolute inset-0 border-[3px] border-black rounded-full" />
 
               {/* Participant dots around the circle */}
               {Array.from({ length: participantCount }).map((_, index) => {
@@ -122,13 +155,13 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
                 );
               })}
 
-              <span 
+              <span
                 className="text-xl font-bold relative z-10"
                 style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.12em' }}
               >
                 {tableNumber}
               </span>
-            </div>
+            </button>
             
             {/* Timer Badge */}
             {showTimer && order && order.timerExpiresAt && (
@@ -138,32 +171,61 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
             )}
           </div>
 
-          {/* Cart Total - Center */}
+          {/* Cart Total - Center; one slide at a time: default (price+arrow) or snackbar ("X items added/removed"). Cyclic ladder: outgoing slides up, incoming slides up from below. */}
           {showCart && (
             <button
               onClick={handleCartClick}
-              className={`flex items-center justify-between w-[211px] h-[50px] px-3 py-[11px] bg-[#F8F8F8] rounded-[30px] transition-colors shrink-0 ${
-                isCartEmpty 
-                  ? 'border-[3px] border-[#B2B2B2]' 
+              className={`relative overflow-hidden w-[211px] h-[50px] bg-[#F8F8F8] rounded-[30px] transition-colors shrink-0 ${
+                isCartEmpty
+                  ? 'border-[3px] border-[#B2B2B2]'
                   : 'border-[3px] border-black'
               }`}
               aria-label="View cart"
             >
-              <span 
-                className={`text-xl font-black ${
-                  isCartEmpty ? 'text-[#B2B2B2]' : 'text-black'
-                }`}
-                style={{ fontFamily: 'Lato, sans-serif', lineHeight: '1.2em' }}
-              >
-                $ {isCartEmpty ? '00.00' : cartTotal.toFixed(2)}
-              </span>
-              <Image
-                src="/icons/Diagonal_Arrow.png"
-                alt="Cart"
-                width={24}
-                height={24}
-                className={`shrink-0 ${isCartEmpty ? 'opacity-40' : ''}`}
-              />
+              <AnimatePresence initial={false} mode="sync">
+                {snackbar ? (
+                  <motion.div
+                    key="snackbar"
+                    initial={{ y: '100%' }}
+                    animate={{ y: 0 }}
+                    exit={{ y: '-100%' }}
+                    transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
+                    className="absolute inset-0 flex items-center justify-center px-3"
+                  >
+                    <span
+                      className="text-sm font-bold text-black"
+                      style={{ fontFamily: 'Lato, sans-serif', lineHeight: 1.2 }}
+                    >
+                      {snackbar.count} item{snackbar.count === 1 ? '' : 's'} {snackbar.type === 'added' ? 'added' : 'removed'}
+                    </span>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="default"
+                    initial={{ y: '100%' }}
+                    animate={{ y: 0 }}
+                    exit={{ y: '-100%' }}
+                    transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
+                    className="absolute inset-0 flex items-center justify-between px-3"
+                  >
+                    <span
+                      className={`text-xl font-black ${
+                        isCartEmpty ? 'text-[#B2B2B2]' : 'text-black'
+                      }`}
+                      style={{ fontFamily: 'Lato, sans-serif', lineHeight: '1.2em' }}
+                    >
+                      $ {isCartEmpty ? '00.00' : cartTotal.toFixed(2)}
+                    </span>
+                    <Image
+                      src="/icons/Diagonal_Arrow.png"
+                      alt="Cart"
+                      width={24}
+                      height={24}
+                      className={`shrink-0 ${isCartEmpty ? 'opacity-40' : ''}`}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </button>
           )}
 

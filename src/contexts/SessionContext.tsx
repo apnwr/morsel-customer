@@ -1,8 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
-import type { OrderingSessionData, Timestamp } from '@/types/api/session';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
+import type { OrderingSessionData, Timestamp, SessionParticipant } from '@/types/api/session';
 import { sessionService } from '@/services/session.service';
+import { subscribeToParticipantsBySpace, isFirebaseAvailable } from '@/lib/firebase/realtime.service';
 
 const STORAGE_KEY = 'morsel_session_data';
 const STORAGE_KEY_USER_ID = 'morsel_session_user_id';
@@ -286,6 +287,154 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       clearSession();
     }
   }, [sessionData, clearSession]);
+
+  // Firebase real-time sync for participants
+  // Refs for tracking subscriptions and intervals
+  const firebaseUnsubscribeRef = useRef<(() => void) | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isUsingFirebaseRef = useRef(false);
+
+  // Polling function for fallback
+  const pollParticipants = useCallback(async () => {
+    if (!sessionData?.session?.id) return;
+
+    try {
+      const response = await sessionService.getSessionById(sessionData.session.id);
+      const latestParticipants = response.data.participants;
+
+      // Update session data with latest participants
+      setSessionDataState(prev => {
+        if (!prev?.session) return prev;
+
+        const updated: OrderingSessionData = {
+          ...prev,
+          session: {
+            ...prev.session,
+            participants: latestParticipants,
+          },
+          participantsCount: latestParticipants.length,
+        };
+
+        // Update localStorage
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        } catch (error) {
+          console.error('[SessionContext] Error saving to localStorage:', error);
+        }
+
+        return updated;
+      });
+
+      console.log('[SessionContext] 🔄 Polling update - participants:', latestParticipants.length);
+    } catch (error) {
+      console.error('[SessionContext] Polling error:', error);
+    }
+  }, [sessionData]);
+
+  // Setup polling fallback
+  const setupPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    console.log('[SessionContext] 📡 Setting up polling fallback (every 10s)');
+
+    // Initial fetch
+    pollParticipants();
+
+    // Set up interval
+    pollingIntervalRef.current = setInterval(() => {
+      pollParticipants();
+    }, 10000); // Poll every 10 seconds
+  }, [pollParticipants]);
+
+  // Cleanup function
+  const cleanup = useCallback(() => {
+    if (firebaseUnsubscribeRef.current) {
+      console.log('[SessionContext] 🔌 Unsubscribing from Firebase');
+      firebaseUnsubscribeRef.current();
+      firebaseUnsubscribeRef.current = null;
+    }
+    if (pollingIntervalRef.current) {
+      console.log('[SessionContext] 🔌 Stopping polling');
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    isUsingFirebaseRef.current = false;
+  }, []);
+
+  // Effect: Real-time sync for participants (Firebase + polling fallback)
+  useEffect(() => {
+    const sessionId = sessionData?.session?.id;
+    const spaceId = sessionData?.space?.id;
+
+    if (!sessionId || !spaceId) {
+      cleanup();
+      return;
+    }
+
+    console.log('[SessionContext] 🚀 Setting up real-time sync for participants', {
+      sessionId: sessionId.substring(0, 8) + '...',
+      spaceId: spaceId.substring(0, 8) + '...'
+    });
+
+    // Try Firebase first
+    if (isFirebaseAvailable()) {
+      console.log('[SessionContext] 🔥 Firebase available - setting up realtime listener');
+
+      const unsubscribe = subscribeToParticipantsBySpace(
+        spaceId,
+        sessionId,
+        (participants: SessionParticipant[]) => {
+          console.log('[SessionContext] 🔥 Firebase update received - participants:', participants.length);
+
+          // Update session data with latest participants
+          setSessionDataState(prev => {
+            if (!prev?.session) return prev;
+
+            const updated: OrderingSessionData = {
+              ...prev,
+              session: {
+                ...prev.session,
+                participants,
+              },
+              participantsCount: participants.length,
+            };
+
+            // Update localStorage
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            } catch (error) {
+              console.error('[SessionContext] Error saving to localStorage:', error);
+            }
+
+            return updated;
+          });
+        },
+        (error: Error) => {
+          console.error('[SessionContext] 🔥❌ Firebase error, falling back to polling:', error);
+          if (!pollingIntervalRef.current) {
+            setupPolling();
+          }
+        }
+      );
+
+      if (unsubscribe) {
+        firebaseUnsubscribeRef.current = unsubscribe;
+        isUsingFirebaseRef.current = true;
+        console.log('[SessionContext] ✅ Firebase subscription active');
+      } else {
+        console.log('[SessionContext] ⚠️ Firebase subscription failed, using polling');
+        setupPolling();
+      }
+    } else {
+      console.log('[SessionContext] 📡 Firebase not available, using polling');
+      setupPolling();
+    }
+
+    return cleanup;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionData?.session?.id, sessionData?.space?.id]);
 
   const value: SessionState = useMemo(() => ({
     previewSession,

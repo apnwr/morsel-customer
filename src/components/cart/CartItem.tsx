@@ -74,7 +74,7 @@ export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, o
               />
             ) : (
               <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                <span className="text-xs text-gray-400">No image</span>
+                <span className="text-[10px] text-gray-400 text-center">No<br/> image</span>
               </div>
             )}
           </div>

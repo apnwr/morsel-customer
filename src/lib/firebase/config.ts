@@ -155,6 +155,17 @@ export async function initializeFirebaseAuth(): Promise<void> {
       return;
     }
 
+    // Set up auth state listener FIRST
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        console.log('[Firebase Auth] 👤 Auth state: signed in', user.uid.substring(0, 8) + '...');
+        authInitialized = true;
+      } else {
+        console.log('[Firebase Auth] 👤 Auth state: signed out');
+        authInitialized = false;
+      }
+    });
+
     try {
       // Check if already signed in
       if (auth.currentUser) {
@@ -165,19 +176,14 @@ export async function initializeFirebaseAuth(): Promise<void> {
 
       // Sign in anonymously
       console.log('[Firebase Auth] 🔐 Signing in anonymously...');
-      const userCredential = await signInAnonymously(auth);
-      console.log('[Firebase Auth] ✅ Anonymous sign-in successful:', userCredential.user.uid.substring(0, 8) + '...');
-      authInitialized = true;
+      await signInAnonymously(auth);
+      console.log('[Firebase Auth] ✅ Anonymous sign-in successful');
 
-      // Listen to auth state changes
-      onAuthStateChanged(auth, (user) => {
-        if (user) {
-          console.log('[Firebase Auth] 👤 Auth state: signed in', user.uid.substring(0, 8) + '...');
-        } else {
-          console.log('[Firebase Auth] 👤 Auth state: signed out');
-          authInitialized = false;
-        }
-      });
+      // Small delay to ensure token propagates to database service
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      authInitialized = true;
+      console.log('[Firebase Auth] ✅ Auth token ready for database access');
     } catch (error) {
       console.error('[Firebase Auth] ❌ Anonymous sign-in failed:', error);
       authInitialized = false;

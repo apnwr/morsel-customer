@@ -15,6 +15,7 @@ import { getMenuForRestaurant, getItemsByCategory } from "@/mocks/menuData";
 import { menuService } from "@/services/menu.service";
 import { MenuItem as MenuItemType } from "@/types/menu";
 import { Customization } from "@/types/cart";
+import { useRouter } from "next/navigation";
 import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
 import type { MenuWithItems } from "@/types/api/menu";
@@ -247,10 +248,12 @@ const MenuRenderer = React.memo(
 MenuRenderer.displayName = "MenuRenderer";
 
 export default function MenuPage() {
+  const router = useRouter();
   // Navigation guard - redirect to login if no restaurant context
   const context = useRequireRestaurantContext();
   const { sessionData } = useSession();
   const { cart, addItem } = useCart();
+  const hasCartItems = cart.items.length > 0;
 
   // Session validation - checks session status and expiry
   useSessionValidation();
@@ -532,7 +535,9 @@ export default function MenuPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-[80px]">
+    <div
+      className={`min-h-screen bg-white ${hasCartItems ? 'pb-[130px]' : 'pb-[80px]'}`}
+    >
       <Header showCart />
 
       <div className="p-4 bg-[#F7F8F8]">
@@ -622,6 +627,9 @@ export default function MenuPage() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onMenuClick={() => setShowMenuNav(true)}
+        showConfirmOrder={hasCartItems}
+        onConfirmOrder={() => router.push('/cart')}
+        cartTotal={cart.subtotal}
       />
 
       {/* Menu Navigation Popup */}

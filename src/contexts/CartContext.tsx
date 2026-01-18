@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { Cart, CartItem, Customization } from '@/types/cart';
 import { MenuItem } from '@/types/menu';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
@@ -26,6 +26,9 @@ interface CartState {
   getItemCount: () => number;
   confirmOrder: (paymentType: 'cash' | 'card' | 'upi' | string) => Promise<{ orderId: string; success: boolean }>;
   syncCartFromQueue: () => Promise<void>;
+  /** Set when user adds or removes via addItem/removeItem (not from sync). Consumed by Header to show "X item(s) added/removed" snackbar once. */
+  lastCartAction: { type: 'added' | 'removed'; count: number } | null;
+  clearLastCartAction: () => void;
 }
 
 const CartContext = createContext<CartState | undefined>(undefined);
@@ -121,6 +124,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const firebaseUnsubscribeRef = useRef<(() => void) | null>(null);
   const isUsingFirebaseRef = useRef<boolean>(false);
+  const [lastCartAction, setLastCartAction] = useState<{ type: 'added' | 'removed'; count: number } | null>(null);
+  const clearLastCartAction = useCallback(() => setLastCartAction(null), []);
+  /** Timestamp of our last addItem/removeItem; used to skip setting lastCartAction in processOrderQueueData when the update is our own sync echo. */
+  const lastLocalCartActionAtRef = useRef<number | null>(null);
+  const LOCAL_ECHO_MS = 2500;
+  /** Ref to always read latest cart in processOrderQueueData; the Firebase/polling callback can close over a stale cart. */
+  const cartRef = useRef<Cart>(cart);
+  useEffect(() => {
+    cartRef.current = cart;
+  }, [cart]);
 
   /**
    * Sync Queue with API
@@ -289,7 +302,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
 
     // Early exit if no session
-    if (!sessionData?.session?.id) {
+    if (!sessionData?.session?.id || !sessionData?.space?.id) {
       cleanup();
       return;
     }
@@ -321,6 +334,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     console.log('[CartContext] ✅ Valid session detected, setting up sync');
     console.log('[CartContext] 🔍 Session details:', {
       sessionId: sessionData.session.id.substring(0, 8) + '...',
+      spaceId: sessionData.space.id.substring(0, 8) + '...',
       status: sessionData.session.status,
       participantsCount: sessionData.session.participants?.length || 0
     });
@@ -333,6 +347,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       console.log('[CartContext] 🔥 Firebase available - setting up realtime listener');
 
       const unsubscribe = subscribeToOrderQueue(
+        sessionData.space.id,
         sessionData.session.id,
         (orderQueue) => {
           console.log('[CartContext] 🔥 Firebase update received, processing data...');
@@ -453,6 +468,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
 
     setCart(newCart);
+    lastLocalCartActionAtRef.current = Date.now();
+    setLastCartAction({ type: 'added', count: validQuantity });
 
     // Sync with queue API
     syncQueueWithAPI(newItems);
@@ -468,6 +485,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return; // User can only remove their own items
     }
 
+    const removedCount = itemToRemove?.quantity ?? 0;
     const newItems = cart.items.filter((item) => item.id !== cartItemId);
     const totals = calculateCartTotals(newItems);
 
@@ -477,6 +495,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
 
     setCart(newCart);
+    if (removedCount > 0) {
+      lastLocalCartActionAtRef.current = Date.now();
+      setLastCartAction({ type: 'removed', count: removedCount });
+    }
 
     // Sync with queue API
     syncQueueWithAPI(newItems);
@@ -542,6 +564,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     if (!orderQueue || orderQueue.length === 0) {
       console.log('[CartContext] ℹ️ No queue data to process');
+      const prevTotal = cartRef.current.items.reduce((s, i) => s + i.quantity, 0);
+      const isOwnEcho = lastLocalCartActionAtRef.current != null && Date.now() - lastLocalCartActionAtRef.current < LOCAL_ECHO_MS;
+      if (isOwnEcho) lastLocalCartActionAtRef.current = null;
+      else if (prevTotal > 0) setLastCartAction({ type: 'removed', count: prevTotal });
       setCart(getEmptyCart());
       return;
     }
@@ -561,8 +587,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const allCartItems: CartItem[] = [];
 
     orderQueue.forEach((participantQueue) => {
+      const items = participantQueue.items ?? [];
       // Convert each participant's SessionQueueItem[] to CartItem[]
-      const participantCartItems: CartItem[] = participantQueue.items.map((queueItem: SessionQueueItem) => {
+      const participantCartItems: CartItem[] = items.map((queueItem: SessionQueueItem) => {
         // Try to get the full menu item from cache (with customOptions)
         const cachedMenuItem = getCachedMenuItem(queueItem.itemId);
 
@@ -582,7 +609,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           price: queueItem.variantPrice,
           image: '',
           tags: [],
-          isCustomizable: queueItem.addOns.length > 0 || queueItem.variantIndex > 0,
+          isCustomizable: (queueItem.addOns?.length || 0) > 0 || queueItem.variantIndex > 0,
           customOptions: [], // Empty if not cached
         };
 
@@ -600,8 +627,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
 
         // Reconstruct addon customizations with correct choiceId format
-        queueItem.addOns.forEach((queueAddon) => {
-          queueAddon.selectedOptions.forEach((optionData) => {
+        queueItem.addOns?.forEach((queueAddon) => {
+          queueAddon.selectedOptions?.forEach((optionData) => {
             // Try to find the correct choiceId from cached menu item's customOptions
             let choiceId = `addon-${queueAddon.addonIndex}-${optionData.name}`; // Fallback
 
@@ -652,6 +679,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
       items: allCartItems,
       ...totals,
     };
+
+    // Notify "X item(s) added/removed" when sync reflects changes from other participants. Skip when likely our own sync echo (local add/remove within LOCAL_ECHO_MS). Skip when prevTotal===0 to avoid "X added" on first load.
+    // Use cartRef.current so prevTotal is the latest cart; the Firebase/polling callback can close over a stale cart and miss nextTotal < prevTotal for removals.
+    const prevTotal = cartRef.current.items.reduce((s, i) => s + i.quantity, 0);
+    const nextTotal = allCartItems.reduce((s, i) => s + i.quantity, 0);
+    const isOwnEcho = lastLocalCartActionAtRef.current != null && Date.now() - lastLocalCartActionAtRef.current < LOCAL_ECHO_MS;
+    if (isOwnEcho) lastLocalCartActionAtRef.current = null;
+    else {
+      if (nextTotal < prevTotal) setLastCartAction({ type: 'removed', count: prevTotal - nextTotal });
+      else if (nextTotal > prevTotal && prevTotal > 0) setLastCartAction({ type: 'added', count: nextTotal - prevTotal });
+    }
 
     setCart(newCart);
 
@@ -810,6 +848,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     getItemCount,
     confirmOrder,
     syncCartFromQueue,
+    lastCartAction,
+    clearLastCartAction,
   };
 
   return (
