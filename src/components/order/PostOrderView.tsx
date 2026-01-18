@@ -18,6 +18,7 @@ import { getFromStorage } from '@/mocks/mockStorage';
 import { getMenuItemById } from '@/mocks/menuData';
 import { PaymentModal } from '@/components/order/PaymentModal';
 import { SplitSettingsModal } from '@/components/order/SplitSettingsModal';
+import { isSplitApplicableForTotal } from '@/lib/split-utils';
 import type { Order as APIOrder, OrderItem } from '@/types/api/order';
 import type { SessionParticipant } from '@/types/api/session';
 
@@ -30,7 +31,7 @@ interface PostOrderViewProps {
 export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrderViewProps) {
   const router = useRouter();
   const { sessionData, endSession } = useSession();
-  const { split } = useSplit();
+  const { split, calculateSplit } = useSplit();
 
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -119,19 +120,30 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
     [currentSessionUserId, sessionData]
   );
 
-  // Calculate user amount
+  const orderTotal = orderData?.total || 0;
+  const useSplitShares = isSplitApplicableForTotal(split.splitForTotal, orderTotal);
+
+  const handleOpenSplitModal = useCallback(() => {
+    calculateSplit(orderTotal);
+    setIsSplitModalOpen(true);
+  }, [calculateSplit, orderTotal]);
+
+  // Calculate user amount; use split.shares only when they were calculated for this order's total
   const userAmount = useMemo(() => {
     if (!split.participants || split.participants.length === 0) {
-      return orderData?.total || 0;
+      return orderTotal;
     }
 
     const currentUser = split.participants.find((p) => p.id === currentSessionUserId);
     if (!currentUser) {
-      return orderData?.total || 0;
+      return orderTotal;
     }
 
-    return split.shares[currentUser.id] ?? (orderData?.total || 0);
-  }, [split, orderData, currentSessionUserId]);
+    if (useSplitShares && typeof split.shares[currentUser.id] === 'number') {
+      return split.shares[currentUser.id];
+    }
+    return orderTotal;
+  }, [split.participants, split.shares, useSplitShares, orderTotal, currentSessionUserId]);
 
   // Handle payment
   const handlePayNow = useCallback(async () => {
@@ -215,7 +227,7 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
               {splitMode && (
                 <>
                   ,{' '}
-                  <button onClick={() => setIsSplitModalOpen(true)} className="text-[#007AFF] underline">
+                  <button onClick={handleOpenSplitModal} className="text-[#007AFF] underline">
                     {splitMode}
                   </button>
                 </>
@@ -297,7 +309,7 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
                 Running Tabs
               </h3>
               <button
-                onClick={() => setIsSplitModalOpen(true)}
+                onClick={handleOpenSplitModal}
                 className="flex gap-2 items-center text-[16px] font-bold text-[#000] border-[2px] rounded-[30px] px-4 py-2  border-[2px] border-[#ECECEC]"
                 style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
               >
@@ -309,7 +321,10 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
             </div>
             <div className="grid grid-cols gap-3">
               {split.participants.map((participant) => {
-                const amount = split.shares[participant.id] || 0;
+                const amount =
+                  useSplitShares && typeof split.shares[participant.id] === 'number'
+                    ? split.shares[participant.id]
+                    : orderTotal / split.participants.length;
                 const isCurrentUser = participant.id === currentSessionUserId;
                 const initials = participant.name.charAt(0).toUpperCase();
 
@@ -340,7 +355,7 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
         {/* Payment Section */}
         <div className="mb-6">
           <div className="p-5 bg-white rounded-[20px] border-[2px] border-[#70707030]">
-            <div className="flex items-center justify-between pb-3 border-gray-200 mb-3">
+            <div className="flex items-center justify-between border-gray-200">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold text-lg">
                   {currentUserName.charAt(0).toUpperCase()}
@@ -368,7 +383,7 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
               </button>
             </div>
 
-            <div className="pt-3">
+            {/* <div className="pt-3">
               <div className="flex items-start gap-3 mb-2">
                 <span className="text-2xl">💸</span>
                 <div className="flex-1">
@@ -386,41 +401,20 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
                   </p>
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 
-        {/* Order More Food Section */}
-        <div className="p-5 bg-white rounded-[10px] border border-gray-200">
-          <div className="flex items-start gap-3 mb-3">
-            <span className="text-2xl">🍔</span>
-            <div className="flex-1">
-              <h4
-                className="text-black text-[20px] leading-[1.22] font-bold mb-2"
-                style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
-              >
-                Order more food?
-              </h4>
-              <p
-                className="text-black text-[11px] leading-[1.45] opacity-50"
-                style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
-              >
-                Browse the menu and add more items to a new order
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onOrderMoreFood}
-            className="w-full bg-black text-white py-3 rounded-[10px] hover:bg-gray-900 active:scale-[0.98] transition-all"
-          >
-            <span
-              className="text-[16px] leading-[1.22] font-medium"
-              style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
-            >
-              Browse Menu
-            </span>
-          </button>
-        </div>
+        {/* Browse Menu CTA — matches my-tab page style, same action as onOrderMoreFood */}
+        <button
+          type="button"
+          onClick={onOrderMoreFood}
+          className="w-full rounded-[12px] py-4 px-5 bg-white border-[2px] border-black text-black text-[18px] font-bold hover:bg-gray-50 active:opacity-90 transition-all text-center"
+          style={{ fontFamily: 'Lato, sans-serif', lineHeight: 1.2 }}
+          aria-label="Browse menu"
+        >
+          Browse Menu
+        </button>
       </div>
 
       {/* Modals */}
@@ -435,7 +429,11 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
       )}
 
       {isSplitModalOpen && (
-        <SplitSettingsModal isOpen={isSplitModalOpen} onClose={() => setIsSplitModalOpen(false)} />
+        <SplitSettingsModal
+          isOpen={isSplitModalOpen}
+          onClose={() => setIsSplitModalOpen(false)}
+          total={orderTotal}
+        />
       )}
     </>
   );

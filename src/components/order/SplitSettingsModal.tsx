@@ -13,11 +13,15 @@ import { getFromStorage } from '@/mocks/mockStorage';
 interface SplitSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** When set (e.g. from my-tab with orders total), used instead of cart.total for all calculations and display. Keeps split flow synced when opened from places that use a different total. */
+  total?: number;
 }
 
-export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps) {
-  const { split, setSplitMode, removeParticipant, updateShare } = useSplit();
+export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModalProps) {
+  const { split, setSplitMode, setSplitForTotal, removeParticipant, updateShare } = useSplit();
   const { cart } = useCart();
+
+  const effectiveTotal = typeof total === 'number' ? total : cart.total;
 
   // Get current user's sessionUserId to show "You" instead of name
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
@@ -41,7 +45,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
   };
 
   const currentSum = getCurrentSum();
-  const difference = cart.total - currentSum;
+  const difference = effectiveTotal - currentSum;
   const isValidSum = Math.abs(difference) < 0.01; // Allow for rounding errors
 
   // Reset local state when modal opens
@@ -67,7 +71,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
 
     switch (localMode) {
       case 'even': {
-        const amountPerPerson = cart.total / split.participants.length;
+        const amountPerPerson = effectiveTotal / split.participants.length;
         split.participants.forEach(p => {
           newLocalShares[p.id] = amountPerPerson.toFixed(2);
         });
@@ -76,7 +80,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
       case 'all': {
         split.participants.forEach(p => {
           if (p.id === currentSessionUserId) {
-            newLocalShares[p.id] = cart.total.toFixed(2);
+            newLocalShares[p.id] = effectiveTotal.toFixed(2);
           } else {
             newLocalShares[p.id] = '0.00';
           }
@@ -85,7 +89,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
       }
       case 'self': {
         const othersCount = split.participants.filter(p => p.id !== currentSessionUserId).length;
-        const amountPerOther = othersCount > 0 ? cart.total / othersCount : 0;
+        const amountPerOther = othersCount > 0 ? effectiveTotal / othersCount : 0;
         split.participants.forEach(p => {
           if (p.id === currentSessionUserId) {
             newLocalShares[p.id] = '0.00';
@@ -99,7 +103,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
 
     setLocalShares(newLocalShares);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, localMode, split.participants.length, cart.total]);
+  }, [isOpen, localMode, split.participants.length, effectiveTotal]);
 
   const handleModeChange = (mode: 'even' | 'custom' | 'self' | 'all') => {
     // Only update local mode - don't update context until Save is clicked
@@ -134,7 +138,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
     if (localMode === 'custom') {
       // Validate local shares (not context shares)
       const localSum = Object.values(localShares).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
-      const isValid = Math.abs(cart.total - localSum) < 0.01;
+      const isValid = Math.abs(effectiveTotal - localSum) < 0.01;
 
       if (!isValid) {
         // If validation fails, automatically switch to even split mode
@@ -171,7 +175,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
       });
     }
 
-    // Save and close
+    setSplitForTotal(effectiveTotal);
     onClose();
   };
 
@@ -204,7 +208,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
         <div className="sticky top-0 bg-white p-6 pb-0 z-10">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-2xl font-black">${cart.total.toFixed(2)}</p>
+              <p className="text-2xl font-black">${effectiveTotal.toFixed(2)}</p>
             </div>
             <Button
               onClick={handleSave}
@@ -349,7 +353,7 @@ export function SplitSettingsModal({ isOpen, onClose }: SplitSettingsModalProps)
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-700">Required Total:</span>
                 <span className="text-lg font-bold text-gray-900">
-                  ${cart.total.toFixed(2)}
+                  ${effectiveTotal.toFixed(2)}
                 </span>
               </div>
               {!isValidSum && (

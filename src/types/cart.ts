@@ -37,4 +37,6 @@ export interface SplitBill {
   participants: Participant[];
   shares: Record<string, number>;
   isValid: boolean;
+  /** Total (e.g. ordersTotal or order total) these shares were calculated for. Used to avoid applying cart/order split on my-tab and vice versa. */
+  splitForTotal?: number | null;
 }

@@ -11,6 +11,7 @@ const STORAGE_KEY = 'morsel_split';
 interface SplitState {
   split: SplitBill;
   setSplitMode: (mode: 'even' | 'custom' | 'self' | 'all') => void;
+  setSplitForTotal: (total: number | null) => void;
   addParticipant: (participant: Participant) => void;
   removeParticipant: (participantId: string) => void;
   updateShare: (participantId: string, amount: number) => void;
@@ -28,6 +29,7 @@ function getEmptySplit(): SplitBill {
     participants: [],
     shares: {},
     isValid: true,
+    splitForTotal: null,
   };
 }
 
@@ -108,6 +110,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
           ...prev,
           shares: {},
           isValid: true,
+          splitForTotal: null,
         };
       }
 
@@ -205,8 +208,13 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         ...prev,
         shares: newShares,
         isValid,
+        splitForTotal: total,
       };
     });
+  }, []);
+
+  const setSplitForTotal = useCallback((total: number | null) => {
+    setSplit((prev) => ({ ...prev, splitForTotal: total }));
   }, []);
 
   const validateSplitShares = useCallback((total: number): boolean => {
@@ -236,6 +244,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
   const value: SplitState = {
     split,
     setSplitMode,
+    setSplitForTotal,
     addParticipant,
     removeParticipant,
     updateShare,

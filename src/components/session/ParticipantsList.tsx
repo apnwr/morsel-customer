@@ -408,7 +408,19 @@ export function ParticipantsList() {
 
   return (
     <>
-      <div className="border-[3px] border-[#ECECEC] rounded-[30px] bg-white p-5 min-h-[200px] relative">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setShowSettingsModal(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setShowSettingsModal(true);
+          }
+        }}
+        className="border-[3px] border-[#ECECEC] rounded-[30px] bg-white p-5 min-h-[200px] relative cursor-pointer hover:bg-gray-50/50 active:bg-gray-100/50 transition-colors"
+        aria-label={`${getModeLabel()}. Open to edit split settings.`}
+      >
         {/* Loading Spinner - Bottom Right Corner */}
         {isLoading && (
           <div className="absolute bottom-3 right-3">
@@ -418,25 +430,22 @@ export function ParticipantsList() {
 
         {/* Header with Title and Share Icon */}
         <div className="flex items-start justify-between mb-4">
-          <button
-            onClick={() => setShowSettingsModal(true)}
-            className="flex flex-col gap-1 text-left hover:opacity-70 transition-opacity flex-1"
-          >
+          <div className="flex flex-col gap-1 text-left flex-1 min-w-0">
             <div className="flex items-center gap-3">
-            <h3 className="font-bold text-xl leading-tight text-black">
-              {getModeLabel()}
-            </h3>
-            <span className="bg-[#ECECEC] rounded-[12px] px-3 py-2 text-xs cursor-pointer">
-              Edit
-            </span>
+              <h3 className="font-bold text-xl leading-tight text-black">
+                {getModeLabel()}
+              </h3>
+              <span className="bg-[#ECECEC] rounded-[12px] px-3 py-2 text-xs">
+                Edit
+              </span>
             </div>
-            {/* <p className="text-[10px] leading-tight text-black opacity-40">
-              {getModeDescription()}
-            </p> */}
-            
-          </button>
+          </div>
           <button
-            onClick={handleShare}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleShare();
+            }}
             className="p-1 hover:opacity-70 transition-opacity shrink-0"
             aria-label="Share session"
           >
@@ -498,7 +507,11 @@ export function ParticipantsList() {
             <>
               {/* Empty state - show invite button */}
               <button
-                onClick={handleInvite}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleInvite();
+                }}
                 className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0"
               >
                 <div className="w-[50px] h-[50px] rounded-full bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
