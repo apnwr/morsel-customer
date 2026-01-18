@@ -145,8 +145,8 @@ export default function LoginPage() {
       {/* Restaurant Logo */}
       <div className="flex justify-center mb-8 mt-8">
         <div
-          className=" h-32 rounded-2xl shadow-sm flex items-center justify-center text-2xl font-bold text-white px-4 text-center"
-          style={{ backgroundColor: context?.restaurant.themeColor || '#E68E2E' }}
+          className=" h-22 rounded-xl shadow-sm flex items-center justify-center text-2xl font-bold text-white px-4 text-center"
+          style={{ backgroundColor: '#000000' }}
         >
           {previewSession?.business.businessName || context?.restaurant.name || 'morsel'}
         </div>
@@ -194,16 +194,6 @@ export default function LoginPage() {
           }`}
         >
           Take-Away
-        </button>
-        <button
-          onClick={() => setDiningType('delivery')}
-          className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-            diningType === 'delivery'
-              ? 'bg-black text-white'
-              : 'bg-white text-gray-600 border border-gray-200'
-          }`}
-        >
-          Delivery
         </button>
       </div>
 
