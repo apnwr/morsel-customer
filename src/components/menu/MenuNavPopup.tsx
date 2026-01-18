@@ -77,7 +77,7 @@ export function MenuNavPopup({ isOpen, categories, menusWithSections, onSelectCa
                       onClick={() => handleCategoryClick(section.id)}
                       className="w-full group flex items-center justify-between px-4 py-3 bg-gray-100 rounded-[12px] hover:from-black hover:to-gray-900 transition-all duration-300 hover:shadow-md hover:scale-[1.01] active:scale-[0.98]"
                     >
-                      <span className="font-medium text-sm text-gray-900 group-hover:text-white transition-colors">
+                      <span className="font-medium text-sm text-gray-900 group-hover:text-white transition-colors text-left">
                         {section.name}
                       </span>
                       <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-white group-hover:translate-x-1 transition-all" />
