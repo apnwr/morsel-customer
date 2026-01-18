@@ -64,6 +64,7 @@ export interface MenuItem {
   allergens: string[];
   dietary: string[];
   variants: ItemVariant[];
+  variant_title?: string; // Dynamic title for variants section (e.g., "Size", "Type", etc.)
   addons: ItemAddon[];
   createdAt: Timestamp;
   status: 'active' | 'inactive' | string;

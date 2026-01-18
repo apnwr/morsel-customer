@@ -338,7 +338,9 @@ export default function MenuPage() {
           ? [
               {
                 id: "variant",
-                name: "Size",
+                name: apiItem.variant_title && apiItem.variant_title.trim().length > 0
+                  ? apiItem.variant_title
+                  : "Variant",
                 type: "radio" as const,
                 required: true,
                 choices: apiItem.variants
