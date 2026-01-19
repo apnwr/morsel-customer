@@ -93,28 +93,29 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
 
   return (
     <article
-      className="flex items-start gap-3 w-full pb-3"
+      className="flex items-start gap-3 w-full pb-4"
       aria-label={`${item.name}, $${item.price.toFixed(2)}`}
     >
-      {/* Food Image Container - 100x100px with Add Button */}
-      <div className="relative w-[100px] h-[100px] shrink-0">
+      {/* Food Image Container - 40% width with aspect ratio for responsive sizing */}
+      <div className="relative w-[40%] aspect-square shrink-0">
         {hasImage ? (
           <>
             {imageLoading && (
-              <Skeleton className="absolute inset-0 rounded-xl" />
+              <Skeleton className="absolute inset-0 rounded-2xl" />
             )}
             <Image
               src={item.image}
               alt={`${item.name} dish`}
               fill
-              className="rounded-xl object-cover border-2 border-white"
-              sizes="100px"
+              className="rounded-2xl object-cover border-2 border-white shadow-sm"
+              sizes="(max-width: 640px) 40vw, (max-width: 768px) 35vw, 30vw"
               onLoad={() => setImageLoading(false)}
+              priority={false}
             />
           </>
         ) : (
-          <div className="w-full h-full rounded-xl bg-[#E7E7E7] border-2 border-white flex items-center justify-center">
-            <span className="text-lg font-bold text-purple-600">
+          <div className="w-full h-full rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 border-2 border-white shadow-sm flex items-center justify-center">
+            <span className="text-2xl font-bold text-purple-600/80">
               {getInitials(item.name)}
             </span>
           </div>
@@ -124,45 +125,38 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
         {totalQuantityInCart === 0 ? (
           <button
             onClick={handleClick}
-            className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-[10px] px-2 py-1 bg-white border border-black rounded-[30px] text-[12px] font-bold text-black hover:bg-gray-50 transition-colors whitespace-nowrap focus:outline-none w-[60px] h-[24px]"
+            className="absolute bottom-[-12px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-[10px] px-3 py-1.5 bg-white border border-black rounded-full text-xs font-bold text-black hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 min-w-[70px] h-[28px] shadow-sm"
             style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
             aria-label={item.isCustomizable ? `Customize ${item.name}` : `Add ${item.name} to cart`}
           >
             <span>Add</span>
-            {/* <Image
-              src="/icons/Plus.png"
-              alt="Add"
-              width={10}
-              height={10}
-              className="shrink-0"
-            /> */}
           </button>
         ) : (
-          <div className="absolute bottom-[-10px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-1 px-1.5 py-1 bg-black text-white rounded-[30px] w-[60px] h-[24px]">
+          <div className="absolute bottom-[-12px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 px-2 py-1.5 bg-black text-white rounded-full min-w-[70px] h-[28px] shadow-md">
             <button
               onClick={handleDecrement}
-              className="w-4 h-4 flex items-center justify-center hover:bg-gray-800 rounded transition-colors shrink-0"
+              className="w-5 h-5 flex items-center justify-center hover:bg-gray-800 rounded-full transition-colors shrink-0 active:scale-90"
               aria-label={`Decrease quantity of ${item.name}`}
             >
-              <Minus className="w-2.5 h-2.5" />
+              <Minus className="w-3 h-3" />
             </button>
-            <span className="text-[10px] font-medium min-w-[16px] text-center flex-1">
+            <span className="text-xs font-semibold min-w-[18px] text-center flex-1 tabular-nums">
               {totalQuantityInCart}
             </span>
             <button
               onClick={handleIncrement}
-              className="w-4 h-4 flex items-center justify-center hover:bg-gray-800 rounded transition-colors shrink-0"
+              className="w-5 h-5 flex items-center justify-center hover:bg-gray-800 rounded-full transition-colors shrink-0 active:scale-90"
               aria-label={`Increase quantity of ${item.name}`}
             >
               <Image
                 src="/icons/Plus.png"
                 alt="Increase"
-                width={10}
-                height={10}
+                width={12}
+                height={12}
                 style={{
                   filter: 'invert(1)',
                 }}
-                className="w-2.5 h-2.5"
+                className="w-3 h-3"
               />
             </button>
           </div>
@@ -170,67 +164,73 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
       </div>
 
       {/* Item Details */}
-      <div className="flex-1 min-w-0 pt-0.5">
-        <h3 
-          className="font-bold text-sm text-black truncate mb-1"
-          style={{ fontFamily: 'Lato, sans-serif', lineHeight: '1.2em' }}
-        >
-          {item.name}
-        </h3>
-        <p 
-          className="text-[10px] text-black line-clamp-2 mb-3"
-          style={{ fontFamily: 'Lato, sans-serif', lineHeight: '1.2em', letterSpacing: '0.02em', opacity: 0.4 }}
-        >
-          {item.description}
-        </p>
+      <div className="flex-1 min-w-0 pt-1 flex flex-col justify-between">
+        <div>
+          <h3 
+            className="font-bold text-base text-black mb-1.5 line-clamp-2 leading-tight"
+            style={{ fontFamily: 'Lato, sans-serif' }}
+          >
+            {item.name}
+          </h3>
+          {item.description && (
+            <p 
+              className="text-xs text-gray-500 line-clamp-2 mb-2 leading-relaxed"
+              style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.01em' }}
+            >
+              {item.description}
+            </p>
+          )}
+        </div>
         
-        {/* Price */}
-        <p 
-          className="text-sm font-bold text-black mb-2"
-          style={{ fontFamily: 'Lato, sans-serif', lineHeight: '1.2em' }}
-          aria-label={`Price: ${item.price.toFixed(2)} dollars`}
-        >
-          $ {item.price.toFixed(2)}
-        </p>
-        
-        {/* Tags - Regular tags, allergens, and dietary info */}
-        {(item.tags.length > 0 || (item.allergens && item.allergens.length > 0) || (item.dietary && item.dietary.length > 0)) && (
-          <div className="flex gap-2 flex-wrap" role="list" aria-label="Item tags">
-            {/* Regular tags */}
-            {item.tags.map((tag) => (
-              <span
-                key={tag}
-                role="listitem"
-                className="inline-flex items-center px-2 py-0.5 bg-[#FFFFFF] rounded-[30px] text-[10px] font-normal text-black capitalize"
-                style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
-              >
-                {tag}
-              </span>
-            ))}
-            {/* Allergens */}
-            {item.allergens && item.allergens.map((allergen) => (
-              <span
-                key={`allergen-${allergen}`}
-                role="listitem"
-                className="inline-flex items-center px-2 py-0.5 bg-[#FFFFFF] rounded-[30px] text-[10px] font-normal text-black capitalize"
-                style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
-              >
-                {allergen}
-              </span>
-            ))}
-            {/* Dietary info */}
-            {item.dietary && item.dietary.map((diet) => (
-              <span
-                key={`dietary-${diet}`}
-                role="listitem"
-                className="inline-flex items-center px-2 py-0.5 bg-[#FFFFFF] rounded-[30px] text-[10px] font-normal text-black capitalize"
-                style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
-              >
-                {diet}
-              </span>
-            ))}
-          </div>
-        )}
+        <div>
+          {/* Price */}
+          <p 
+            className="text-base font-bold text-black mb-2"
+            style={{ fontFamily: 'Lato, sans-serif' }}
+            aria-label={`Price: ${item.price.toFixed(2)} dollars`}
+          >
+            ${item.price.toFixed(2)}
+          </p>
+          
+          {/* Tags - Regular tags, allergens, and dietary info */}
+          {(item.tags.length > 0 || (item.allergens && item.allergens.length > 0) || (item.dietary && item.dietary.length > 0)) && (
+            <div className="flex gap-1.5 flex-wrap" role="list" aria-label="Item tags">
+              {/* Regular tags */}
+              {item.tags.map((tag) => (
+                <span
+                  key={tag}
+                  role="listitem"
+                  className="inline-flex items-center px-2.5 py-1 bg-white/80 backdrop-blur-sm rounded-full text-[11px] font-medium text-gray-700 capitalize shadow-sm"
+                  style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.01em' }}
+                >
+                  {tag}
+                </span>
+              ))}
+              {/* Allergens */}
+              {item.allergens && item.allergens.map((allergen) => (
+                <span
+                  key={`allergen-${allergen}`}
+                  role="listitem"
+                  className="inline-flex items-center px-2.5 py-1 bg-amber-50 rounded-full text-[11px] font-medium text-amber-700 capitalize shadow-sm"
+                  style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.01em' }}
+                >
+                  {allergen}
+                </span>
+              ))}
+              {/* Dietary info */}
+              {item.dietary && item.dietary.map((diet) => (
+                <span
+                  key={`dietary-${diet}`}
+                  role="listitem"
+                  className="inline-flex items-center px-2.5 py-1 bg-green-50 rounded-full text-[11px] font-medium text-green-700 capitalize shadow-sm"
+                  style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.01em' }}
+                >
+                  {diet}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       
       {/* Variation Selection Modal */}
