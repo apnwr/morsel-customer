@@ -62,13 +62,21 @@ export function RepeatCustomizationSheet({
   const hasImage = item.image && item.image.trim() !== '';
 
   const handleRepeatLast = () => {
-    onRepeatLast();
+    // Close modal first, then add item to prevent re-render issues
     onClose();
+    // Use setTimeout to ensure modal closes before cart update triggers re-render
+    setTimeout(() => {
+      onRepeatLast();
+    }, 0);
   };
 
   const handleCustomize = () => {
-    onCustomize();
+    // Close this sheet first, then open customization modal
     onClose();
+    // Use setTimeout to ensure this modal closes before opening the next one
+    setTimeout(() => {
+      onCustomize();
+    }, 0);
   };
 
   return (

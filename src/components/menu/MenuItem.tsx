@@ -45,42 +45,32 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
   );
 
   /**
-   * Handle click on "Add" button (item not in cart)
-   * - Non-customizable: Add directly to cart (quick add)
-   * - Customizable: Open customization modal
+   * Unified ADD handler - triggered by clicking the item card, "Add" button, or "+" button
+   * - Non-customizable (not in cart): Add directly to cart
+   * - Non-customizable (in cart): Increment quantity directly
+   * - Customizable (not in cart): Open customization modal
+   * - Customizable (in cart): Show "Repeat Last" / "I'll Choose" sheet
    */
-  const handleClick = useCallback(() => {
-    if (!item.isCustomizable) {
-      // Quick add for non-customizable items - add directly to cart
-      addItem(item, [], undefined, 1);
-    } else {
-      // Open customization modal for customizable items
-      onAdd(item);
-    }
-  }, [item, addItem, onAdd]);
-
-  /**
-   * Handle increment (+ button) when item is already in cart
-   * - Non-customizable: Increment quantity directly (no modal)
-   * - Customizable: Show "Repeat Last" / "I'll Choose" sheet
-   */
-  const handleIncrement = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleAddToCart = useCallback((e?: React.MouseEvent) => {
+    // Stop propagation if called from a button click
+    e?.stopPropagation();
 
     if (!item.isCustomizable) {
-      // Non-customizable: Just increment the quantity directly
+      // Non-customizable items
       if (plainCartItem) {
+        // Already in cart - increment quantity directly
         updateQuantity(plainCartItem.id, plainCartItem.quantity + 1);
       } else {
-        // Fallback: if no plain item found, add new
+        // Not in cart - add directly
         addItem(item, [], undefined, 1);
       }
     } else {
-      // Customizable item already in cart: Show repeat/customize choice
+      // Customizable items
       if (lastCartItem) {
+        // Already in cart - show repeat/customize choice
         setShowRepeatSheet(true);
       } else {
-        // Fallback: Open customization modal
+        // Not in cart - open customization modal
         onAdd(item);
       }
     }
@@ -178,8 +168,17 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
 
   return (
     <article
-      className="flex items-start gap-3 w-full pb-4"
+      className="flex items-start gap-3 w-full pb-4 cursor-pointer"
       aria-label={`${item.name}, $${item.price.toFixed(2)}`}
+      onClick={handleAddToCart}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleAddToCart();
+        }
+      }}
     >
       {/* Food Image Container - 40% width with aspect ratio for responsive sizing */}
       <div className="relative w-[40%] aspect-square shrink-0">
@@ -210,7 +209,7 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
         {/* Add Button or Quantity Controls - Positioned at bottom of image */}
         {totalQuantityInCart === 0 ? (
           <button
-            onClick={handleClick}
+            onClick={handleAddToCart}
             className="absolute bottom-[-12px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-[6px] px-3 py-1.5 bg-white border border-black rounded-full text-xs font-bold text-black hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 min-w-[70px] h-[28px] shadow-sm"
             style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
             aria-label={item.isCustomizable ? `Customize ${item.name}` : `Add ${item.name} to cart`}
@@ -229,7 +228,10 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
             )}
           </button>
         ) : (
-          <div className="absolute bottom-[-12px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 px-2 py-1.5 bg-black text-white rounded-full min-w-[70px] h-[28px] shadow-md">
+          <div 
+            className="absolute bottom-[-12px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 px-2 py-1.5 bg-black text-white rounded-full min-w-[70px] h-[28px] shadow-md"
+            onClick={(e) => e.stopPropagation()} // Prevent card click when interacting with controls
+          >
             <button
               onClick={handleDecrement}
               className="w-5 h-5 flex items-center justify-center hover:bg-gray-800 rounded-full transition-colors shrink-0 active:scale-90"
@@ -237,17 +239,22 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
             >
               <Minus className="w-3 h-3" />
             </button>
-            <span className="text-xs font-semibold min-w-[18px] text-center flex-1 tabular-nums">
+            <span 
+              className="text-xs font-semibold min-w-[18px] text-center flex-1 tabular-nums cursor-pointer"
+              onClick={handleAddToCart}
+              role="button"
+              aria-label={`${totalQuantityInCart} in cart, click to add more`}
+            >
               {totalQuantityInCart}
             </span>
             <button
-              onClick={handleIncrement}
+              onClick={handleAddToCart}
               className="w-5 h-5 flex items-center justify-center hover:bg-gray-800 rounded-full transition-colors shrink-0 active:scale-90"
-              aria-label={`Increase quantity of ${item.name}`}
+              aria-label={`Add more ${item.name}`}
             >
               <Image
                 src="/icons/Plus.png"
-                alt="Increase"
+                alt="Add more"
                 width={12}
                 height={12}
                 style={{
