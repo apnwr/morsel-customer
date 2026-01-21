@@ -15,12 +15,48 @@ import Image from 'next/image';
 import { useSession } from '@/contexts/SessionContext';
 import { useSplit } from '@/contexts/SplitContext';
 import { getFromStorage } from '@/mocks/mockStorage';
-import { getMenuItemById } from '@/mocks/menuData';
 import { PaymentModal } from '@/components/order/PaymentModal';
 import { SplitSettingsModal } from '@/components/order/SplitSettingsModal';
 import { isSplitApplicableForTotal } from '@/lib/split-utils';
 import type { Order as APIOrder, OrderItem } from '@/types/api/order';
 import type { SessionParticipant } from '@/types/api/session';
+
+// Helper function to get dietary type from stored dietary data
+const getDietaryTypeFromStoredData = (storedDietary: { allergens?: string[]; dietary?: string[] } | undefined) => {
+  if (!storedDietary) return null;
+  
+  const allDietaryInfo = [
+    ...(storedDietary.allergens || []),
+    ...(storedDietary.dietary || [])
+  ].map(d => d.toLowerCase());
+  
+  if (allDietaryInfo.some(d => d === 'non-vegetarian' || d === 'non vegetarian' || d === 'nonvegetarian')) {
+    return 'non-vegetarian';
+  }
+  if (allDietaryInfo.some(d => d === 'vegetarian' || d === 'veg')) {
+    return 'vegetarian';
+  }
+  return null;
+};
+
+// Dietary Symbol Component
+const DietarySymbol = ({ dietaryType }: { dietaryType: 'vegetarian' | 'non-vegetarian' }) => (
+  <div 
+    className={`w-4 h-4 flex items-center justify-center rounded-[3px] border-[1.5px] bg-white shrink-0 ${
+      dietaryType === 'vegetarian' 
+        ? 'border-green-600' 
+        : 'border-red-600'
+    }`}
+    aria-label={dietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
+    title={dietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
+  >
+    {dietaryType === 'vegetarian' ? (
+      <div className="w-2 h-2 rounded-full bg-green-600" />
+    ) : (
+      <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent border-b-red-600" />
+    )}
+  </div>
+);
 
 interface PostOrderViewProps {
   orderId: string;
@@ -42,16 +78,21 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
   const currentUserName = getFromStorage<string>('morsel_customer_name') || 'You';
   const diningType = getFromStorage<'dine-in' | 'takeaway' | 'delivery'>('morsel_dining_type') || 'dine-in';
 
-  // Get restaurant ID from order data or context
-  const restaurantContext = getFromStorage<{ restaurant?: { id?: string } }>('morsel_restaurant_context');
-  const restaurantId = orderData?.businessId || restaurantContext?.restaurant?.id || '';
 
-  // Load item participants mapping (derived from orderId)
-  const itemParticipants = useMemo(() => {
-    const storedOrder = getFromStorage<APIOrder & { _itemParticipants?: Record<string, string> }>(
+  // Load item participants, images, and dietary info mapping (derived from orderId)
+  const { itemParticipants, itemImages, itemDietary } = useMemo(() => {
+    const storedOrder = getFromStorage<APIOrder & { 
+      _itemParticipants?: Record<string, string>;
+      _itemImages?: Record<string, string>;
+      _itemDietary?: Record<string, { allergens?: string[]; dietary?: string[] }>;
+    }>(
       `morsel_order_${orderId}`
     );
-    return storedOrder?._itemParticipants || {};
+    return {
+      itemParticipants: storedOrder?._itemParticipants || {},
+      itemImages: storedOrder?._itemImages || {},
+      itemDietary: storedOrder?._itemDietary || {},
+    };
   }, [orderId]);
 
   // Track remaining time for countdown. Use _placedAt only when > 0 (ours); orders from API use _placedAt=0, so no countdown.
@@ -247,16 +288,21 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
           </h2>
           <div className="space-y-2">
             {orderData?.items?.map((item: OrderItem, idx: number) => {
-              const menuItem = getMenuItemById(restaurantId, item.itemId);
               const participantId = itemParticipants[item.itemId];
               const participantName = participantId ? getParticipantName(participantId) : null;
+              
+              // Get dietary type from stored real-time data
+              const dietaryType = getDietaryTypeFromStoredData(itemDietary[item.itemId]);
+              
+              // Use stored image from real-time data
+              const itemImage = itemImages[item.itemId];
 
               return (
                 <div key={idx} className="flex gap-4 p-4 bg-white rounded-lg">
                   <div className="relative w-[60px] h-[60px] flex-shrink-0 rounded-[12px] overflow-hidden bg-gray-100">
-                    {menuItem?.image ? (
+                    {itemImage ? (
                       <Image
-                        src={menuItem.image}
+                        src={itemImage}
                         alt={item.name || 'Item'}
                         fill
                         sizes="60px"
@@ -271,8 +317,10 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
+                    {/* Vegetarian/Non-Vegetarian Symbol */}
+                    {dietaryType && <DietarySymbol dietaryType={dietaryType} />}
                     <h4
-                      className="text-black text-[15px] leading-[1.22] font-medium truncate"
+                      className="text-black text-[15px] leading-[1.22] font-medium truncate mt-1"
                       style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
                     >
                       {item.name} {item.quantity > 1 && `×${item.quantity}`}

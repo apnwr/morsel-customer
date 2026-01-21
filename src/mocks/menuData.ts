@@ -1061,6 +1061,20 @@ export function getMenuItemById(
   return menu?.items.find((item) => item.id === itemId);
 }
 
+/**
+ * Fallback function to find menu item by ID across ALL restaurants
+ * Use this when restaurantId might not match (e.g., API uses different business IDs)
+ */
+export function findMenuItemByIdAcrossRestaurants(
+  itemId: string
+): MenuItem | undefined {
+  for (const restaurantId of Object.keys(menuData)) {
+    const item = menuData[restaurantId]?.items.find((item) => item.id === itemId);
+    if (item) return item;
+  }
+  return undefined;
+}
+
 export function getItemsByCategory(
   restaurantId: string,
   categoryId: string

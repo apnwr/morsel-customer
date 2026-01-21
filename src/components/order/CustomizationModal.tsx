@@ -78,12 +78,17 @@ export function CustomizationModal({
       const timer = setTimeout(() => {
         setSelectedChoices(initialSelections);
         setQuantity(1);
-        // Initialize only variant options as expanded by default
+        // Initialize required options and variant options as expanded by default
         if (item.customOptions) {
-          const variantOptions = item.customOptions
-            .filter((opt) => opt.id.startsWith("variant-"))
+          const optionsToExpand = item.customOptions
+            .filter((opt) => 
+              opt.id === "variant" || // Main variant option
+              opt.id.startsWith("variant") || // Any variant-related options
+              opt.required || // Required options should be visible
+              (opt.minSelection && opt.minSelection > 0) // Options with minimum selection
+            )
             .map((opt) => opt.id);
-          setExpandedOptions(new Set(variantOptions));
+          setExpandedOptions(new Set(optionsToExpand));
         }
       }, 0);
 
@@ -116,6 +121,22 @@ export function CustomizationModal({
 
   // Check if item has a valid image
   const hasImage = item.image && item.image.trim() !== "";
+
+  // Check for vegetarian/non-vegetarian status from allergens or dietary arrays
+  const getDietaryType = useMemo(() => {
+    const allDietaryInfo = [
+      ...(item.allergens || []),
+      ...(item.dietary || [])
+    ].map(d => d.toLowerCase());
+    
+    if (allDietaryInfo.some(d => d === 'non-vegetarian' || d === 'non vegetarian' || d === 'nonvegetarian')) {
+      return 'non-vegetarian';
+    }
+    if (allDietaryInfo.some(d => d === 'vegetarian' || d === 'veg')) {
+      return 'vegetarian';
+    }
+    return null;
+  }, [item.allergens, item.dietary]);
 
   // Check if item has customization options
   const hasCustomOptions = item.customOptions && item.customOptions.length > 0;
@@ -310,6 +331,24 @@ export function CustomizationModal({
 
             {/* Item Name and Description */}
             <div className="flex-1 min-w-0">
+              {/* Vegetarian/Non-Vegetarian Symbol */}
+              {getDietaryType && (
+                <div 
+                  className={`w-4 h-4 flex items-center justify-center rounded-[3px] border-[1.5px] bg-white mb-1 ${
+                    getDietaryType === 'vegetarian' 
+                      ? 'border-green-600' 
+                      : 'border-red-600'
+                  }`}
+                  aria-label={getDietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
+                  title={getDietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
+                >
+                  {getDietaryType === 'vegetarian' ? (
+                    <div className="w-2 h-2 rounded-full bg-green-600" />
+                  ) : (
+                    <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent border-b-red-600" />
+                  )}
+                </div>
+              )}
               <h3 className="font-bold text-sm mb-1 truncate">{item.name}</h3>
               <p className="text-[#00000050] text-[10px] line-clamp-1">
                 {item.description}

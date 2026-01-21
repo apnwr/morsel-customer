@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { MenuItem as MenuItemType } from '@/types/menu';
 import { useCart } from '@/contexts/CartContext';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Minus } from 'lucide-react';
 import Image from 'next/image';
 import { VariationSelectionModal } from './VariationSelectionModal';
+import { RepeatCustomizationSheet } from './RepeatCustomizationSheet';
 
 interface MenuItemProps {
   item: MenuItemType;
@@ -16,32 +17,82 @@ interface MenuItemProps {
 export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemProps) {
   const [imageLoading, setImageLoading] = useState(true);
   const [showVariationModal, setShowVariationModal] = useState(false);
-  const { cart, updateQuantity, removeItem } = useCart();
+  const [showRepeatSheet, setShowRepeatSheet] = useState(false);
+  const { cart, updateQuantity, removeItem, addItem } = useCart();
 
   // Find ALL cart items for this menu item (including customized versions)
-  const cartItemsForThisMenuItem = cart.items.filter(ci => ci.menuItem.id === item.id);
+  const cartItemsForThisMenuItem = useMemo(() => 
+    cart.items.filter(ci => ci.menuItem.id === item.id),
+    [cart.items, item.id]
+  );
   
   // Calculate total quantity across all variations
-  const totalQuantityInCart = cartItemsForThisMenuItem.reduce((sum, ci) => sum + ci.quantity, 0);
+  const totalQuantityInCart = useMemo(() => 
+    cartItemsForThisMenuItem.reduce((sum, ci) => sum + ci.quantity, 0),
+    [cartItemsForThisMenuItem]
+  );
   
   // Find the non-customized version (if exists)
-  const plainCartItem = cartItemsForThisMenuItem.find(ci => ci.customizations.length === 0);
+  const plainCartItem = useMemo(() => 
+    cartItemsForThisMenuItem.find(ci => ci.customizations.length === 0),
+    [cartItemsForThisMenuItem]
+  );
 
-  const handleClick = () => {
-    // Always open modal to show item details
-    onAdd(item);
-  };
+  // Get the last added cart item for this menu item (for repeat functionality)
+  const lastCartItem = useMemo(() => 
+    cartItemsForThisMenuItem[cartItemsForThisMenuItem.length - 1],
+    [cartItemsForThisMenuItem]
+  );
 
-  const handleIncrement = (e: React.MouseEvent) => {
+  /**
+   * Handle click on "Add" button (item not in cart)
+   * - Non-customizable: Add directly to cart (quick add)
+   * - Customizable: Open customization modal
+   */
+  const handleClick = useCallback(() => {
+    if (!item.isCustomizable) {
+      // Quick add for non-customizable items - add directly to cart
+      addItem(item, [], undefined, 1);
+    } else {
+      // Open customization modal for customizable items
+      onAdd(item);
+    }
+  }, [item, addItem, onAdd]);
+
+  /**
+   * Handle increment (+ button) when item is already in cart
+   * - Non-customizable: Increment quantity directly (no modal)
+   * - Customizable: Show "Repeat Last" / "I'll Choose" sheet
+   */
+  const handleIncrement = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
 
-    // Always open modal to allow user to either:
-    // 1. Add more quantity of existing item
-    // 2. Add item with new customization
-    onAdd(item);
-  };
+    if (!item.isCustomizable) {
+      // Non-customizable: Just increment the quantity directly
+      if (plainCartItem) {
+        updateQuantity(plainCartItem.id, plainCartItem.quantity + 1);
+      } else {
+        // Fallback: if no plain item found, add new
+        addItem(item, [], undefined, 1);
+      }
+    } else {
+      // Customizable item already in cart: Show repeat/customize choice
+      if (lastCartItem) {
+        setShowRepeatSheet(true);
+      } else {
+        // Fallback: Open customization modal
+        onAdd(item);
+      }
+    }
+  }, [item, plainCartItem, lastCartItem, updateQuantity, addItem, onAdd]);
 
-  const handleDecrement = (e: React.MouseEvent) => {
+  /**
+   * Handle decrement (- button)
+   * - Customizable with multiple variations or qty > 1: Show variation selection modal
+   * - Single variation with qty 1: Remove directly
+   * - Non-customizable: Decrement or remove
+   */
+  const handleDecrement = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     
     if (item.isCustomizable) {
@@ -50,14 +101,14 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
       const hasSingleItemWithMultipleQuantity = cartItemsForThisMenuItem.length === 1 && cartItemsForThisMenuItem[0].quantity > 1;
       
       if (hasMultipleVariations || hasSingleItemWithMultipleQuantity) {
-        // Open variation selection modal
+        // Open variation selection modal to let user choose which one to decrement
         setShowVariationModal(true);
       } else if (cartItemsForThisMenuItem.length === 1) {
         // Only one variation with quantity 1, just remove it
         removeItem(cartItemsForThisMenuItem[0].id);
       }
     } else {
-      // For non-customizable items, just decrement
+      // Non-customizable items: Simple decrement
       if (plainCartItem) {
         if (plainCartItem.quantity === 1) {
           removeItem(plainCartItem.id);
@@ -66,18 +117,36 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
         }
       }
     }
-  };
+  }, [item.isCustomizable, cartItemsForThisMenuItem, plainCartItem, removeItem, updateQuantity]);
 
-  const handleVariationRemove = (cartItemId: string) => {
+  /**
+   * Handle "Repeat Last" action from RepeatCustomizationSheet
+   * Adds the same item with the same customizations
+   */
+  const handleRepeatLast = useCallback(() => {
+    if (lastCartItem) {
+      addItem(item, lastCartItem.customizations, lastCartItem.notes, 1);
+    }
+  }, [item, lastCartItem, addItem]);
+
+  /**
+   * Handle "I'll Choose" action from RepeatCustomizationSheet
+   * Opens the full customization modal
+   */
+  const handleCustomize = useCallback(() => {
+    onAdd(item);
+  }, [item, onAdd]);
+
+  const handleVariationRemove = useCallback((cartItemId: string) => {
     removeItem(cartItemId);
-  };
+  }, [removeItem]);
 
-  const handleVariationDecrement = (cartItemId: string) => {
+  const handleVariationDecrement = useCallback((cartItemId: string) => {
     const cartItem = cart.items.find(ci => ci.id === cartItemId);
     if (cartItem) {
       updateQuantity(cartItemId, cartItem.quantity - 1);
     }
-  };
+  }, [cart.items, updateQuantity]);
 
   // Generate initials from item name
   const getInitials = (name: string) => {
@@ -88,6 +157,22 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
       .toUpperCase()
       .slice(0, 2);
   };
+
+  // Check for vegetarian/non-vegetarian status from allergens or dietary arrays
+  const getDietaryType = useMemo(() => {
+    const allDietaryInfo = [
+      ...(item.allergens || []),
+      ...(item.dietary || [])
+    ].map(d => d.toLowerCase());
+    
+    if (allDietaryInfo.some(d => d === 'non-vegetarian' || d === 'non vegetarian' || d === 'nonvegetarian')) {
+      return 'non-vegetarian';
+    }
+    if (allDietaryInfo.some(d => d === 'vegetarian' || d === 'veg')) {
+      return 'vegetarian';
+    }
+    return null;
+  }, [item.allergens, item.dietary]);
 
   const hasImage = item.image && item.image.trim() !== '';
 
@@ -121,15 +206,27 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
           </div>
         )}
         
+        
         {/* Add Button or Quantity Controls - Positioned at bottom of image */}
         {totalQuantityInCart === 0 ? (
           <button
             onClick={handleClick}
-            className="absolute bottom-[-12px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-[10px] px-3 py-1.5 bg-white border border-black rounded-full text-xs font-bold text-black hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 min-w-[70px] h-[28px] shadow-sm"
+            className="absolute bottom-[-12px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-[6px] px-3 py-1.5 bg-white border border-black rounded-full text-xs font-bold text-black hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 min-w-[70px] h-[28px] shadow-sm"
             style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
             aria-label={item.isCustomizable ? `Customize ${item.name}` : `Add ${item.name} to cart`}
           >
             <span>Add</span>
+            {/* Show + indicator for customizable items */}
+            {item.isCustomizable && (
+              <Image
+                src="/icons/Plus.png"
+                alt=""
+                width={10}
+                height={10}
+                className="opacity-70"
+                aria-hidden="true"
+              />
+            )}
           </button>
         ) : (
           <div className="absolute bottom-[-12px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 px-2 py-1.5 bg-black text-white rounded-full min-w-[70px] h-[28px] shadow-md">
@@ -166,6 +263,26 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
       {/* Item Details */}
       <div className="flex-1 min-w-0 pt-1 flex flex-col justify-between">
         <div>
+          {/* Vegetarian/Non-Vegetarian Symbol */}
+          {getDietaryType && (
+            <div 
+              className={`w-4 h-4 flex items-center justify-center rounded-[3px] border-[1.5px] bg-white mb-1 ${
+                getDietaryType === 'vegetarian' 
+                  ? 'border-green-600' 
+                  : 'border-red-600'
+              }`}
+              aria-label={getDietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
+              title={getDietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
+            >
+              {getDietaryType === 'vegetarian' ? (
+                <div className="w-2 h-2 rounded-full bg-green-600" />
+              ) : (
+                <div 
+                  className="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent border-b-red-600"
+                />
+              )}
+            </div>
+          )}
           <h3 
             className="font-bold text-base text-black mb-1.5 line-clamp-2 leading-tight"
             style={{ fontFamily: 'Lato, sans-serif' }}
@@ -233,7 +350,7 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
         </div>
       </div>
       
-      {/* Variation Selection Modal */}
+      {/* Variation Selection Modal - For decrementing customizable items */}
       {showVariationModal && (
         <VariationSelectionModal
           isOpen={showVariationModal}
@@ -241,6 +358,18 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
           cartItems={cartItemsForThisMenuItem}
           onRemove={handleVariationRemove}
           onDecrement={handleVariationDecrement}
+        />
+      )}
+
+      {/* Repeat Customization Sheet - For incrementing customizable items already in cart */}
+      {showRepeatSheet && lastCartItem && (
+        <RepeatCustomizationSheet
+          isOpen={showRepeatSheet}
+          onClose={() => setShowRepeatSheet(false)}
+          item={item}
+          lastCartItem={lastCartItem}
+          onRepeatLast={handleRepeatLast}
+          onCustomize={handleCustomize}
         />
       )}
     </article>

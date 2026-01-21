@@ -4,6 +4,42 @@ import React, { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { useCart } from '@/contexts/CartContext';
 import { useSplit } from '@/contexts/SplitContext';
+import { CartItem } from '@/types/cart';
+
+// Helper function to get dietary type
+const getDietaryTypeFromItem = (menuItem: CartItem['menuItem']) => {
+  const allDietaryInfo = [
+    ...(menuItem.allergens || []),
+    ...(menuItem.dietary || [])
+  ].map(d => d.toLowerCase());
+  
+  if (allDietaryInfo.some(d => d === 'non-vegetarian' || d === 'non vegetarian' || d === 'nonvegetarian')) {
+    return 'non-vegetarian';
+  }
+  if (allDietaryInfo.some(d => d === 'vegetarian' || d === 'veg')) {
+    return 'vegetarian';
+  }
+  return null;
+};
+
+// Dietary Symbol Component (small inline version)
+const DietarySymbol = ({ dietaryType }: { dietaryType: 'vegetarian' | 'non-vegetarian' }) => (
+  <div 
+    className={`w-3 h-3 flex items-center justify-center rounded-[2px] border-[1px] bg-white shrink-0 ${
+      dietaryType === 'vegetarian' 
+        ? 'border-green-600' 
+        : 'border-red-600'
+    }`}
+    aria-label={dietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
+    title={dietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
+  >
+    {dietaryType === 'vegetarian' ? (
+      <div className="w-1 h-1 rounded-full bg-green-600" />
+    ) : (
+      <div className="w-0 h-0 border-l-[2px] border-r-[2px] border-b-[4px] border-l-transparent border-r-transparent border-b-red-600" />
+    )}
+  </div>
+);
 
 interface BillModalProps {
   isOpen: boolean;
@@ -30,7 +66,12 @@ export function BillModal({ isOpen, onClose, onPlaceOrder, isConfirming = false 
           {cart.items.map((item) => (
             <div key={item.id} className="flex items-start justify-between gap-3">
               <div className="flex-1">
-                <p className="text-sm font-medium">{item.menuItem.name}</p>
+                <div className="flex items-center gap-1.5">
+                  {getDietaryTypeFromItem(item.menuItem) && (
+                    <DietarySymbol dietaryType={getDietaryTypeFromItem(item.menuItem)!} />
+                  )}
+                  <p className="text-sm font-medium">{item.menuItem.name}</p>
+                </div>
                 {item.customizations.length > 0 && (
                   <p className="text-xs text-gray-500">
                     {item.customizations.map((c) => c.choiceLabel).join(', ')}

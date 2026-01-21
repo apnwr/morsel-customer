@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { CartItem as CartItemType } from '@/types/cart';
 import { OrderingSessionData } from '@/types/api/session';
 import { Minus } from 'lucide-react';
@@ -16,6 +16,22 @@ interface CartItemProps {
 
 export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, sessionData }: CartItemProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Check for vegetarian/non-vegetarian status from allergens or dietary arrays
+  const getDietaryType = useMemo(() => {
+    const allDietaryInfo = [
+      ...(item.menuItem.allergens || []),
+      ...(item.menuItem.dietary || [])
+    ].map(d => d.toLowerCase());
+    
+    if (allDietaryInfo.some(d => d === 'non-vegetarian' || d === 'non vegetarian' || d === 'nonvegetarian')) {
+      return 'non-vegetarian';
+    }
+    if (allDietaryInfo.some(d => d === 'vegetarian' || d === 'veg')) {
+      return 'vegetarian';
+    }
+    return null;
+  }, [item.menuItem.allergens, item.menuItem.dietary]);
 
   // Get participant name from sessionUserId
   const getParticipantName = (): string | null => {
@@ -94,6 +110,24 @@ export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, s
 
           {/* Text Info */}
           <div className="flex flex-col gap-1 flex-1 min-w-0">
+            {/* Vegetarian/Non-Vegetarian Symbol */}
+            {getDietaryType && (
+              <div 
+                className={`w-3.5 h-3.5 flex items-center justify-center rounded-[2px] border-[1.5px] bg-white ${
+                  getDietaryType === 'vegetarian' 
+                    ? 'border-green-600' 
+                    : 'border-red-600'
+                }`}
+                aria-label={getDietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
+                title={getDietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
+              >
+                {getDietaryType === 'vegetarian' ? (
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-600" />
+                ) : (
+                  <div className="w-0 h-0 border-l-[3px] border-r-[3px] border-b-[5px] border-l-transparent border-r-transparent border-b-red-600" />
+                )}
+              </div>
+            )}
             <h3
               className="font-bold text-sm leading-[1.2] truncate"
               style={{ fontFamily: 'Lato, sans-serif' }}

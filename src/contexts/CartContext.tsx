@@ -811,11 +811,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
 
       // Store order data temporarily for order-status page with timestamp
-      // Also store participant mapping for each item
+      // Also store participant mapping and images for each item
       const itemParticipantMap: Record<string, string> = {};
+      const itemImagesMap: Record<string, string> = {};
+      const itemDietaryMap: Record<string, { allergens?: string[]; dietary?: string[] }> = {};
+      
       cart.items.forEach(cartItem => {
         if (cartItem.sessionUserId) {
           itemParticipantMap[cartItem.menuItem.id] = cartItem.sessionUserId;
+        }
+        // Store image for each item
+        if (cartItem.menuItem.image) {
+          itemImagesMap[cartItem.menuItem.id] = cartItem.menuItem.image;
+        }
+        // Store dietary info for each item
+        if (cartItem.menuItem.allergens || cartItem.menuItem.dietary) {
+          itemDietaryMap[cartItem.menuItem.id] = {
+            allergens: cartItem.menuItem.allergens,
+            dietary: cartItem.menuItem.dietary,
+          };
         }
       });
 
@@ -823,6 +837,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         ...response.data,
         _placedAt: Date.now(), // Store when order was placed for timer calculation
         _itemParticipants: itemParticipantMap, // Map itemId -> sessionUserId
+        _itemImages: itemImagesMap, // Map itemId -> image URL
+        _itemDietary: itemDietaryMap, // Map itemId -> dietary info
       };
       setInStorage(`morsel_order_${response.data.id}`, orderWithTimestamp);
 
