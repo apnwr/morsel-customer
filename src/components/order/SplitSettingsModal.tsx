@@ -27,13 +27,11 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
 
   // Calculate user's own items total for "Pay for self" mode
-  // This includes the proportional tax for the user's items
-  const TAX_RATE = 0.1; // 10% tax - same as CartContext
+  // No tax included - total is just the item prices
   const userItemsSubtotal = cart.items
     .filter(item => item.sessionUserId === currentSessionUserId)
     .reduce((sum, item) => sum + item.itemTotal, 0);
-  const userItemsTax = userItemsSubtotal * TAX_RATE;
-  const userItemsTotal = Math.round((userItemsSubtotal + userItemsTax) * 100) / 100;
+  const userItemsTotal = Math.round(userItemsSubtotal * 100) / 100;
 
   // Initialize local shares from split.shares
   const initializeLocalShares = () => {

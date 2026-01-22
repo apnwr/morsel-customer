@@ -95,7 +95,7 @@ export function BillModal({ isOpen, onClose, onPlaceOrder, isConfirming = false 
             <span className="font-medium">${cart.subtotal.toFixed(2)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">Tax (10%)</span>
+            <span className="text-gray-600">Taxes</span>
             <span className="font-medium">${cart.tax.toFixed(2)}</span>
           </div>
           <div className="flex items-center justify-between text-lg font-bold border-t border-gray-200 pt-2">

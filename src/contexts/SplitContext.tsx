@@ -7,11 +7,9 @@ import { calculateEvenSplit, validateSplit, generateMockParticipant } from '@/mo
 import { sanitizeSplitAmount } from '@/lib/validation';
 
 const STORAGE_KEY = 'morsel_split';
-const TAX_RATE = 0.1; // 10% tax - same as CartContext
-
 /**
  * Calculate the total amount for items added by the current user
- * Includes proportional tax
+ * No tax included - total is just the item prices
  */
 function calculateUserItemsTotal(cart: Cart | null, currentSessionUserId: string | null): number {
   if (!cart || !currentSessionUserId) return 0;
@@ -19,8 +17,8 @@ function calculateUserItemsTotal(cart: Cart | null, currentSessionUserId: string
   const userItemsSubtotal = cart.items
     .filter(item => item.sessionUserId === currentSessionUserId)
     .reduce((sum, item) => sum + item.itemTotal, 0);
-  const userItemsTax = userItemsSubtotal * TAX_RATE;
-  return Math.round((userItemsSubtotal + userItemsTax) * 100) / 100;
+  // No tax - return just the subtotal
+  return Math.round(userItemsSubtotal * 100) / 100;
 }
 
 interface SplitState {

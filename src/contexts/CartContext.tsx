@@ -14,7 +14,7 @@ import { subscribeToOrderQueue, isFirebaseAvailable } from '@/lib/firebase';
 
 const STORAGE_KEY = 'morsel_cart';
 const MENU_ITEMS_CACHE_KEY = 'morsel_menu_items_cache'; // Cache for full menu items with customOptions
-const TAX_RATE = 0.1; // 10% tax
+const TAX_RATE = 0; // Tax disabled - set to 0 (taxes shown separately as $0.00)
 const QUEUE_SYNC_INTERVAL = 15000; // Sync queue every 15 seconds (fallback)
 
 interface CartState {
@@ -55,12 +55,13 @@ function calculateItemTotal(menuItem: MenuItem, customizations: Customization[],
 
 function calculateCartTotals(items: CartItem[]): { subtotal: number; tax: number; total: number } {
   const subtotal = items.reduce((sum, item) => sum + item.itemTotal, 0);
-  const tax = subtotal * TAX_RATE;
-  const total = subtotal + tax;
+  // Tax is set to 0 - total equals subtotal (item prices only)
+  const tax = 0;
+  const total = subtotal; // Total is just the items total, no tax
 
   const result = {
     subtotal: Math.round(subtotal * 100) / 100,
-    tax: Math.round(tax * 100) / 100,
+    tax: 0, // Always 0
     total: Math.round(total * 100) / 100,
   };
 
@@ -68,7 +69,7 @@ function calculateCartTotals(items: CartItem[]): { subtotal: number; tax: number
     itemsCount: items.length,
     itemTotals: items.map(item => `${item.menuItem.name}: $${item.itemTotal.toFixed(2)} (qty: ${item.quantity})`),
     subtotal: `$${result.subtotal.toFixed(2)}`,
-    tax: `$${result.tax.toFixed(2)} (${(TAX_RATE * 100).toFixed(0)}%)`,
+    tax: `$0.00 (taxes disabled)`,
     total: `$${result.total.toFixed(2)}`
   });
 
