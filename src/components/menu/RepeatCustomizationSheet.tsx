@@ -61,7 +61,10 @@ export function RepeatCustomizationSheet({
 
   const hasImage = item.image && item.image.trim() !== '';
 
-  const handleRepeatLast = () => {
+  const handleRepeatLast = (e: React.MouseEvent) => {
+    // Prevent event from bubbling up to the MenuItem article which would trigger handleAddToCart
+    e.stopPropagation();
+    
     // Close modal first, then add item to prevent re-render issues
     onClose();
     // Use setTimeout to ensure modal closes before cart update triggers re-render
@@ -70,7 +73,10 @@ export function RepeatCustomizationSheet({
     }, 0);
   };
 
-  const handleCustomize = () => {
+  const handleCustomize = (e: React.MouseEvent) => {
+    // Prevent event from bubbling up to the MenuItem article which would trigger handleAddToCart
+    e.stopPropagation();
+    
     // Close this sheet first, then open customization modal
     onClose();
     // Use setTimeout to ensure this modal closes before opening the next one

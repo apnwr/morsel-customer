@@ -13,11 +13,12 @@ export function SplitSection() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Recalculate split when cart total changes
+  // Pass cart for 'self' mode to calculate user's own items total
   useEffect(() => {
     if (split.participants.length > 0) {
-      calculateSplit(cart.total);
+      calculateSplit(cart.total, cart);
     }
-  }, [cart.total, split.participants.length, calculateSplit]);
+  }, [cart, split.participants.length, calculateSplit]);
 
   const getModeLabel = () => {
     switch (split.mode) {

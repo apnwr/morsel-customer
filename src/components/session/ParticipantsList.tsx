@@ -55,11 +55,12 @@ export function ParticipantsList() {
         participantsCount: split.participants.length,
         splitMode: split.mode
       });
-      calculateSplit(cart.total);
+      // Pass cart for 'self' mode to calculate user's own items total
+      calculateSplit(cart.total, cart);
     } else {
       console.log('[ParticipantsList] ⚠️ No participants yet, skipping split calculation');
     }
-  }, [cart.total, cart.subtotal, cart.tax, split.participants.length, split.mode, calculateSplit]);
+  }, [cart, split.participants.length, split.mode, calculateSplit]);
 
   // Sync API participants with split participants
   const syncParticipantsWithSplit = useCallback(

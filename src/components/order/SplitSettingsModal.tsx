@@ -26,6 +26,15 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   // Get current user's sessionUserId to show "You" instead of name
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
 
+  // Calculate user's own items total for "Pay for self" mode
+  // This includes the proportional tax for the user's items
+  const TAX_RATE = 0.1; // 10% tax - same as CartContext
+  const userItemsSubtotal = cart.items
+    .filter(item => item.sessionUserId === currentSessionUserId)
+    .reduce((sum, item) => sum + item.itemTotal, 0);
+  const userItemsTax = userItemsSubtotal * TAX_RATE;
+  const userItemsTotal = Math.round((userItemsSubtotal + userItemsTax) * 100) / 100;
+
   // Initialize local shares from split.shares
   const initializeLocalShares = () => {
     const shares: Record<string, string> = {};
@@ -88,11 +97,14 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
         break;
       }
       case 'self': {
+        // "Pay for self" - current user pays only for their own items
+        // Others split the remaining amount evenly
         const othersCount = split.participants.filter(p => p.id !== currentSessionUserId).length;
-        const amountPerOther = othersCount > 0 ? effectiveTotal / othersCount : 0;
+        const remainingTotal = effectiveTotal - userItemsTotal;
+        const amountPerOther = othersCount > 0 ? remainingTotal / othersCount : 0;
         split.participants.forEach(p => {
           if (p.id === currentSessionUserId) {
-            newLocalShares[p.id] = '0.00';
+            newLocalShares[p.id] = userItemsTotal.toFixed(2);
           } else {
             newLocalShares[p.id] = amountPerOther.toFixed(2);
           }
@@ -103,7 +115,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
 
     setLocalShares(newLocalShares);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, localMode, split.participants.length, effectiveTotal]);
+  }, [isOpen, localMode, split.participants.length, effectiveTotal, userItemsTotal]);
 
   const handleModeChange = (mode: 'even' | 'custom' | 'self' | 'all') => {
     // Only update local mode - don't update context until Save is clicked
@@ -374,69 +386,45 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
             </div>
           )}
 
-          {/* Payment Mode Options */}
+          {/* Payment Mode Options - Show only the 3 options that are NOT currently selected */}
           <div>
             {/* <h3 className="font-semibold mb-3">Payment Mode</h3> */}
             <div className="space-y-2">
-              <button
-                onClick={() => handleModeChange('all')}
-                className={`w-full flex items-center justify-between p-4 rounded-xl transition-colors ${
-                  localMode === 'all'
-                    ? 'bg-black text-white'
-                    : 'bg-gray-50 hover:bg-gray-100'
-                }`}
-              >
-                <span className="font-medium">Pay for everyone</span>
-                {localMode === 'all' && (
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                )}
-              </button>
+              {localMode !== 'all' && (
+                <button
+                  onClick={() => handleModeChange('all')}
+                  className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                >
+                  <span className="font-medium">Pay for everyone</span>
+                </button>
+              )}
 
-              <button
-                onClick={() => handleModeChange('even')}
-                className={`w-full flex items-center justify-between p-4 rounded-xl transition-colors ${
-                  localMode === 'even'
-                    ? 'bg-black text-white'
-                    : 'bg-gray-50 hover:bg-gray-100'
-                }`}
-              >
-                <span className="font-medium">Split evenly</span>
-                {localMode === 'even' && (
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                )}
-              </button>
+              {localMode !== 'even' && (
+                <button
+                  onClick={() => handleModeChange('even')}
+                  className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                >
+                  <span className="font-medium">Split evenly</span>
+                </button>
+              )}
 
-              <button
-                onClick={() => handleModeChange('custom')}
-                className={`w-full flex items-center justify-between p-4 rounded-xl transition-colors ${
-                  localMode === 'custom'
-                    ? 'bg-black text-white'
-                    : 'bg-gray-50 hover:bg-gray-100'
-                }`}
-              >
-                <span className="font-medium">Custom split</span>
-                {localMode === 'custom' && (
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                )}
-              </button>
+              {localMode !== 'custom' && (
+                <button
+                  onClick={() => handleModeChange('custom')}
+                  className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                >
+                  <span className="font-medium">Custom split</span>
+                </button>
+              )}
+
+              {localMode !== 'self' && (
+                <button
+                  onClick={() => handleModeChange('self')}
+                  className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                >
+                  <span className="font-medium">Pay for self</span>
+                </button>
+              )}
             </div>
           </div>
 

@@ -80,7 +80,10 @@ export const Modal: React.FC<ModalProps> = ({
           {/* Backdrop */}
           <motion.div
             className="absolute inset-0 bg-black/50"
-            onClick={onClose}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
             aria-hidden="true"
             variants={backdropVariants}
             initial="hidden"
@@ -105,6 +108,7 @@ export const Modal: React.FC<ModalProps> = ({
             initial="hidden"
             animate="visible"
             exit="exit"
+            onClick={(e) => e.stopPropagation()}
           >
         {/* Header */}
         {(title || showCloseButton) && (

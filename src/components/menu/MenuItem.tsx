@@ -138,6 +138,13 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
     }
   }, [cart.items, updateQuantity]);
 
+  const handleVariationIncrement = useCallback((cartItemId: string) => {
+    const cartItem = cart.items.find(ci => ci.id === cartItemId);
+    if (cartItem) {
+      updateQuantity(cartItemId, cartItem.quantity + 1);
+    }
+  }, [cart.items, updateQuantity]);
+
   // Generate initials from item name
   const getInitials = (name: string) => {
     return name
@@ -357,7 +364,7 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
         </div>
       </div>
       
-      {/* Variation Selection Modal - For decrementing customizable items */}
+      {/* Variation Selection Modal - For adjusting quantity of customizable items */}
       {showVariationModal && (
         <VariationSelectionModal
           isOpen={showVariationModal}
@@ -365,6 +372,7 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
           cartItems={cartItemsForThisMenuItem}
           onRemove={handleVariationRemove}
           onDecrement={handleVariationDecrement}
+          onIncrement={handleVariationIncrement}
         />
       )}
 

@@ -1,12 +1,27 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { SplitBill, Participant } from '@/types/cart';
+import { SplitBill, Participant, Cart } from '@/types/cart';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { calculateEvenSplit, validateSplit, generateMockParticipant } from '@/mocks/mockSplit';
 import { sanitizeSplitAmount } from '@/lib/validation';
 
 const STORAGE_KEY = 'morsel_split';
+const TAX_RATE = 0.1; // 10% tax - same as CartContext
+
+/**
+ * Calculate the total amount for items added by the current user
+ * Includes proportional tax
+ */
+function calculateUserItemsTotal(cart: Cart | null, currentSessionUserId: string | null): number {
+  if (!cart || !currentSessionUserId) return 0;
+  
+  const userItemsSubtotal = cart.items
+    .filter(item => item.sessionUserId === currentSessionUserId)
+    .reduce((sum, item) => sum + item.itemTotal, 0);
+  const userItemsTax = userItemsSubtotal * TAX_RATE;
+  return Math.round((userItemsSubtotal + userItemsTax) * 100) / 100;
+}
 
 interface SplitState {
   split: SplitBill;
@@ -15,7 +30,8 @@ interface SplitState {
   addParticipant: (participant: Participant) => void;
   removeParticipant: (participantId: string) => void;
   updateShare: (participantId: string, amount: number) => void;
-  calculateSplit: (total: number) => void;
+  /** Calculate split shares. For 'self' mode, pass cart to calculate user's own items total. */
+  calculateSplit: (total: number, cart?: Cart | null) => void;
   validateSplitShares: (total: number) => boolean;
   clearSplit: () => void;
   addMockParticipant: () => void;
@@ -96,7 +112,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const calculateSplit = useCallback((total: number) => {
+  const calculateSplit = useCallback((total: number, cart?: Cart | null) => {
     // Validate input
     if (typeof total !== 'number' || isNaN(total) || total < 0) {
       console.error('[SplitContext] ❌ Invalid total provided to calculateSplit:', total);
@@ -145,24 +161,38 @@ export function SplitProvider({ children }: { children: ReactNode }) {
           });
           break;
 
-        case 'self':
-          // Current user pays nothing, others split evenly
+        case 'self': {
+          // "Pay for self" - Current user pays for their own items only
+          // Others split the remaining amount evenly
           const currentUser = currentSessionUserId
             ? prev.participants.find((p) => p.id === currentSessionUserId)
             : prev.participants.find((p) => !p.isMock); // Fallback to first non-mock participant
 
           if (currentUser) {
-            newShares[currentUser.id] = 0;
+            // Calculate user's items total if cart is provided
+            const userItemsTotal = calculateUserItemsTotal(cart ?? null, currentSessionUserId);
+            const remainingTotal = total - userItemsTotal;
+            
+            newShares[currentUser.id] = userItemsTotal;
             const others = prev.participants.filter((p) => p.id !== currentUser.id);
             if (others.length > 0) {
-              const othersShares = calculateEvenSplit(total, others);
-              newShares = { ...newShares, ...othersShares };
+              const amountPerOther = remainingTotal / others.length;
+              others.forEach((p) => {
+                newShares[p.id] = Math.round(amountPerOther * 100) / 100;
+              });
             }
+            
+            console.log('[SplitContext] 💰 Pay for self calculated:', {
+              userItemsTotal: `$${userItemsTotal.toFixed(2)}`,
+              remainingTotal: `$${remainingTotal.toFixed(2)}`,
+              othersCount: others.length
+            });
           } else {
             // Ultimate fallback: even split
             newShares = calculateEvenSplit(total, prev.participants);
           }
           break;
+        }
 
         case 'all':
           // Current user pays everything
