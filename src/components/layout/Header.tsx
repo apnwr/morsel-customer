@@ -113,7 +113,7 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
   }));
 
   return (
-    <div className="sticky top-0 bg-[#F7F8F8] z-10">
+    <div className="sticky top-0 bg-[#F7F8F8] z-40" style={{ WebkitBackfaceVisibility: 'hidden' }}>
       {/* Order Tabs - Show when multiple orders exist */}
       {showOrderTabs && tabs.length > 0 && onTabClick && (
         <OrderTabs

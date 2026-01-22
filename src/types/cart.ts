@@ -16,6 +16,7 @@ export interface CartItem {
   notes?: string;
   itemTotal: number;
   sessionUserId?: string; // Track which participant added this item (for shared cart)
+  spiceLevel?: string; // Selected spice level (e.g., "Mild", "Hot")
 }
 
 export interface Cart {

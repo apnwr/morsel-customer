@@ -19,7 +19,7 @@ const QUEUE_SYNC_INTERVAL = 15000; // Sync queue every 15 seconds (fallback)
 
 interface CartState {
   cart: Cart;
-  addItem: (menuItem: MenuItem, customizations?: Customization[], notes?: string, quantity?: number) => void;
+  addItem: (menuItem: MenuItem, customizations?: Customization[], notes?: string, quantity?: number, spiceLevel?: string) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, quantity: number) => void;
   clearCart: () => void;
@@ -231,7 +231,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
           name: cartItem.menuItem.name,
           quantity: cartItem.quantity,
           variantIndex,
-          addOns: addOns.length > 0 ? addOns : []
+          addOns: addOns.length > 0 ? addOns : [],
+          spiceLevel: cartItem.spiceLevel
         });
 
         return {
@@ -239,6 +240,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           quantity: cartItem.quantity,
           variantIndex,
           addOns,
+          spiceLevel: cartItem.spiceLevel, // Include spice level in queue payload
         };
       });
 
@@ -414,7 +416,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return cleanup;
   }, [sessionData?.session?.id, sessionData?.session?.status]);
 
-  const addItem = (menuItem: MenuItem, customizations: Customization[] = [], notes?: string, quantity: number = 1) => {
+  const addItem = (menuItem: MenuItem, customizations: Customization[] = [], notes?: string, quantity: number = 1, spiceLevel?: string) => {
     const validQuantity = sanitizeQuantity(quantity);
     const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
 
@@ -422,19 +424,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // This ensures we can restore customization options when syncing from API
     cacheMenuItem(menuItem);
 
-    // Check if the same item (without customizations) already exists in cart FOR THIS USER
+    // Check if the same item (without customizations and same spice level) already exists in cart FOR THIS USER
     // IMPORTANT: Only merge with user's own items, not other participants' items
     const existingItemIndex = cart.items.findIndex(
       item => item.menuItem.id === menuItem.id &&
               item.customizations.length === 0 &&
               customizations.length === 0 &&
+              item.spiceLevel === spiceLevel && // Same spice level
               (!item.sessionUserId || item.sessionUserId === currentSessionUserId) // Same user
     );
 
     let newItems: CartItem[];
 
     if (existingItemIndex !== -1 && customizations.length === 0) {
-      // Item exists and has no customizations - update quantity
+      // Item exists and has no customizations and same spice level - update quantity
       newItems = cart.items.map((item, index) => {
         if (index === existingItemIndex) {
           const newQuantity = item.quantity + validQuantity;
@@ -447,7 +450,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return item;
       });
     } else {
-      // New item or has customizations - add as new entry
+      // New item or has customizations or different spice level - add as new entry
       const newCartItem: CartItem = {
         id: generateCartItemId(),
         menuItem,
@@ -456,6 +459,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         notes,
         itemTotal: calculateItemTotal(menuItem, customizations, validQuantity),
         sessionUserId: currentSessionUserId || undefined, // Tag with current user's ID
+        spiceLevel, // Store selected spice level
       };
       newItems = [...cart.items, newCartItem];
     }
@@ -667,6 +671,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           customizations,
           itemTotal: queueItem.itemTotal,
           sessionUserId: participantQueue.sessionUserId,
+          spiceLevel: queueItem.spiceLevel, // Include spice level from queue data
         };
       });
 

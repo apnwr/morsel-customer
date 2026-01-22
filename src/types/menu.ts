@@ -28,6 +28,8 @@ export interface MenuItem {
   preparationTime?: string;
   isCustomizable: boolean;
   customOptions?: CustomOption[];
+  spiceLevels?: string[]; // Array of spice level options (e.g., ["None", "Mild", "Medium", "Hot", "Extra Hot"])
+  spiceLevelEnabled?: boolean; // Whether spice level selection is enabled for this item
 }
 
 export interface MenuCategory {

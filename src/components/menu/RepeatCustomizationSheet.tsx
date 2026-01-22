@@ -28,9 +28,16 @@ export function RepeatCustomizationSheet({
   onRepeatLast,
   onCustomize,
 }: RepeatCustomizationSheetProps) {
-  // Format customizations for display
-  const customizationSummary = lastCartItem.customizations.length > 0
-    ? lastCartItem.customizations.map((c) => c.choiceLabel).join(', ')
+  // Format customizations for display (including spice level)
+  const customizationParts: string[] = [];
+  if (lastCartItem.customizations.length > 0) {
+    customizationParts.push(lastCartItem.customizations.map((c) => c.choiceLabel).join(', '));
+  }
+  if (lastCartItem.spiceLevel) {
+    customizationParts.push(`🌶️ ${lastCartItem.spiceLevel}`);
+  }
+  const customizationSummary = customizationParts.length > 0
+    ? customizationParts.join(' • ')
     : 'No customizations';
 
   // Check for vegetarian/non-vegetarian status from allergens or dietary arrays

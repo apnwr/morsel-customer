@@ -23,6 +23,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "MORSEL - Enjoy every meal, not the math",
   description: "Restaurant ordering made simple with MORSEL",
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: 'cover', // Important for iOS safe areas
+  },
 };
 
 export default function RootLayout({

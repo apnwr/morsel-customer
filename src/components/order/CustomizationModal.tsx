@@ -12,9 +12,10 @@ interface CustomizationModalProps {
   item: MenuItem;
   isOpen: boolean;
   onClose: () => void;
-  onAddToCart: (customizations: Customization[], quantity: number) => void;
+  onAddToCart: (customizations: Customization[], quantity: number, spiceLevel?: string) => void;
   existingQuantityInCart?: number;
   lastCustomizations?: Customization[];
+  lastSpiceLevel?: string; // Last selected spice level for repeat orders
 }
 
 export function CustomizationModal({
@@ -23,6 +24,7 @@ export function CustomizationModal({
   onClose,
   onAddToCart,
   lastCustomizations,
+  lastSpiceLevel,
 }: CustomizationModalProps) {
   // For radio options: optionId -> choiceId
   // For checkbox options: optionId -> choiceId[] (multiple selections)
@@ -33,6 +35,9 @@ export function CustomizationModal({
   const [expandedOptions, setExpandedOptions] = useState<Set<string>>(
     new Set()
   );
+  // Spice level state
+  const [selectedSpiceLevel, setSelectedSpiceLevel] = useState<string | undefined>(undefined);
+  const [spiceLevelExpanded, setSpiceLevelExpanded] = useState(true);
 
   // Initialize state when modal opens or when lastCustomizations change
   useEffect(() => {
@@ -78,6 +83,13 @@ export function CustomizationModal({
       const timer = setTimeout(() => {
         setSelectedChoices(initialSelections);
         setQuantity(1);
+        // Initialize spice level from last order or default to first option
+        if (item.spiceLevelEnabled && item.spiceLevels && item.spiceLevels.length > 0) {
+          setSelectedSpiceLevel(lastSpiceLevel || item.spiceLevels[0]);
+          setSpiceLevelExpanded(true);
+        } else {
+          setSelectedSpiceLevel(undefined);
+        }
         // Initialize required options and variant options as expanded by default
         if (item.customOptions) {
           const optionsToExpand = item.customOptions
@@ -94,7 +106,7 @@ export function CustomizationModal({
 
       return () => clearTimeout(timer);
     }
-  }, [isOpen, lastCustomizations, item]);
+  }, [isOpen, lastCustomizations, lastSpiceLevel, item]);
 
   // Toggle accordion for customization option
   const toggleOption = (optionId: string) => {
@@ -261,12 +273,13 @@ export function CustomizationModal({
       });
     }
 
-    onAddToCart(customizations, quantity);
+    onAddToCart(customizations, quantity, selectedSpiceLevel);
     onClose();
 
     // Reset state
     setSelectedChoices({});
     setQuantity(1);
+    setSelectedSpiceLevel(undefined);
   };
 
   // Check if all required options are selected
@@ -513,6 +526,83 @@ export function CustomizationModal({
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Spice Level Selection */}
+          {item.spiceLevelEnabled && item.spiceLevels && item.spiceLevels.length > 0 && (
+            <div className="px-6 pb-6">
+              <div className="mb-6">
+                {/* Accordion Header */}
+                <button
+                  onClick={() => setSpiceLevelExpanded(!spiceLevelExpanded)}
+                  className="w-full flex items-center gap-3 mb-3"
+                >
+                  <motion.div
+                    className="shrink-0 w-5 h-5 relative"
+                    animate={{ rotate: spiceLevelExpanded ? 90 : 0 }}
+                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                  >
+                    <Image
+                      src="/icons/Chevron.png"
+                      alt={spiceLevelExpanded ? "Collapse" : "Expand"}
+                      fill
+                      className="object-contain"
+                    />
+                  </motion.div>
+                  <div className="flex-1 text-left">
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                      🌶️ Spice Level
+                      {selectedSpiceLevel && (
+                        <span className="text-gray-500 font-normal text-sm">
+                          ({selectedSpiceLevel})
+                        </span>
+                      )}
+                    </h3>
+                  </div>
+                </button>
+
+                {/* Accordion Content */}
+                <AnimatePresence initial={false}>
+                  {spiceLevelExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="space-y-2">
+                        {item.spiceLevels.map((level) => {
+                          const isSelected = selectedSpiceLevel === level;
+
+                          return (
+                            <button
+                              key={level}
+                              onClick={() => setSelectedSpiceLevel(level)}
+                              className={`w-full flex items-center justify-between p-4 rounded-[12px] transition-all ${
+                                isSelected
+                                  ? "bg-black text-white"
+                                  : "bg-white"
+                              }`}
+                            >
+                              <span className="font-medium text-sm flex items-center gap-2">
+                                {level === "None" && "😊"}
+                                {level === "Mild" && "🌶️"}
+                                {level === "Medium" && "🌶️🌶️"}
+                                {level === "Hot" && "🌶️🌶️🌶️"}
+                                {level === "Extra Hot" && "🔥"}
+                                {!["None", "Mild", "Medium", "Hot", "Extra Hot"].includes(level) && "🌶️"}
+                                {level}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           )}
 

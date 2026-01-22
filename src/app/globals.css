@@ -76,12 +76,32 @@
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
 }
 
+/* Mobile viewport fix - use dynamic viewport height */
+html {
+  /* Support for iOS Safari's dynamic viewport */
+  height: -webkit-fill-available;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Mobile viewport fix */
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  min-height: 100dvh; /* Dynamic viewport height - best for mobile */
+  /* Prevent pull-to-refresh on iOS */
+  overscroll-behavior-y: none;
+}
+
+/* Fix for iOS Safari fixed positioning issues */
+@supports (-webkit-touch-callout: none) {
+  body {
+    /* iOS specific fixes */
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* Typography Scale */
@@ -383,6 +403,35 @@ body {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Dynamic viewport height utilities for mobile */
+.min-h-dvh {
+  min-height: 100vh; /* Fallback */
+  min-height: 100dvh;
+}
+
+.h-dvh {
+  height: 100vh; /* Fallback */
+  height: 100dvh;
+}
+
+/* Safe area padding utilities */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Fixed bottom with safe area */
+.fixed-bottom-safe {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Smooth Scrolling */

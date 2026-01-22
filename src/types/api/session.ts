@@ -119,6 +119,7 @@ export interface SessionQueueItem {
   variantIndex: number;
   variantName: string;
   variantPrice: number;
+  spiceLevel?: string; // Selected spice level (e.g., "Mild", "Hot")
   addOns?: Array<{
     addonIndex: number;
     addonName: string;

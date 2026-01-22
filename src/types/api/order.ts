@@ -13,6 +13,7 @@ export interface QueueItem {
   quantity: number;
   variantIndex?: number;        // Index of selected variant (0-based), defaults to 0
   addOns?: OrderItemAddon[];    // Array of addon selections with option indexes
+  spiceLevel?: string;          // Selected spice level (e.g., "Mild", "Hot")
 }
 
 /**

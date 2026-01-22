@@ -102,15 +102,24 @@ export function VariationSelectionModal({
       const customizationKey = getCustomizationKey(item.customizations);
       // Create a unique group key based on ownership and customization
       // Items from different users with same config should be separate groups
-      const groupKey = `${item.sessionUserId || 'self'}-${customizationKey}`;
+      // Include spice level in group key to separate items with different spice levels
+      const groupKey = `${item.sessionUserId || 'self'}-${customizationKey}-${item.spiceLevel || 'no-spice'}`;
 
       if (groups.has(groupKey)) {
         const existing = groups.get(groupKey)!;
         existing.items.push(item);
         existing.totalQuantity += item.quantity;
       } else {
-        const customizationSummary = item.customizations.length > 0
-          ? item.customizations.map(c => c.choiceLabel).join(', ')
+        // Build customization summary including spice level
+        const parts: string[] = [];
+        if (item.customizations.length > 0) {
+          parts.push(item.customizations.map(c => c.choiceLabel).join(', '));
+        }
+        if (item.spiceLevel) {
+          parts.push(`🌶️ ${item.spiceLevel}`);
+        }
+        const customizationSummary = parts.length > 0
+          ? parts.join(' • ')
           : 'No customizations';
 
         groups.set(groupKey, {

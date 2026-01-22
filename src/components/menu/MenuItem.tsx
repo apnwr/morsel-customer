@@ -111,11 +111,11 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
 
   /**
    * Handle "Repeat Last" action from RepeatCustomizationSheet
-   * Adds the same item with the same customizations
+   * Adds the same item with the same customizations and spice level
    */
   const handleRepeatLast = useCallback(() => {
     if (lastCartItem) {
-      addItem(item, lastCartItem.customizations, lastCartItem.notes, 1);
+      addItem(item, lastCartItem.customizations, lastCartItem.notes, 1, lastCartItem.spiceLevel);
     }
   }, [item, lastCartItem, addItem]);
 

@@ -323,6 +323,9 @@ export default function MenuPage() {
         ? apiItem.item_images[0].url
         : "";
 
+    // Check if spice level selection should be enabled
+    const hasSpiceLevels = apiItem.spiceLevelEnabled && apiItem.spiceLevels && apiItem.spiceLevels.length > 0;
+
     return {
       id: apiItem.id,
       restaurantId: restaurantId,
@@ -335,7 +338,9 @@ export default function MenuPage() {
       allergens: apiItem.allergens || [],
       dietary: apiItem.dietary || [],
       preparationTime: apiItem.preparationTime,
-      isCustomizable: (apiItem.variants && apiItem.variants.length > 0) || (apiItem.addons && apiItem.addons.length > 0),
+      isCustomizable: Boolean((apiItem.variants && apiItem.variants.length > 0) || (apiItem.addons && apiItem.addons.length > 0) || hasSpiceLevels),
+      spiceLevels: apiItem.spiceLevels || [],
+      spiceLevelEnabled: apiItem.spiceLevelEnabled || false,
       customOptions: [
         ...(apiItem.variants && apiItem.variants.length > 0
           ? [
@@ -453,9 +458,9 @@ export default function MenuPage() {
   }, []);
 
   const handleAddCustomizedItem = React.useCallback(
-    (customizations: Customization[], quantity: number) => {
+    (customizations: Customization[], quantity: number, spiceLevel?: string) => {
       if (selectedItem) {
-        addItem(selectedItem, customizations, undefined, quantity);
+        addItem(selectedItem, customizations, undefined, quantity, spiceLevel);
       }
     },
     [selectedItem, addItem]
@@ -536,7 +541,8 @@ export default function MenuPage() {
 
   return (
     <div
-      className={`min-h-screen bg-white ${hasCartItems ? 'pb-[130px]' : 'pb-[80px]'}`}
+      className={`min-h-dvh bg-white ${hasCartItems ? 'pb-[130px]' : 'pb-[80px]'}`}
+      style={{ minHeight: '100dvh' }} // Fallback for browsers without dvh support
     >
       <Header showCart />
 
@@ -663,6 +669,7 @@ export default function MenuPage() {
                 0
               )}
               lastCustomizations={lastCartItem?.customizations}
+              lastSpiceLevel={lastCartItem?.spiceLevel}
             />
           );
         })()}
