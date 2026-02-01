@@ -43,13 +43,24 @@ function getEmptyCart(): Cart {
 }
 
 function calculateItemTotal(menuItem: MenuItem, customizations: Customization[], quantity: number): number {
-  let total = menuItem.price;
-  
-  // Add customization price modifiers
+  // Check if there's a variant customization (variants have absolute pricing)
+  const variantCustomization = customizations.find(
+    (custom) => custom.optionId === 'variant' || custom.optionId.startsWith('variant')
+  );
+
+  // Base price: use variant price if selected, otherwise use item's base price
+  let total = variantCustomization && variantCustomization.priceModifier > 0
+    ? variantCustomization.priceModifier
+    : menuItem.price;
+
+  // Add add-on price modifiers (skip variants as they're already the base)
   customizations.forEach((custom) => {
-    total += custom.priceModifier;
+    const isVariant = custom.optionId === 'variant' || custom.optionId.startsWith('variant');
+    if (!isVariant) {
+      total += custom.priceModifier;
+    }
   });
-  
+
   return total * quantity;
 }
 

@@ -8,6 +8,7 @@ import { Minus } from 'lucide-react';
 import Image from 'next/image';
 import { VariationSelectionModal } from './VariationSelectionModal';
 import { RepeatCustomizationSheet } from './RepeatCustomizationSheet';
+import { TruncatedDescription } from '@/components/ui/TruncatedDescription';
 
 interface MenuItemProps {
   item: MenuItemType;
@@ -304,12 +305,15 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
             {item.name}
           </h3>
           {item.description && (
-            <p 
-              className="text-xs text-gray-500 line-clamp-2 mb-2 leading-relaxed"
+            <div
+              className="text-xs text-gray-500 mb-2 leading-relaxed"
               style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.01em' }}
             >
-              {item.description}
-            </p>
+              <TruncatedDescription
+                description={item.description}
+                maxLength={180}
+              />
+            </div>
           )}
         </div>
         

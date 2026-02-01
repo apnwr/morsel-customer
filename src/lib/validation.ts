@@ -4,7 +4,7 @@
 
 /**
  * Validate customer name
- * Requirements: non-empty, max 50 characters
+ * Requirements: non-empty, max 60 characters
  */
 export function validateCustomerName(name: string): {
   isValid: boolean;
@@ -19,10 +19,10 @@ export function validateCustomerName(name: string): {
     };
   }
 
-  if (trimmedName.length > 50) {
+  if (trimmedName.length > 60) {
     return {
       isValid: false,
-      error: 'Name must be 50 characters or less',
+      error: 'Name must be 60 characters or less',
     };
   }
 
@@ -42,7 +42,7 @@ export function validateCustomerName(name: string): {
  * Sanitize customer name
  */
 export function sanitizeCustomerName(name: string): string {
-  return name.trim().slice(0, 50);
+  return name.trim().slice(0, 60);
 }
 
 /**

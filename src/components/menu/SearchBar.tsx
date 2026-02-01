@@ -23,9 +23,12 @@ export function SearchBar({
   cartTotal = 0,
 }: SearchBarProps) {
   return (
-    <div 
-      className="fixed bottom-0 left-0 right-0 bg-white border-t-[3px] border-[#F1F1F1] rounded-t-[30px] z-40 flex flex-col"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    <div
+      className="fixed left-0 right-0 bg-white border-t-[3px] border-[#F1F1F1] rounded-t-[30px] z-40 flex flex-col transition-[bottom] duration-200"
+      style={{
+        bottom: 'var(--keyboard-height, 0px)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+      }}
     >
       {/* Search row - 60px, matches Figma Rectangle 2 */}
       <div className="h-[60px] px-[22px] flex items-center gap-4 shrink-0">

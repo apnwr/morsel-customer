@@ -239,7 +239,10 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
       </div>
 
       {/* Place Order Button */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 border-t rounded-t-xl overflow-hidden flex justify-center">
+      <div
+        className="fixed left-0 right-0 z-20 border-t rounded-t-xl overflow-hidden flex justify-center transition-[bottom] duration-200"
+        style={{ bottom: 'var(--keyboard-height, 0px)' }}
+      >
         <button
           onClick={onPlaceOrder}
           disabled={isPlacingOrder}

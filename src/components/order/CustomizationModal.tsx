@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { MenuItem } from "@/types/menu";
 import { Customization } from "@/types/cart";
 import { Modal } from "@/components/ui/Modal";
+import { TruncatedDescription } from "@/components/ui/TruncatedDescription";
 import Image from "next/image";
 import { X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -90,16 +91,27 @@ export function CustomizationModal({
         } else {
           setSelectedSpiceLevel(undefined);
         }
-        // Initialize required options and variant options as expanded by default
-        if (item.customOptions) {
-          const optionsToExpand = item.customOptions
-            .filter((opt) => 
+        // Initialize expanded options - always expand the first one for better UX
+        if (item.customOptions && item.customOptions.length > 0) {
+          const optionsToExpand: string[] = [];
+
+          // Always expand the first option (variant or add-on)
+          optionsToExpand.push(item.customOptions[0].id);
+
+          // Also expand required options and variant options
+          item.customOptions.forEach((opt) => {
+            if (
               opt.id === "variant" || // Main variant option
               opt.id.startsWith("variant") || // Any variant-related options
               opt.required || // Required options should be visible
               (opt.minSelection && opt.minSelection > 0) // Options with minimum selection
-            )
-            .map((opt) => opt.id);
+            ) {
+              if (!optionsToExpand.includes(opt.id)) {
+                optionsToExpand.push(opt.id);
+              }
+            }
+          });
+
           setExpandedOptions(new Set(optionsToExpand));
         }
       }, 0);
@@ -153,34 +165,47 @@ export function CustomizationModal({
   // Check if item has customization options
   const hasCustomOptions = item.customOptions && item.customOptions.length > 0;
 
-  // Calculate per-item price with customizations (without quantity multiplier)
-  const itemPriceWithCustomizations = useMemo(() => {
-    let price = item.price;
+  // Helper to check if an option is a variant (not an add-on)
+  const isVariantOption = (optionId: string) => {
+    return optionId === "variant" || optionId.startsWith("variant");
+  };
 
-    // Add price modifiers from selected choices
+  // Calculate per-item price with customizations (without quantity multiplier)
+  // Variants use absolute pricing, add-ons use incremental pricing
+  const itemPriceWithCustomizations = useMemo(() => {
+    let basePrice = item.price;
+    let addonPrice = 0;
+
     if (item.customOptions) {
       item.customOptions.forEach((option) => {
         const selection = selectedChoices[option.id];
+        const isVariant = isVariantOption(option.id);
 
         if (option.type === "radio" && typeof selection === "string") {
           // Single selection (radio button)
           const choice = option.choices.find((c) => c.id === selection);
           if (choice) {
-            price += choice.priceModifier;
+            if (isVariant) {
+              // Variant: price is absolute, replaces base price
+              basePrice = choice.priceModifier;
+            } else {
+              // Add-on: price is incremental
+              addonPrice += choice.priceModifier;
+            }
           }
         } else if (option.type === "checkbox" && Array.isArray(selection)) {
-          // Multiple selections (checkboxes)
+          // Multiple selections (checkboxes) - always add-ons
           selection.forEach((choiceId) => {
             const choice = option.choices.find((c) => c.id === choiceId);
             if (choice) {
-              price += choice.priceModifier;
+              addonPrice += choice.priceModifier;
             }
           });
         }
       });
     }
 
-    return price;
+    return basePrice + addonPrice;
   }, [item, selectedChoices]);
 
   // Calculate total price based on selections (includes quantity)
@@ -363,9 +388,12 @@ export function CustomizationModal({
                 </div>
               )}
               <h3 className="font-bold text-sm mb-1 truncate">{item.name}</h3>
-              <p className="text-[#00000050] text-[10px] line-clamp-1">
-                {item.description}
-              </p>
+              <div className="text-[#00000050] text-[10px]">
+                <TruncatedDescription
+                  description={item.description}
+                  maxLength={180}
+                />
+              </div>
             </div>
 
             {/* Close Button */}
@@ -491,6 +519,9 @@ export function CustomizationModal({
                                       selectedChoices[option.id] as string[]
                                     ).includes(choice.id);
 
+                              // Check if this is a variant option (show flat price) or add-on (show +price)
+                              const isVariant = isVariantOption(option.id);
+
                               return (
                                 <button
                                   key={choice.id}
@@ -511,10 +542,18 @@ export function CustomizationModal({
                                   <span className="font-medium text-sm">
                                     {choice.label}
                                   </span>
-                                  {choice.priceModifier > 0 && (
+                                  {isVariant ? (
+                                    // Variants: Show flat/absolute price (always visible)
                                     <span className="font-bold text-sm">
-                                      + ${choice.priceModifier.toFixed(2)}
+                                      ${choice.priceModifier.toFixed(2)}
                                     </span>
+                                  ) : (
+                                    // Add-ons: Show incremental price with + prefix (only if > 0)
+                                    choice.priceModifier > 0 && (
+                                      <span className="font-bold text-sm">
+                                        +${choice.priceModifier.toFixed(2)}
+                                      </span>
+                                    )
                                   )}
                                 </button>
                               );
