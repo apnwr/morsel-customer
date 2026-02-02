@@ -39,17 +39,29 @@ export interface ItemVariant {
   images?: Array<{ url: string; path: string }>;
 }
 
+/**
+ * ItemAddonOption - Individual addon option
+ * Represents a selectable option within an addon group
+ */
 export interface ItemAddonOption {
-  name: string;
-  price: number;
+  name: string;   // Option display name (e.g., "Mozzarella")
+  price: number;  // Additional price for this option
 }
 
+/**
+ * ItemAddon - Addon group for menu items
+ * 
+ * Structure per API documentation:
+ * - add_on_title: Display name for the addon group
+ * - min_selection: Minimum required selections (0 = optional)
+ * - max_selection: Maximum allowed selections
+ * - add_on_options: Array of available options
+ */
 export interface ItemAddon {
-  id: string;
-  name: string;
-  minOptions: number;
-  maxOptions: number;
-  options: ItemAddonOption[];
+  add_on_title: string;
+  min_selection: number;
+  max_selection: number;
+  add_on_options: ItemAddonOption[];
 }
 
 export interface MenuItem {

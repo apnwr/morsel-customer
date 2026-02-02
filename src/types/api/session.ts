@@ -50,6 +50,8 @@ export interface Business {
   subscription: Subscription;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  /** Firebase Storage URL for business logo (publicly accessible) */
+  logo?: string;
 }
 
 export interface SessionParticipant {

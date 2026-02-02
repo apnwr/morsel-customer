@@ -372,20 +372,20 @@ export default function MenuPage() {
           ? apiItem.addons
               // Defensive: Filter out malformed addons without options (violates API spec but prevents crashes)
               .filter((addonGroup) => {
-                if (!addonGroup.options || addonGroup.options.length === 0) {
-                  console.warn(`[MenuPage] Malformed addon "${addonGroup.name}" for item "${apiItem.name}" - missing options array (violates API spec)`);
+                if (!addonGroup.add_on_options || addonGroup.add_on_options.length === 0) {
+                  console.warn(`[MenuPage] Malformed addon "${addonGroup.add_on_title}" for item "${apiItem.name}" - missing add_on_options array (violates API spec)`);
                   return false;
                 }
                 return true;
               })
               .map((addonGroup, groupIdx) => ({
                 id: `addon-group-${groupIdx}`,
-                name: addonGroup.name,
-                type: addonGroup.maxOptions === 1 ? ("radio" as const) : ("checkbox" as const),
-                required: addonGroup.minOptions > 0,
-                minSelection: addonGroup.minOptions,
-                maxSelection: addonGroup.maxOptions,
-                choices: addonGroup.options.map((option, optIdx) => ({
+                name: addonGroup.add_on_title,
+                type: addonGroup.max_selection === 1 ? ("radio" as const) : ("checkbox" as const),
+                required: addonGroup.min_selection > 0,
+                minSelection: addonGroup.min_selection,
+                maxSelection: addonGroup.max_selection,
+                choices: addonGroup.add_on_options.map((option, optIdx) => ({
                   id: `addon-${groupIdx}-${optIdx}`,
                   label: option.name,
                   priceModifier: option.price ?? 0, // Default to 0 if undefined

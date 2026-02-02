@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
@@ -11,6 +12,11 @@ import { sessionService } from '@/services/session.service';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useSession } from '@/contexts/SessionContext';
 import type { OrderingSessionData } from '@/types/api/session';
+
+// Helper to check if logo URL is valid and non-empty
+function hasValidLogo(logo: string | undefined | null): logo is string {
+  return typeof logo === 'string' && logo.trim().length > 0;
+}
 
 type DiningType = 'dine-in' | 'takeaway';
 
@@ -111,7 +117,7 @@ export function LoginModal({ isOpen, previewSession }: LoginModalProps) {
           id: previewSession.business.id,
           name: previewSession.business.businessName,
           themeColor: '#E68E2E',
-          logo: '',
+          logo: previewSession.business.logo || '', // Use logo from API if available
           branches: [{
             id: previewSession.space.id,
             name: previewSession.space.name,
@@ -176,12 +182,30 @@ export function LoginModal({ isOpen, previewSession }: LoginModalProps) {
 
               {/* Restaurant Logo/Name */}
               <div className="flex justify-center mb-6">
-                <div
-                  className="h-16 rounded-xl shadow-sm flex items-center justify-center text-xl font-bold text-white px-6 text-center"
-                  style={{ backgroundColor: '#000000' }}
-                >
-                  {previewSession?.business?.businessName || 'morsel'}
-                </div>
+                {hasValidLogo(previewSession?.business?.logo) ? (
+                  <div className="relative w-20 h-20 rounded-xl overflow-hidden shadow-sm bg-gray-100">
+                    <Image
+                      src={previewSession.business.logo}
+                      alt={`${previewSession?.business?.displayName || previewSession?.business?.businessName || 'Business'} logo`}
+                      fill
+                      className="object-contain"
+                      sizes="80px"
+                      unoptimized // Required for external Firebase URLs
+                      onError={(e) => {
+                        // Hide image on error
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className="h-16 rounded-xl shadow-sm flex items-center justify-center text-xl font-bold text-white px-6 text-center"
+                    style={{ backgroundColor: '#000000' }}
+                  >
+                    {previewSession?.business?.businessName || 'morsel'}
+                  </div>
+                )}
               </div>
 
               {/* Space/Table Name and Name Input */}

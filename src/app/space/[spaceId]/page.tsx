@@ -2,11 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { sessionService } from '@/services/session.service';
 import { useSession } from '@/contexts/SessionContext';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { LoginModal } from '@/components/session/LoginModal';
 import type { OrderingSessionData } from '@/types/api/session';
+
+// Helper to check if logo URL is valid and non-empty
+function hasValidLogo(logo: string | undefined | null): logo is string {
+  return typeof logo === 'string' && logo.trim().length > 0;
+}
 
 export default function SpacePage() {
   const params = useParams();
@@ -138,12 +144,30 @@ export default function SpacePage() {
       {/* Background content - Restaurant/Space Info */}
       <div className="flex flex-col items-center justify-center min-h-screen p-6">
         {/* Restaurant Logo/Name */}
-        <div
-          className="h-20 rounded-xl shadow-lg flex items-center justify-center text-2xl font-bold text-white px-8 mb-6"
-          style={{ backgroundColor: '#000000' }}
-        >
-          {spaceData?.business?.businessName || 'morsel'}
-        </div>
+        {hasValidLogo(spaceData?.business?.logo) ? (
+          <div className="relative w-24 h-24 rounded-xl overflow-hidden shadow-lg bg-gray-100 mb-6">
+            <Image
+              src={spaceData.business.logo}
+              alt={`${spaceData?.business?.displayName || spaceData?.business?.businessName || 'Business'} logo`}
+              fill
+              className="object-contain"
+              sizes="96px"
+              unoptimized // Required for external Firebase URLs
+              onError={(e) => {
+                // Hide image on error
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
+            />
+          </div>
+        ) : (
+          <div
+            className="h-20 rounded-xl shadow-lg flex items-center justify-center text-2xl font-bold text-white px-8 mb-6"
+            style={{ backgroundColor: '#000000' }}
+          >
+            {spaceData?.business?.businessName || 'morsel'}
+          </div>
+        )}
 
         {/* Space/Table Info */}
         <div className="text-center mb-4">
