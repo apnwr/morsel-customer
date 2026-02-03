@@ -283,7 +283,14 @@ export default function MyTabPage() {
       <button
         type="button"
         className="fixed rounded-t-[30px] left-0 right-0 h-[70px] flex items-center justify-between px-[22px] bg-black text-white hover:bg-gray-900 active:opacity-95 transition-all z-20"
-        style={{ bottom: 'var(--keyboard-height, 0px)' }}
+        style={{ 
+          bottom: 0,
+          // iOS Safari fixed positioning fix
+          transform: 'translateZ(0)',
+          WebkitTransform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+        }}
         aria-label="Pay now"
       >
         <span

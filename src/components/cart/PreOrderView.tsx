@@ -240,8 +240,15 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
 
       {/* Place Order Button */}
       <div
-        className="fixed left-0 right-0 z-20 border-t rounded-t-xl overflow-hidden flex justify-center transition-[bottom] duration-200"
-        style={{ bottom: 'var(--keyboard-height, 0px)' }}
+        className="fixed left-0 right-0 z-20 border-t rounded-t-xl overflow-hidden flex justify-center"
+        style={{ 
+          bottom: 0,
+          // iOS Safari fixed positioning fix
+          transform: 'translateZ(0)',
+          WebkitTransform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+        }}
       >
         <button
           onClick={onPlaceOrder}

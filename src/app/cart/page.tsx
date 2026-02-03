@@ -9,7 +9,6 @@ import { Header } from "@/components/layout/Header";
 import { PreOrderView } from "@/components/cart/PreOrderView";
 import { PostOrderView } from "@/components/order/PostOrderView";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { OrderTabs } from "@/components/session/OrderTabs";
 
 // Disable static generation since we use search params
 export const dynamic = 'force-dynamic';
@@ -50,22 +49,17 @@ function CartPageContent() {
 
   return (
     <div className="min-h-screen bg-[#F7F8F8] overflow-x-hidden">
-      {/* Header - always mounted */}
+      {/* Header - always mounted, with order tabs when multiple orders exist */}
       <Header
         showTimer={false}
         showCart={true}
         showFilters={false}
+        showOrderTabs={tabsToShow.length > 0}
+        tabs={tabsToShow}
+        activeOrderId={activeOrderId}
+        onTabClick={handleTabSwitch}
         onRightIconClick={() => router.push("/menu")}
       />
-
-      {/* Order Tabs - shown when multiple orders/tabs exist */}
-      {tabsToShow.length > 0 && (
-        <OrderTabs
-          tabs={tabsToShow}
-          activeTabId={activeOrderId}
-          onTabClick={handleTabSwitch}
-        />
-      )}
 
       {/* Content area */}
       {showInitialLoading ? (

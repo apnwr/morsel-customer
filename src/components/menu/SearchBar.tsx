@@ -24,10 +24,16 @@ export function SearchBar({
 }: SearchBarProps) {
   return (
     <div
-      className="fixed left-0 right-0 bg-white border-t-[3px] border-[#F1F1F1] rounded-t-[30px] z-40 flex flex-col transition-[bottom] duration-200"
+      className="fixed left-0 right-0 bg-white border-t-[3px] border-[#F1F1F1] rounded-t-[30px] z-40 flex flex-col"
       style={{
-        bottom: 'var(--keyboard-height, 0px)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+        bottom: 0,
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        // Force GPU acceleration to prevent iOS Safari fixed positioning issues
+        transform: 'translateZ(0)',
+        WebkitTransform: 'translateZ(0)',
+        // Prevent layout thrashing during scroll
+        backfaceVisibility: 'hidden',
+        WebkitBackfaceVisibility: 'hidden',
       }}
     >
       {/* Search row - 60px, matches Figma Rectangle 2 */}

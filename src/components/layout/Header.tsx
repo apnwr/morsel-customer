@@ -9,7 +9,7 @@ import { useOrder } from '@/contexts/OrderContext';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useSession } from '@/contexts/SessionContext';
 import { Badge } from '@/components/ui/Badge';
-import { OrderTabs } from '@/components/session/OrderTabs';
+import { OrderTabs, TabInfo } from '@/components/session/OrderTabs';
 import Image from 'next/image';
 
 const SNACKBAR_DURATION_MS = 2000;
@@ -19,13 +19,16 @@ interface HeaderProps {
   showCart?: boolean;
   showFilters?: boolean;
   showOrderTabs?: boolean;
+  /** Full tab info array - use this for rich tab data (preferred) */
+  tabs?: TabInfo[];
+  /** Simple order IDs - used if tabs is not provided */
   orderIds?: string[];
   activeOrderId?: string | null;
   onTabClick?: (orderId: string | null) => void;
   onRightIconClick?: () => void;
 }
 
-export function Header({ showTimer = false, showCart = true, showFilters = false, showOrderTabs = false, orderIds = [], activeOrderId = null, onTabClick, onRightIconClick }: HeaderProps) {
+export function Header({ showTimer = false, showCart = true, showFilters = false, showOrderTabs = false, tabs: propTabs, orderIds = [], activeOrderId = null, onTabClick, onRightIconClick }: HeaderProps) {
   const router = useRouter();
   const { cart, lastCartAction, clearLastCartAction } = useCart();
   const [snackbar, setSnackbar] = useState<{ type: 'added' | 'removed'; count: number } | null>(null);
@@ -105,25 +108,46 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
   const cartTotal = mounted ? cart.subtotal : 0;
   const isCartEmpty = cartTotal === 0;
 
-  // Convert orderIds to TabInfo format for OrderTabs
-  const tabs = orderIds.map((orderId, index) => ({
+  // Use provided tabs or convert orderIds to TabInfo format for OrderTabs
+  const tabs = propTabs || orderIds.map((orderId, index) => ({
     id: orderId,
     label: `Order #${index + 1}`,
     isNewOrder: false,
   }));
 
-  return (
-    <div className="sticky top-0 bg-[#F7F8F8] z-40" style={{ WebkitBackfaceVisibility: 'hidden' }}>
-      {/* Order Tabs - Show when multiple orders exist */}
-      {showOrderTabs && tabs.length > 0 && onTabClick && (
-        <OrderTabs
-          tabs={tabs}
-          activeTabId={activeOrderId}
-          onTabClick={onTabClick}
-        />
-      )}
+  // Calculate header height for spacer (base ~70px + tabs ~50px + filters ~60px)
+  const hasOrderTabs = showOrderTabs && tabs.length > 0 && onTabClick;
+  const baseHeight = 70;
+  const tabsHeight = hasOrderTabs ? 50 : 0;
+  const filtersHeight = showFilters ? 60 : 0;
+  const totalHeight = baseHeight + tabsHeight + filtersHeight;
 
-      <div className="px-[18px] py-[10px] border-b border-gray-100">
+  return (
+    <>
+      {/* Spacer to prevent content from being hidden behind fixed header */}
+      <div style={{ height: totalHeight }} aria-hidden="true" />
+      
+      {/* Fixed Header */}
+      <div 
+        className="fixed top-0 left-0 right-0 bg-[#F7F8F8] z-40" 
+        style={{ 
+          // iOS Safari fixed positioning fix
+          transform: 'translateZ(0)',
+          WebkitTransform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+        }}
+      >
+        {/* Order Tabs - Show when multiple orders exist */}
+        {hasOrderTabs && (
+          <OrderTabs
+            tabs={tabs}
+            activeTabId={activeOrderId}
+            onTabClick={onTabClick}
+          />
+        )}
+
+        <div className="px-[18px] py-[10px] border-b border-gray-100">
         <div className="flex items-center justify-center gap-[23px]">
           {/* Table Number Circle - clickable, navigates to My Tab */}
           <div className="flex items-center gap-3 shrink-0">
@@ -266,5 +290,6 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
         )}
       </div>
     </div>
+    </>
   );
 }
