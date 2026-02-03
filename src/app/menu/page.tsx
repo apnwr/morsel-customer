@@ -530,7 +530,7 @@ export default function MenuPage() {
   // Show loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-[#F7F8F8]">
         <Header showCart />
         <div className="flex items-center justify-center p-8">
           <LoadingSpinner size="lg" />
@@ -541,12 +541,12 @@ export default function MenuPage() {
 
   return (
     <div
-      className={`min-h-dvh bg-white ${hasCartItems ? 'pb-[130px]' : 'pb-[80px]'}`}
+      className={`min-h-dvh bg-[#F7F8F8] ${hasCartItems ? 'pb-[130px]' : 'pb-[80px]'}`}
       style={{ minHeight: '100dvh' }} // Fallback for browsers without dvh support
     >
       <Header showCart />
 
-      <div className="p-4 bg-[#F7F8F8]">
+      <div className="p-4">
         {menuData.categories.length === 0 ? (
           <EmptyState
             icon="🍽️"
