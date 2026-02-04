@@ -51,17 +51,17 @@ export interface ItemAddonOption {
 /**
  * ItemAddon - Addon group for menu items
  * 
- * Structure per API documentation:
- * - add_on_title: Display name for the addon group
- * - min_selection: Minimum required selections (0 = optional)
- * - max_selection: Maximum allowed selections
- * - add_on_options: Array of available options
+ * Structure:
+ * - name: Display name for the addon group
+ * - minOptions: Minimum required selections (0 = optional)
+ * - maxOptions: Maximum allowed selections
+ * - options: Array of available options
  */
 export interface ItemAddon {
-  add_on_title: string;
-  min_selection: number;
-  max_selection: number;
-  add_on_options: ItemAddonOption[];
+  name: string;
+  minOptions: number;
+  maxOptions: number;
+  options: ItemAddonOption[];
 }
 
 export interface MenuItem {
