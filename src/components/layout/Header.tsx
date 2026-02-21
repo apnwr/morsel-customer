@@ -2,11 +2,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useSyncExternalStore } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '@/contexts/CartContext';
 import { useOrder } from '@/contexts/OrderContext';
-import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useSession } from '@/contexts/SessionContext';
 import { Badge } from '@/components/ui/Badge';
 import { OrderTabs, TabInfo } from '@/components/session/OrderTabs';
@@ -30,13 +29,16 @@ interface HeaderProps {
 
 export function Header({ showTimer = false, showCart = true, showFilters = false, showOrderTabs = false, tabs: propTabs, orderIds = [], activeOrderId = null, onTabClick, onRightIconClick }: HeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const isCartPage = pathname === '/cart';
   const { cart, lastCartAction, clearLastCartAction } = useCart();
   const [snackbar, setSnackbar] = useState<{ type: 'added' | 'removed'; count: number } | null>(null);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { order } = useOrder();
-  const { context } = useRestaurant();
   const { sessionData } = useSession();
   const [remainingMinutes, setRemainingMinutes] = useState(0);
+
+  const participantCount = sessionData?.participantsCount ?? 0;
 
   // Handle hydration using useSyncExternalStore (recommended React pattern)
   const mounted = useSyncExternalStore(
@@ -45,23 +47,6 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
     () => false // server-side snapshot
   );
 
-  // Extract table number from space name or use fallback
-  const getTableNumber = () => {
-    if (sessionData?.space.name) {
-      // Try to extract number from the end of the name (e.g., "Counter top 5" -> "5")
-      const match = sessionData.space.name.match(/\d+$/);
-      if (match) {
-        return match[0];
-      }
-      // If no number found, return "XX"
-      return 'XX';
-    }
-    // Fallback to context table or default
-    return context?.table?.toString() || '15';
-  };
-
-  const tableNumber = getTableNumber();
-  const participantCount = sessionData?.participantsCount ?? 0;
 
   // Update timer every second
   useEffect(() => {
@@ -148,45 +133,56 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
         )}
 
         <div className="px-[18px] py-[10px] border-b border-gray-100">
-        <div className="flex items-center justify-center gap-[23px]">
-          {/* Table Number Circle - clickable, navigates to My Tab */}
+        <div className="flex items-center justify-between">
+          {/* Morsel Logo Circle with Participant Dots - Left */}
           <div className="flex items-center gap-3 shrink-0">
             <button
               type="button"
               onClick={() => router.push('/my-tab')}
-              className="relative w-[50px] h-[50px] flex items-center justify-center mt-1 p-0 border-0 bg-transparent cursor-pointer rounded-full hover:opacity-90 active:opacity-80 transition-opacity"
-              aria-label="View table details"
+              className="relative w-[50px] h-[54px] flex items-end justify-center p-0 border-0 bg-transparent cursor-pointer hover:opacity-90 active:opacity-80 transition-opacity"
+              aria-label="View my tab"
             >
-              <div className="absolute inset-0 border-[3px] border-black rounded-full" />
+              {/* Clasp dot at top */}
+              <div
+                className="absolute w-[10px] h-[10px] border-[3px] border-black bg-white rounded-full z-20"
+                style={{ top: 0, left: '20px' }}
+              />
 
-              {/* Participant dots around the circle */}
-              {Array.from({ length: participantCount }).map((_, index) => {
-                const angle = (index * 360) / participantCount - 90; // Start from top
-                const radian = (angle * Math.PI) / 180;
-                const x = 50 + 45 * Math.cos(radian); // 45% of radius for positioning
-                const y = 50 + 45 * Math.sin(radian);
+              {/* Main circle */}
+              <div className="relative w-[50px] h-[50px] flex items-center justify-center rounded-full">
+                <div className="absolute inset-0 border-[3px] border-black bg-[#F8F8F8] rounded-full" />
 
-                return (
-                  <div
-                    key={index}
-                    className="absolute w-2 h-2 bg-black rounded-full"
-                    style={{
-                      left: `${x}%`,
-                      top: `${y}%`,
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                  />
-                );
-              })}
+                {/* Participant dots around the circle */}
+                {Array.from({ length: participantCount }).map((_, index) => {
+                  const angle = (index * 360) / participantCount - 90;
+                  const radian = (angle * Math.PI) / 180;
+                  const x = 50 + 45 * Math.cos(radian);
+                  const y = 50 + 45 * Math.sin(radian);
 
-              <span
-                className="text-xl font-bold relative z-10"
-                style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.12em' }}
-              >
-                {tableNumber}
-              </span>
+                  return (
+                    <div
+                      key={index}
+                      className="absolute w-2 h-2 bg-black rounded-full"
+                      style={{
+                        left: `${x}%`,
+                        top: `${y}%`,
+                        transform: 'translate(-50%, -50%)',
+                      }}
+                    />
+                  );
+                })}
+
+                {/* Morsel logo inside circle */}
+                <Image
+                  src="/icons/morsel_logo.png"
+                  alt="Morsel"
+                  width={20}
+                  height={20}
+                  className="relative z-10 object-contain"
+                />
+              </div>
             </button>
-            
+
             {/* Timer Badge */}
             {showTimer && order && order.timerExpiresAt && (
               <Badge variant="timer">
@@ -195,62 +191,82 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
             )}
           </div>
 
-          {/* Cart Total - Center; one slide at a time: default (price+arrow) or snackbar ("X items added/removed"). Cyclic ladder: outgoing slides up, incoming slides up from below. */}
+          {/* Cart Total - Center */}
+          {/* Center element: "Cart" text on cart page, cart pill with "View Cart" label elsewhere */}
           {showCart && (
-            <button
-              onClick={handleCartClick}
-              className={`relative overflow-hidden w-[211px] h-[50px] bg-[#F8F8F8] rounded-[30px] transition-colors shrink-0 ${
-                isCartEmpty
-                  ? 'border-[3px] border-[#B2B2B2]'
-                  : 'border-[3px] border-black'
-              }`}
-              aria-label="View cart"
-            >
-              <AnimatePresence initial={false} mode="sync">
-                {snackbar ? (
-                  <motion.div
-                    key="snackbar"
-                    initial={{ y: '100%' }}
-                    animate={{ y: 0 }}
-                    exit={{ y: '-100%' }}
-                    transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
-                    className="absolute inset-0 flex items-center justify-center px-3"
-                  >
-                    <span
-                      className="text-sm font-bold text-black"
-                      style={{ fontFamily: 'Lato, sans-serif', lineHeight: 1.2 }}
-                    >
-                      {snackbar.count} item{snackbar.count === 1 ? '' : 's'} {snackbar.type === 'added' ? 'added' : 'removed'}
-                    </span>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="default"
-                    initial={{ y: '100%' }}
-                    animate={{ y: 0 }}
-                    exit={{ y: '-100%' }}
-                    transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
-                    className="absolute inset-0 flex items-center justify-between px-3"
-                  >
-                    <span
-                      className={`text-xl font-black ${
-                        isCartEmpty ? 'text-[#B2B2B2]' : 'text-black'
-                      }`}
-                      style={{ fontFamily: 'Lato, sans-serif', lineHeight: '1.2em' }}
-                    >
-                      $ {isCartEmpty ? '00.00' : cartTotal.toFixed(2)}
-                    </span>
-                    <Image
-                      src="/icons/Diagonal_Arrow.png"
-                      alt="Cart"
-                      width={24}
-                      height={24}
-                      className={`shrink-0 ${isCartEmpty ? 'opacity-40' : ''}`}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </button>
+            isCartPage ? (
+              <div className="shrink-0 h-[59px] flex items-center justify-center">
+                <p
+                  className="text-[24px] font-bold text-black"
+                  style={{ fontFamily: 'Lato, sans-serif' }}
+                >
+                  Cart
+                </p>
+              </div>
+            ) : (
+              <div className="relative shrink-0 h-[59px]">
+                <span
+                  className={`absolute -top-[2px] left-[18px] z-10 bg-[#F7F8F8] px-2 py-[2px] rounded-[20px] text-[13px] font-black ${isCartEmpty ? 'text-[#B2B2B2]' : 'text-black'}`}
+                  style={{ fontFamily: 'Lato, sans-serif' }}
+                >
+                  View Cart
+                </span>
+                <button
+                  onClick={handleCartClick}
+                  className={`relative overflow-hidden w-[211px] h-[50px] bg-[#F8F8F8] rounded-[30px] transition-colors mt-[9px] ${
+                    isCartEmpty
+                      ? 'border-[3px] border-[#B2B2B2]'
+                      : 'border-[3px] border-black'
+                  }`}
+                  aria-label="View cart"
+                >
+                  <AnimatePresence initial={false} mode="sync">
+                    {snackbar ? (
+                      <motion.div
+                        key="snackbar"
+                        initial={{ y: '100%' }}
+                        animate={{ y: 0 }}
+                        exit={{ y: '-100%' }}
+                        transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
+                        className="absolute inset-0 flex items-center justify-center px-3"
+                      >
+                        <span
+                          className="text-sm font-bold text-black"
+                          style={{ fontFamily: 'Lato, sans-serif', lineHeight: 1.2 }}
+                        >
+                          {snackbar.count} item{snackbar.count === 1 ? '' : 's'} {snackbar.type === 'added' ? 'added' : 'removed'}
+                        </span>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="default"
+                        initial={{ y: '100%' }}
+                        animate={{ y: 0 }}
+                        exit={{ y: '-100%' }}
+                        transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
+                        className="absolute inset-0 flex items-center justify-between px-3"
+                      >
+                        <span
+                          className={`text-xl font-black ${
+                            isCartEmpty ? 'text-[#B2B2B2]' : 'text-black'
+                          }`}
+                          style={{ fontFamily: 'Lato, sans-serif', lineHeight: '1.2em' }}
+                        >
+                          $ {isCartEmpty ? '00.00' : cartTotal.toFixed(2)}
+                        </span>
+                        <Image
+                          src="/icons/Diagonal_Arrow.png"
+                          alt="Cart"
+                          width={24}
+                          height={24}
+                          className={`shrink-0 ${isCartEmpty ? 'opacity-40' : ''}`}
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </button>
+              </div>
+            )
           )}
 
           {/* Icon Button - Right */}
