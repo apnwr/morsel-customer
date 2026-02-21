@@ -539,7 +539,11 @@ FirebaseAuthProvider
             └── CartProvider
                 └── OrderProvider
                     └── SplitProvider
+                        └── {children}
+                        └── DebugPanelWrapper
 ```
+
+**Source**: `src/app/layout.tsx`
 
 ### SessionContext
 
