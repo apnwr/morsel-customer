@@ -269,18 +269,17 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
             )
           )}
 
-          {/* Icon Button - Right */}
+          {/* Hamburger Menu Button - Right */}
           <button
             onClick={onRightIconClick}
-            className="shrink-0 w-[50px] h-[50px] flex items-center justify-center"
+            className="shrink-0 w-[50px] h-[50px] flex items-center justify-center rounded-full border-[3px] border-[#ECECEC] bg-[#F8F8F8]"
+            aria-label="Menu"
           >
-            <Image
-              src="/icons/icons.png"
-              alt="Menu"
-              width={50}
-              height={50}
-              className="object-contain"
-            />
+            <svg width="20" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M1 1H19" stroke="black" strokeWidth="2" strokeLinecap="round" />
+              <path d="M1 7H19" stroke="black" strokeWidth="2" strokeLinecap="round" />
+              <path d="M1 13H19" stroke="black" strokeWidth="2" strokeLinecap="round" />
+            </svg>
           </button>
         </div>
 

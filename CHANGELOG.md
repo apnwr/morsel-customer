@@ -97,6 +97,28 @@ All notable changes on this branch are documented here.
    - Kitchen note section: added `mt-1` for tighter spacing after cart items
    - Bill section: increased top margin from `mt-4` to `mt-6` for better visual separation
 
+4. **Added Tip Selector**
+   - Three preset tip buttons: `😃 20%`, `😊 10%` (default selected), `0% ☹️`
+   - Selected tip gets black bg + white text; unselected gets white bg + `#ECECEC` border
+   - "Custom Tip" button expands into a number input with "Set" button
+   - Self-contained local state — does not affect cart total or place order amount
+
+5. **"Place Order" bottom bar updates**
+   - Capitalized to "Place Order" (was "Place order")
+   - Rounded corners increased from `rounded-t-xl` to `rounded-t-[30px]`
+   - Removed `border-t` and diagonal arrow SVG icon
+   - Updated padding to `px-[22px]`, font weight to 700 (bold)
+
+### Header — Right Icon Update
+
+**File**: `src/components/layout/Header.tsx`
+
+7. **Replaced right icon with hamburger menu**
+   - Removed `/icons/icons.png` image
+   - Added inline SVG hamburger icon (3 horizontal bars)
+   - Button styled as 50px circle with `border-[3px] border-[#ECECEC] bg-[#F8F8F8]`
+   - `onRightIconClick` callback unchanged — existing navigation still works
+
 ---
 
 ### Documentation Consolidation

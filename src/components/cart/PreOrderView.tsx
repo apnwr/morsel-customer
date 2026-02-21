@@ -32,6 +32,84 @@ const CustomizationModal = dynamic(
   { ssr: false }
 );
 
+const TIP_OPTIONS = [
+  { label: '😃  20%', value: 20 },
+  { label: '😊 10%', value: 10 },
+  { label: '0% ☹️', value: 0 },
+];
+
+function TipSelector() {
+  const [selectedTip, setSelectedTip] = useState<number>(10);
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [customTip, setCustomTip] = useState('');
+
+  return (
+    <div className="flex flex-col gap-3 mt-6">
+      <div className="flex gap-3 items-start justify-center w-full">
+        {TIP_OPTIONS.map((option) => {
+          const isSelected = !showCustomInput && selectedTip === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                setSelectedTip(option.value);
+                setShowCustomInput(false);
+                setCustomTip('');
+              }}
+              className={`flex-1 px-5 py-2 rounded-[30px] border-2 text-[16px] font-bold text-center transition-all ${
+                isSelected
+                  ? 'bg-black border-[#595959] text-white'
+                  : 'bg-white border-[#ECECEC] text-black'
+              }`}
+              style={{ fontFamily: 'Lato, sans-serif' }}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+      {!showCustomInput ? (
+        <button
+          type="button"
+          onClick={() => setShowCustomInput(true)}
+          className="w-full px-5 py-2 rounded-[30px] border-2 border-[#ECECEC] bg-white text-[16px] font-bold text-black text-center transition-all hover:bg-gray-50"
+          style={{ fontFamily: 'Lato, sans-serif' }}
+        >
+          Custom Tip
+        </button>
+      ) : (
+        <div className="flex items-center gap-2 w-full">
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={customTip}
+            onChange={(e) => setCustomTip(e.target.value)}
+            placeholder="Enter tip amount"
+            className="flex-1 px-5 py-2 rounded-[30px] border-2 border-black bg-white text-[16px] font-bold text-black text-center focus:outline-none"
+            style={{ fontFamily: 'Lato, sans-serif' }}
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setShowCustomInput(false);
+              if (customTip) {
+                setSelectedTip(-1); // custom value, deselect presets
+              }
+            }}
+            className="px-4 py-2 rounded-[30px] bg-black text-white text-sm font-bold shrink-0"
+            style={{ fontFamily: 'Lato, sans-serif' }}
+          >
+            Set
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface PreOrderViewProps {
   onPlaceOrder: () => Promise<void>;
   isPlacingOrder: boolean;
@@ -213,12 +291,15 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
         <div className="mt-6">
           <BillSection userAmount={userAmount} />
         </div>
+
+        {/* Tip Section */}
+        <TipSelector />
       </div>
 
       {/* Place Order Button */}
       <div
-        className="fixed left-0 right-0 z-20 border-t rounded-t-xl overflow-hidden flex justify-center"
-        style={{ 
+        className="fixed left-0 right-0 z-20 rounded-t-[30px] overflow-hidden flex justify-center"
+        style={{
           bottom: 0,
           // iOS Safari fixed positioning fix
           transform: 'translateZ(0)',
@@ -230,44 +311,20 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
         <button
           onClick={onPlaceOrder}
           disabled={isPlacingOrder}
-          className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-4 sm:px-6 gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-[22px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             fontFamily: 'Helvetica Neue, sans-serif',
-            fontWeight: 500,
+            fontWeight: 700,
             fontSize: '20px',
             lineHeight: '1.22',
           }}
         >
           <span className="flex-shrink-0">
-            {isPlacingOrder ? 'Placing order...' : 'Place order'}
+            {isPlacingOrder ? 'Placing order...' : 'Place Order'}
           </span>
-          <span className="flex-shrink-0 text-center min-w-[80px]">
+          <span className="flex-shrink-0">
             $ {isClient ? userAmount.toFixed(2) : '0.00'}
           </span>
-          <div className="flex-shrink-0 flex items-center justify-end w-[25px]">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="25"
-              height="25"
-              viewBox="0 0 25 25"
-              fill="none"
-            >
-              <path
-                d="M4.84766 19.6943L19.6969 4.8451"
-                stroke="white"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M10.0039 4.84522L19.6941 4.84522L19.6913 14.5326"
-                stroke="white"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
         </button>
       </div>
 

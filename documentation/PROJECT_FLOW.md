@@ -336,9 +336,11 @@ Kitchen note input (optional)
        ↓
 Bill section: Items total, Taxes, Delivery, Packing, Grand total, My Share
        ↓
+Tip selector: Preset buttons (20%, 10%, 0%) + Custom Tip option
+       ↓
 Footer: "Powered by morsel" + legal text
        ↓
-Fixed bottom bar: "Place Order" + amount + arrow
+Fixed bottom bar: "Place Order" + amount (rounded-t-[30px], no arrow)
 ```
 
 #### Order Placement Flow
