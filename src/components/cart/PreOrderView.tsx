@@ -108,20 +108,6 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
     return cart.total;
   }, [split.participants, split.shares, useSplitShares, cart.total, currentSessionUserId]);
 
-  // Calculate total preparation time (max from all items)
-  const totalPreparationTime = useMemo(() => {
-    if (!cart.items || cart.items.length === 0) {
-      return 0;
-    }
-
-    const prepTimes = cart.items.map((item) => {
-      const prepTime = item.menuItem.preparationTime;
-      const numericValue = parseInt(prepTime?.replace(/\D/g, '') || '0', 10);
-      return numericValue;
-    });
-
-    return Math.max(...prepTimes, 0);
-  }, [cart.items]);
 
   // Empty state
   if (!isClient || cart.items.length === 0) {
@@ -141,7 +127,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
   return (
     <>
       {/* Cart Content */}
-      <div className="max-w-2xl mx-auto p-4 px-4 bg-[#F7F8F8] pb-24">
+      <div className="max-w-2xl mx-auto p-4 px-4 bg-[#F7F8F8]">
         {/* Participants List */}
         <div className="mb-4">
           <ParticipantsList />
@@ -161,7 +147,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
         </div>
 
         {/* Note to Kitchen */}
-        <div className="border-3 border-[#ECECEC] py-2 px-3 rounded-[30px] w-fit">
+        <div className="border-3 border-[#ECECEC] py-2 px-3 rounded-[30px] mt-1 w-fit">
           {!showNoteInput ? (
             <button
               onClick={() => setShowNoteInput(true)}
@@ -223,17 +209,8 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
           )}
         </div>
 
-        {/* Preparation Time counter */}
-        <div className="relative flex items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors py-6">
-          <span className="text-xl flex-shrink-0">👩‍🍳</span>
-          <span className="border-b-2 border-dotted border-[#25A75C] flex-1 h-[8px]" />
-          <span className="text-sm flex-shrink-0 text-right text-[#25A75C] font-bold whitespace-nowrap">
-            {isClient && totalPreparationTime > 0 ? `${totalPreparationTime}mins` : '--'}
-          </span>
-        </div>
-
         {/* Bill Section */}
-        <div className="mt-4">
+        <div className="mt-6">
           <BillSection userAmount={userAmount} />
         </div>
       </div>

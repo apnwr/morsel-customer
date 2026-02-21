@@ -37,6 +37,68 @@ All notable changes on this branch are documented here.
    - Header row uses `justify-between` instead of `justify-center` with gap
    - Ensures left (logo), center (cart/text), and right (menu icon) stay pinned to edges
 
+### Footer Component (New)
+
+**Files**: `src/components/layout/Footer.tsx`, `src/app/layout.tsx`, `public/icons/morsel_text_logo.svg`
+
+1. **Created `Footer` component**
+   - "Powered by" text + morsel text logo (SVG, red)
+   - Legal text: "By using morsel app, you agree to our **Privacy policy** and **Terms of Use.**"
+   - 60px top padding, 24px gap between sections, centered layout
+
+2. **Added morsel text logo SVG** at `public/icons/morsel_text_logo.svg`
+
+3. **Page visibility config**
+   - `FOOTER_HIDDEN_PAGES` array in Footer.tsx controls which pages hide the footer
+   - Currently shown on all pages (empty hide list)
+   - Add a path string to the array to hide footer on that page
+
+4. **Footer placed inside individual pages** (not root layout)
+   - Added to `src/app/menu/page.tsx`, `src/app/cart/page.tsx`, `src/app/my-tab/page.tsx`
+   - Ensures footer scrolls within each page's content area
+   - 90px bottom padding clears fixed bottom bars
+
+### Participants Card Redesign
+
+**File**: `src/components/session/ParticipantsList.tsx`
+
+1. **Dark theme card**
+   - Background changed from white (`bg-white` with border) to black (`bg-black`)
+   - All text colors updated to white / white with opacity
+
+2. **Layout reorder to match Figma**
+   - Participant avatars, names, and amounts render at the **top** of the card
+   - "Split evenly" label + "Change" button + description text render **below** participants
+
+3. **Replaced "Edit" badge + Share icon with "Change" button**
+   - New pill-style button with `Settings` icon + "Change" text in `bg-white/20`
+   - Removed `Share2` icon and `handleShare` function
+
+4. **Added description text**
+   - Below the split mode label: "The bill is going to be split evenly, click on this card to change these settings."
+   - Dynamic text adapts to current split mode
+
+5. **Updated empty/invite state**
+   - Invite button restyled for dark background (`bg-white/10`, `border-white/30`, inverted icon)
+
+### Cart Page (PreOrderView) Updates
+
+**File**: `src/components/cart/PreOrderView.tsx`
+
+1. **Removed Preparation Time counter**
+   - Removed the chef emoji + dotted line + time display section
+   - Removed the `totalPreparationTime` useMemo computation
+   - Preparation time was not part of the Figma cart design
+
+2. **Removed bottom padding from cart content container**
+   - Removed `pb-24` from the main content wrapper
+
+3. **Adjusted spacing**
+   - Kitchen note section: added `mt-1` for tighter spacing after cart items
+   - Bill section: increased top margin from `mt-4` to `mt-6` for better visual separation
+
+---
+
 ### Documentation Consolidation
 
 1. **Created single documentation file**: `documentation/PROJECT_FLOW.md`

@@ -9,6 +9,7 @@ import { Header } from "@/components/layout/Header";
 import { PreOrderView } from "@/components/cart/PreOrderView";
 import { PostOrderView } from "@/components/order/PostOrderView";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Footer } from "@/components/layout/Footer";
 
 // Disable static generation since we use search params
 export const dynamic = 'force-dynamic';
@@ -89,6 +90,8 @@ function CartPageContent() {
           onOrderMoreFood={handleOrderMoreFood}
         />
       ) : null}
+
+      <Footer />
     </div>
   );
 }

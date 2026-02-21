@@ -14,6 +14,7 @@ import { SplitSettingsModal } from "@/components/order/SplitSettingsModal";
 import type { SessionParticipant, SessionOrder } from "@/types/api/session";
 import type { Participant } from "@/types/cart";
 import { isSplitApplicableForTotal } from "@/lib/split-utils";
+import { Footer } from "@/components/layout/Footer";
 
 const SPLIT_MODE_LABELS: Record<string, string> = {
   even: "Split evenly",
@@ -321,6 +322,8 @@ export default function MyTabPage() {
           />
         </div>
       </button>
+
+      <Footer />
 
       <SplitSettingsModal
         isOpen={isSplitModalOpen}

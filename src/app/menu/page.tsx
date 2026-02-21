@@ -18,6 +18,7 @@ import { Customization } from "@/types/cart";
 import { useRouter } from "next/navigation";
 import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
+import { Footer } from "@/components/layout/Footer";
 import type { MenuWithItems } from "@/types/api/menu";
 
 // Lazy load CustomizationModal since it's only shown on demand
@@ -627,6 +628,8 @@ export default function MenuPage() {
           })
         )}
       </div>
+
+      <Footer />
 
       {/* Sticky Search Bar */}
       <SearchBar

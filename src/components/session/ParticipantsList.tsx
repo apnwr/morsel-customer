@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Share2, Loader2 } from 'lucide-react';
+import { Settings, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar } from '@/components/ui/Avatar';
 import { useSplit } from '@/contexts/SplitContext';
@@ -397,11 +397,6 @@ export function ParticipantsList() {
   //   }
   // };
 
-  const handleShare = () => {
-    // TODO: Implement share functionality
-    console.log('Share session');
-  };
-
   const handleInvite = () => {
     // Open split settings modal to add participants
     setShowSettingsModal(true);
@@ -419,43 +414,18 @@ export function ParticipantsList() {
             setShowSettingsModal(true);
           }
         }}
-        className="border-[3px] border-[#ECECEC] rounded-[30px] bg-white p-5 min-h-[200px] relative cursor-pointer hover:bg-gray-50/50 active:bg-gray-100/50 transition-colors"
+        className="rounded-[30px] bg-black p-5 min-h-[200px] relative cursor-pointer hover:bg-gray-900 active:bg-gray-800 transition-colors"
         aria-label={`${getModeLabel()}. Open to edit split settings.`}
       >
         {/* Loading Spinner - Bottom Right Corner */}
         {isLoading && (
           <div className="absolute bottom-3 right-3">
-            <Loader2 className="w-5 h-5 text-gray-300 animate-spin" />
+            <Loader2 className="w-5 h-5 text-white/40 animate-spin" />
           </div>
         )}
 
-        {/* Header with Title and Share Icon */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex flex-col gap-1 text-left flex-1 min-w-0">
-            <div className="flex items-center gap-3">
-              <h3 className="font-bold text-xl leading-tight text-black">
-                {getModeLabel()}
-              </h3>
-              <span className="bg-[#ECECEC] rounded-[12px] px-3 py-2 text-xs">
-                Edit
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleShare();
-            }}
-            className="p-1 hover:opacity-70 transition-opacity shrink-0"
-            aria-label="Share session"
-          >
-            <Share2 className="w-5 h-5 text-black rotate-90" />
-          </button>
-        </div>
-
         {/* Participants Row */}
-        <div className="flex items-start gap-5 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="flex items-start gap-5 overflow-x-auto pb-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {participants.length > 0 ? (
             <>
               {participants.map((participant) => {
@@ -472,10 +442,10 @@ export function ParticipantsList() {
                       name={participant.guestName}
                       className="w-[50px] h-[50px]"
                     />
-                    <span className="text-xs font-black text-center text-black leading-tight">
+                    <span className="text-xs font-black text-center text-white leading-tight">
                       {displayName}
                     </span>
-                    <span className="text-lg font-black text-center text-black leading-tight">
+                    <span className="text-lg font-black text-center text-white leading-tight">
                       ${amount.toFixed(2)}
                     </span>
                   </div>
@@ -515,16 +485,16 @@ export function ParticipantsList() {
                 }}
                 className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0"
               >
-                <div className="w-[50px] h-[50px] rounded-full bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
+                <div className="w-[50px] h-[50px] rounded-full bg-white/10 flex items-center justify-center border-2 border-dashed border-white/30">
                   <Image
                     src="/icons/Plus.png"
                     alt="Add participant"
                     width={24}
                     height={24}
-                    className="object-contain"
+                    className="object-contain invert"
                   />
                 </div>
-                <span className="text-xs font-black text-center text-black leading-tight opacity-40">
+                <span className="text-xs font-black text-center text-white/40 leading-tight">
                   Invite
                 </span>
                 <span className="text-lg font-black text-center text-transparent leading-tight select-none">
@@ -535,16 +505,25 @@ export function ParticipantsList() {
           )}
         </div>
 
-        {/* Participants Count Text */}
-        {/* {participantsCount > 0 && (
-          <div className="mt-4 text-sm text-gray-600">
-            {participantsCount} {participantsCount === 1 ? 'person' : 'people'} in this session
-          </div>
-        )} */}
+        {/* Split label + Change button */}
+        <div className="flex items-center gap-3 mb-1">
+          <h3 className="font-bold text-xl leading-tight text-white">
+            {getModeLabel()}
+          </h3>
+          <span className="flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1.5 text-xs font-bold text-white">
+            <Settings className="w-3.5 h-3.5" />
+            Change
+          </span>
+        </div>
+
+        {/* Description text */}
+        <p className="text-xs text-white/80 leading-relaxed">
+          The bill is going to be {getModeLabel().toLowerCase()}, click on this card to change these settings.
+        </p>
 
         {/* Error State */}
         {error && (
-          <div className="mt-2 text-xs text-red-500">{error}</div>
+          <div className="mt-2 text-xs text-red-400">{error}</div>
         )}
       </div>
 

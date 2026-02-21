@@ -315,11 +315,15 @@ Other participants' carts update in real-time
 
 #### Pre-Order View (Cart exists, no order placed)
 ```
+Display Participants Card (dark theme):
+  - Participant avatars, names, split amounts (top)
+  - Split mode label + "Change" button (bottom)
+  - Description text explaining current split
+  - Tapping card opens SplitSettingsModal
+       ↓
 Display shared cart items (all participants)
        ↓
 Group items by participant
-       ↓
-Show participant avatars & names
        ↓
 User can modify own items:
   - Change quantity
@@ -327,6 +331,14 @@ User can modify own items:
   - Remove items
        ↓
 Each modification syncs to API
+       ↓
+Kitchen note input (optional)
+       ↓
+Bill section: Items total, Taxes, Delivery, Packing, Grand total, My Share
+       ↓
+Footer: "Powered by morsel" + legal text
+       ↓
+Fixed bottom bar: "Place Order" + amount + arrow
 ```
 
 #### Order Placement Flow
@@ -717,14 +729,16 @@ FirebaseAuthProvider
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `PreOrderView` | `components/cart/PreOrderView.tsx` | Cart items before order |
-| `CartItems` | `components/cart/CartItems.tsx` | Itemized list view |
-| `CartSummary` | `components/cart/CartSummary.tsx` | Totals display |
+| `PreOrderView` | `components/cart/PreOrderView.tsx` | Cart page before order (participants, items, kitchen note, bill, place order) |
+| `CartItem` | `components/cart/CartItem.tsx` | Individual item with quantity controls, dietary indicator, participant badge |
+| `BillSection` | `components/cart/BillSection.tsx` | Itemized bill: totals, taxes, delivery, packing, grand total, My Share |
+| `DeleteConfirmationModal` | `components/cart/DeleteConfirmationModal.tsx` | Confirm item removal when quantity reaches 0 |
 
 ### Session Components
 
 | Component | File | Purpose |
 |-----------|------|---------|
+| `ParticipantsList` | `components/session/ParticipantsList.tsx` | Dark card with participant avatars/amounts, split mode label, Change button |
 | `LoginModal` | `components/session/LoginModal.tsx` | Bottom sheet login form (name, dining type) |
 | `OrderTabs` | `components/session/OrderTabs.tsx` | Switch between multiple orders |
 
