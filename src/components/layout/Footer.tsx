@@ -25,7 +25,7 @@ export function Footer() {
       {/* Powered by + Logo */}
       <div className="flex flex-col items-center gap-1">
         <span
-          className="text-[8px] font-bold text-black"
+          className="text-[10px] font-bold text-black"
           style={{ fontFamily: 'Lato, sans-serif' }}
         >
           Powered by
@@ -41,7 +41,7 @@ export function Footer() {
 
       {/* Legal text */}
       <p
-        className="text-[8px] text-black text-center"
+        className="text-[10px] text-black text-center"
         style={{ fontFamily: 'Lato, sans-serif', lineHeight: 'normal' }}
       >
         By using morsel app, you agree to our{' '}

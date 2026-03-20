@@ -13,11 +13,13 @@ import { Button } from '@/components/ui/Button';
 import { SplitSettingsModal } from '@/components/order/SplitSettingsModal';
 import { PaymentModal } from '@/components/order/PaymentModal';
 import { useTimerSync } from '@/hooks/useTimerSync';
+import { useLocale } from '@/contexts/LocaleContext';
 import { useRequireActiveOrder } from '@/hooks/useNavigationGuard';
 import { useSessionValidation } from '@/hooks/useSessionValidation';
 
 export default function OrderSummaryPage() {
   const router = useRouter();
+  const { formatPrice } = useLocale();
   // Navigation guard - redirect to cart if no active order
   const order = useRequireActiveOrder();
   const { remainingTime, resetOrder } = useOrder();
@@ -93,7 +95,7 @@ export default function OrderSummaryPage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold">${order.cart.total.toFixed(2)}</span>
+            <span className="font-semibold">{formatPrice(order.cart.total)}</span>
             <button onClick={() => router.push('/cart')}>→</button>
           </div>
         </div>
@@ -116,7 +118,7 @@ export default function OrderSummaryPage() {
               <Avatar name={order.customerName} size="md" />
               <div className="flex-1">
                 <h4 className="font-medium">{item.menuItem.name}</h4>
-                <p className="text-sm text-gray-500">${item.menuItem.price.toFixed(2)}</p>
+                <p className="text-sm text-gray-500">{formatPrice(item.menuItem.price)}</p>
                 {item.customizations && item.customizations.length > 0 && (
                   <p className="text-xs text-gray-400 mt-1">
                     {item.customizations.map(c => c.choiceLabel).join(', ')}
@@ -147,7 +149,7 @@ export default function OrderSummaryPage() {
             <div className="flex items-center gap-3">
               <Avatar name={order.customerName} size="md" />
               <span className="font-semibold text-lg">
-                ${(order.split.shares[order.split.participants[0]?.id] || order.cart.total).toFixed(2)}
+                {formatPrice(order.split.shares[order.split.participants[0]?.id] || order.cart.total)}
               </span>
             </div>
             <Button 
@@ -178,7 +180,7 @@ export default function OrderSummaryPage() {
                 >
                   <div className="flex items-center gap-3">
                     <Avatar name={participant.name} size="sm" />
-                    <span className="font-semibold">${amount.toFixed(2)}</span>
+                    <span className="font-semibold">{formatPrice(amount)}</span>
                   </div>
                   <Button 
                     variant="secondary"

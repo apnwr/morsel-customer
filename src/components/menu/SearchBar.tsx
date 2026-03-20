@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import Image from 'next/image';
 
 interface SearchBarProps {
@@ -22,6 +23,7 @@ export function SearchBar({
   onConfirmOrder,
   cartTotal = 0,
 }: SearchBarProps) {
+  const { formatPrice } = useLocale();
   return (
     <div
       className="fixed left-0 right-0 bg-white border-t-[3px] border-[#F1F1F1] rounded-t-[30px] z-40 flex flex-col"
@@ -84,7 +86,7 @@ export function SearchBar({
               className="text-[20px] font-medium"
               style={{ fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif', lineHeight: 1.22 }}
             >
-              $ {cartTotal.toFixed(2)}
+              {formatPrice(cartTotal)}
             </span>
           {/* <div className=" justify-self-end">           
             <Image

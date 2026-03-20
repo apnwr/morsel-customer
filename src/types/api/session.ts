@@ -151,6 +151,10 @@ export interface SessionDetail {
   branchName: string;
   areaId: string;
   areaName: string;
+  /** ISO 4217 currency code from branch settings, e.g. "MUR" */
+  currency?: string;
+  /** IANA timezone string from branch settings, e.g. "Indian/Mauritius" */
+  timezone?: string;
   status: 'active' | 'completed' | 'cancelled' | string;
   createdAt: Timestamp;
   expiresAt: Timestamp;

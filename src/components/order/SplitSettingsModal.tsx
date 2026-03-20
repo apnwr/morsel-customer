@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSplit } from '@/contexts/SplitContext';
 import { useCart } from '@/contexts/CartContext';
@@ -20,6 +21,7 @@ interface SplitSettingsModalProps {
 export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModalProps) {
   const { split, setSplitMode, setSplitForTotal, removeParticipant, updateShare } = useSplit();
   const { cart } = useCart();
+  const { formatPrice } = useLocale();
 
   const effectiveTotal = typeof total === 'number' ? total : cart.total;
 
@@ -218,7 +220,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
         <div className="sticky top-0 bg-white p-6 pb-0 z-10">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-2xl font-black">${effectiveTotal.toFixed(2)}</p>
+              <p className="text-2xl font-black">{formatPrice(effectiveTotal)}</p>
             </div>
             <Button
               onClick={handleSave}
@@ -306,7 +308,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
                           </div>
                         ) : (
                           <span className="text-lg font-black text-center text-black leading-tight">
-                            ${amount.toFixed(2)}
+                            {formatPrice(amount)}
                           </span>
                         )}
                       </div>
@@ -357,20 +359,20 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
                 <span className={`text-lg font-bold ${
                   isValidSum ? 'text-green-600' : 'text-orange-600'
                 }`}>
-                  ${currentSum.toFixed(2)}
+                  {formatPrice(currentSum)}
                 </span>
               </div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-700">Required Total:</span>
                 <span className="text-lg font-bold text-gray-900">
-                  ${effectiveTotal.toFixed(2)}
+                  {formatPrice(effectiveTotal)}
                 </span>
               </div>
               {!isValidSum && (
                 <div className="flex items-center justify-between pt-2 border-t border-orange-300">
                   <span className="text-sm font-medium text-orange-700">Difference:</span>
                   <span className="text-lg font-bold text-orange-600">
-                    ${Math.abs(difference).toFixed(2)} {difference > 0 ? 'short' : 'over'}
+                    {formatPrice(Math.abs(difference))} {difference > 0 ? 'short' : 'over'}
                   </span>
                 </div>
               )}

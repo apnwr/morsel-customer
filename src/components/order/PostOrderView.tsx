@@ -10,6 +10,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useSession } from '@/contexts/SessionContext';
@@ -66,6 +67,7 @@ interface PostOrderViewProps {
 
 export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrderViewProps) {
   const router = useRouter();
+  const { formatPrice } = useLocale();
   const { sessionData, endSession } = useSession();
   const { split, calculateSplit } = useSplit();
 
@@ -312,7 +314,7 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
                         className="text-black text-[14px] leading-normal font-medium opacity-50"
                         style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
                       >
-                        $ {item.itemTotal?.toFixed(2) || '0.00'}
+                        {item.itemTotal != null ? formatPrice(item.itemTotal) : formatPrice(0)}
                       </p>
                     </div>
                   </div>
@@ -376,7 +378,7 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
                       </span>
                     </div>
                     <p className="text-[18px] font-bold text-black" style={{ fontFamily: 'Helvetica Neue, sans-serif' }}>
-                      $ {amount.toFixed(2)}
+                      {formatPrice(amount)}
                     </p>
                   </div>
                 );
@@ -398,7 +400,7 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
                     className="text-black text-[20px] leading-[1.22] font-bold block"
                     style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
                   >
-                    $ {userAmount.toFixed(2)}
+                    {formatPrice(userAmount)}
                   </span>
                 </div>
               </div>

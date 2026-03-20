@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { useLocale } from "@/contexts/LocaleContext";
 import { MenuItem } from "@/types/menu";
 import { Customization } from "@/types/cart";
 import { Modal } from "@/components/ui/Modal";
@@ -27,6 +28,7 @@ export function CustomizationModal({
   lastCustomizations,
   lastSpiceLevel,
 }: CustomizationModalProps) {
+  const { formatPrice } = useLocale();
   // For radio options: optionId -> choiceId
   // For checkbox options: optionId -> choiceId[] (multiple selections)
   const [selectedChoices, setSelectedChoices] = useState<
@@ -545,13 +547,13 @@ export function CustomizationModal({
                                   {isVariant ? (
                                     // Variants: Show flat/absolute price (always visible)
                                     <span className="font-bold text-sm">
-                                      ${choice.priceModifier.toFixed(2)}
+                                      {formatPrice(choice.priceModifier)}
                                     </span>
                                   ) : (
                                     // Add-ons: Show incremental price with + prefix (only if > 0)
                                     choice.priceModifier > 0 && (
                                       <span className="font-bold text-sm">
-                                        +${choice.priceModifier.toFixed(2)}
+                                        +{formatPrice(choice.priceModifier)}
                                       </span>
                                     )
                                   )}
@@ -683,7 +685,7 @@ export function CustomizationModal({
               disabled={!canContinue}
               className="flex-1 py-4 bg-black text-white rounded-[12px] font-bold text-lg hover:bg-gray-900 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Add Item - ${totalPrice.toFixed(2)}
+              Add Item - {formatPrice(totalPrice)}
             </button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { CheckCircle } from 'lucide-react';
@@ -16,6 +17,7 @@ interface PaymentModalProps {
 
 export function PaymentModal({ isOpen, onClose, onStartNewOrder, onPaymentComplete, amount }: PaymentModalProps) {
   const [isProcessing, setIsProcessing] = React.useState(false);
+  const { formatPrice } = useLocale();
 
   // Handle payment completion (simulated)
   const handlePaymentSuccess = async () => {
@@ -77,7 +79,7 @@ export function PaymentModal({ isOpen, onClose, onStartNewOrder, onPaymentComple
           <div className="text-center space-y-2">
             <h2 className="text-2xl font-bold">Payment Successful!</h2>
             <p className="text-lg text-gray-600">
-              ${amount.toFixed(2)} paid
+              {formatPrice(amount)} paid
             </p>
           </div>
 

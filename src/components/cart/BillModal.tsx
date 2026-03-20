@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import { Modal } from '@/components/ui/Modal';
 import { useCart } from '@/contexts/CartContext';
 import { useSplit } from '@/contexts/SplitContext';
@@ -51,6 +52,7 @@ interface BillModalProps {
 export function BillModal({ isOpen, onClose, onPlaceOrder, isConfirming = false }: BillModalProps) {
   const { cart } = useCart();
   const { split } = useSplit();
+  const { formatPrice } = useLocale();
   const [selectedPayment, setSelectedPayment] = useState<'cash' | 'card' | 'upi'>('cash');
 
   const handleConfirmOrder = () => {
@@ -81,7 +83,7 @@ export function BillModal({ isOpen, onClose, onPlaceOrder, isConfirming = false 
               <div className="text-right">
                 <p className="text-sm">
                   <span className="text-gray-500">×{item.quantity}</span>
-                  <span className="ml-2 font-medium">${item.itemTotal.toFixed(2)}</span>
+                  <span className="ml-2 font-medium">{formatPrice(item.itemTotal)}</span>
                 </p>
               </div>
             </div>
@@ -92,15 +94,15 @@ export function BillModal({ isOpen, onClose, onPlaceOrder, isConfirming = false 
         <div className="border-t border-gray-200 pt-4 space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-600">Subtotal</span>
-            <span className="font-medium">${cart.subtotal.toFixed(2)}</span>
+            <span className="font-medium">{formatPrice(cart.subtotal)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-600">Taxes</span>
-            <span className="font-medium">${cart.tax.toFixed(2)}</span>
+            <span className="font-medium">{formatPrice(cart.tax)}</span>
           </div>
           <div className="flex items-center justify-between text-lg font-bold border-t border-gray-200 pt-2">
             <span>Total</span>
-            <span>${cart.total.toFixed(2)}</span>
+            <span>{formatPrice(cart.total)}</span>
           </div>
         </div>
 
@@ -114,7 +116,7 @@ export function BillModal({ isOpen, onClose, onPlaceOrder, isConfirming = false 
                 return (
                   <div key={participant.id} className="flex items-center justify-between text-sm">
                     <span>{participant.name}</span>
-                    <span className="font-medium">${amount.toFixed(2)}</span>
+                    <span className="font-medium">{formatPrice(amount)}</span>
                   </div>
                 );
               })}

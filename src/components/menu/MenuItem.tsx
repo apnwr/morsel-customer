@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo } from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import { MenuItem as MenuItemType } from '@/types/menu';
 import { useCart } from '@/contexts/CartContext';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -17,6 +18,7 @@ interface MenuItemProps {
 
 export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemProps) {
   const [imageLoading, setImageLoading] = useState(true);
+  const { formatPrice } = useLocale();
   const [showVariationModal, setShowVariationModal] = useState(false);
   const [showRepeatSheet, setShowRepeatSheet] = useState(false);
   const { cart, updateQuantity, removeItem, addItem } = useCart();
@@ -177,7 +179,7 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
   return (
     <article
       className="flex items-start gap-3 w-full pb-4 cursor-pointer"
-      aria-label={`${item.name}, $${item.price.toFixed(2)}`}
+      aria-label={`${item.name}, ${formatPrice(item.price)}`}
       onClick={handleAddToCart}
       role="button"
       tabIndex={0}
@@ -322,9 +324,9 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
           <p 
             className="text-base font-bold text-black mb-2"
             style={{ fontFamily: 'Lato, sans-serif' }}
-            aria-label={`Price: ${item.price.toFixed(2)} dollars`}
+            aria-label={`Price: ${formatPrice(item.price)}`}
           >
-            ${item.price.toFixed(2)}
+            {formatPrice(item.price)}
           </p>
           
           {/* Tags - Regular tags, allergens, and dietary info */}

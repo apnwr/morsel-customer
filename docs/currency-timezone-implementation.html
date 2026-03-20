@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Currency &amp; Timezone — Implementation Docs</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      padding: 40px 24px 80px;
+      line-height: 1.6;
+    }
+
+    .page { max-width: 860px; margin: 0 auto; }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      color: #94a3b8;
+      font-size: 14px;
+      margin-bottom: 48px;
+    }
+
+    h2 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin: 40px 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 18px;
+      background: #6366f1;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    pre {
+      background: #1e2130;
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      padding: 24px 28px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.65;
+      color: #cbd5e1;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    /* colour tokens inside <pre> */
+    .c-purple  { color: #a78bfa; }
+    .c-blue    { color: #60a5fa; }
+    .c-green   { color: #34d399; }
+    .c-yellow  { color: #fbbf24; }
+    .c-red     { color: #f87171; }
+    .c-gray    { color: #64748b; }
+    .c-white   { color: #f8fafc; font-weight: 600; }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      margin-top: 8px;
+    }
+    th {
+      background: #1e2130;
+      color: #94a3b8;
+      text-align: left;
+      padding: 10px 14px;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #1e2130;
+      color: #cbd5e1;
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #1e2130; }
+
+    code {
+      background: #1e2130;
+      color: #a78bfa;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12.5px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .badge-new  { background: #065f46; color: #34d399; }
+    .badge-mod  { background: #1e3a5f; color: #60a5fa; }
+    .badge-type { background: #3b1f5e; color: #a78bfa; }
+
+    .callout {
+      background: #1a2035;
+      border-left: 3px solid #6366f1;
+      border-radius: 0 8px 8px 0;
+      padding: 14px 18px;
+      font-size: 13.5px;
+      color: #94a3b8;
+      margin-top: 16px;
+    }
+    .callout strong { color: #e2e8f0; }
+
+    hr {
+      border: none;
+      border-top: 1px solid #1e2130;
+      margin: 48px 0 0;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Currency &amp; Timezone — Global Implementation</h1>
+  <p class="subtitle">Morsel Customer App &nbsp;·&nbsp; Implementation Reference</p>
+
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>1. Architecture Overview</h2>
+
+  <pre>
+<span class="c-gray">  Browser / Next.js App</span>
+  <span class="c-gray">┌─────────────────────────────────────────────────────────────┐</span>
+  <span class="c-gray">│</span>                                                             <span class="c-gray">│</span>
+  <span class="c-gray">│</span>   <span class="c-white">FirebaseAuthProvider</span>                                        <span class="c-gray">│</span>
+  <span class="c-gray">│</span>   <span class="c-gray">└──</span> <span class="c-purple">LocaleProvider</span>   <span class="c-green">← NEW  (outermost data layer)</span>            <span class="c-gray">│</span>
+  <span class="c-gray">│</span>       <span class="c-gray">└──</span> <span class="c-blue">SessionProvider</span>  <span class="c-yellow">← calls setLocale() on API fetch</span>     <span class="c-gray">│</span>
+  <span class="c-gray">│</span>           <span class="c-gray">└──</span> RestaurantProvider                                 <span class="c-gray">│</span>
+  <span class="c-gray">│</span>               <span class="c-gray">└──</span> ThemeProvider                                  <span class="c-gray">│</span>
+  <span class="c-gray">│</span>                   <span class="c-gray">└──</span> CartProvider                               <span class="c-gray">│</span>
+  <span class="c-gray">│</span>                       <span class="c-gray">└──</span> OrderProvider                          <span class="c-gray">│</span>
+  <span class="c-gray">│</span>                           <span class="c-gray">└──</span> SplitProvider                      <span class="c-gray">│</span>
+  <span class="c-gray">│</span>                               <span class="c-gray">└──</span> {children}                     <span class="c-gray">│</span>
+  <span class="c-gray">│</span>                                                             <span class="c-gray">│</span>
+  <span class="c-gray">└─────────────────────────────────────────────────────────────┘</span>
+  </pre>
+
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>2. Data Flow</h2>
+
+  <pre>
+  <span class="c-gray">Customer scans QR code</span>
+          <span class="c-gray">│</span>
+          <span class="c-gray">▼</span>
+  <span class="c-white">┌─────────────────────┐</span>
+  <span class="c-white">│  App boots with     │</span>   <span class="c-green">Defaults applied synchronously</span>
+  <span class="c-white">│  Mauritius defaults │</span>   <span class="c-green">─────────────────────────────</span>
+  <span class="c-white">│  currency : "MUR"   │</span>   <span class="c-green">currency  →  Rs</span>
+  <span class="c-white">│  timezone : "Indian/│</span>   <span class="c-green">timezone  →  Indian/Mauritius</span>
+  <span class="c-white">│   Mauritius"        │</span>
+  <span class="c-white">└──────────┬──────────┘</span>
+             <span class="c-gray">│</span>
+             <span class="c-gray">▼</span>
+  <span class="c-white">┌─────────────────────┐</span>
+  <span class="c-white">│ SessionContext calls │</span>
+  <span class="c-white">│ getSessionById(id)  │</span>
+  <span class="c-white">└──────────┬──────────┘</span>
+             <span class="c-gray">│</span>
+       <span class="c-gray">──────┴──────</span>
+      <span class="c-gray">╱             ╲</span>
+  <span class="c-green">API returns</span>          <span class="c-red">API returns</span>
+  <span class="c-green">currency +</span>            <span class="c-red">neither field</span>
+  <span class="c-green">timezone</span>
+      <span class="c-gray">╲             ╱</span>
+       <span class="c-gray">──────┬──────</span>
+             <span class="c-gray">│</span>
+             <span class="c-gray">▼</span>
+  <span class="c-white">┌─────────────────────┐</span>
+  <span class="c-white">│  setLocale() called │</span>   <span class="c-yellow">Only updates state if value</span>
+  <span class="c-white">│  in LocaleContext    │</span>   <span class="c-yellow">actually changed — no extra</span>
+  <span class="c-white">└──────────┬──────────┘</span>   <span class="c-yellow">re-renders if API = default</span>
+             <span class="c-gray">│</span>
+             <span class="c-gray">▼</span>
+  <span class="c-white">┌─────────────────────┐</span>
+  <span class="c-white">│  All UI components  │</span>
+  <span class="c-white">│  re-render with     │</span>
+  <span class="c-white">│  correct currency   │</span>
+  <span class="c-white">│  and timezone       │</span>
+  <span class="c-white">└─────────────────────┘</span>
+  </pre>
+
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>3. LocaleContext Internal Flow</h2>
+
+  <pre>
+  <span class="c-gray">  src/contexts/LocaleContext.tsx</span>
+  <span class="c-gray">  ┌────────────────────────────────────────────────────┐</span>
+  <span class="c-gray">  │</span>                                                    <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>  <span class="c-purple">state</span>                                              <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>  <span class="c-gray">├──</span> currency  <span class="c-gray">= useState("MUR")</span>                   <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>  <span class="c-gray">└──</span> timezone  <span class="c-gray">= useState("Indian/Mauritius")</span>       <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>                                                    <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>  <span class="c-blue">setLocale({ currency?, timezone? })</span>               <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>  <span class="c-gray">├──</span> no deps  <span class="c-green">→ stable ref, never triggers re-renders</span><span class="c-gray">│</span>
+  <span class="c-gray">  │</span>  <span class="c-gray">└──</span> uses functional setState to skip no-op updates <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>                                                    <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>  <span class="c-yellow">context value  =  useMemo([currency, timezone])</span>    <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>  <span class="c-gray">├──</span> currency                                        <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>  <span class="c-gray">├──</span> timezone                                        <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>  <span class="c-gray">├──</span> formatPrice(amount)  <span class="c-gray">→ "Rs 250.00"</span>             <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>  <span class="c-gray">└──</span> setLocale                                       <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>                                                    <span class="c-gray">│</span>
+  <span class="c-gray">  └────────────────────────────────────────────────────┘</span>
+
+        Component usage:
+
+        <span class="c-gray">const { formatPrice } = useLocale();</span>
+        <span class="c-gray">formatPrice(250)    →  "Rs 250.00"</span>
+        <span class="c-gray">formatPrice(12.5)   →  "Rs 12.50"</span>
+  </pre>
+
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>4. Files Changed</h2>
+
+  <div class="grid2">
+    <div>
+      <table>
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>src/lib/currencies.ts</code></td>
+            <td><span class="badge badge-new">New</span></td>
+          </tr>
+          <tr>
+            <td><code>src/contexts/LocaleContext.tsx</code></td>
+            <td><span class="badge badge-new">New</span></td>
+          </tr>
+          <tr>
+            <td><code>src/types/api/session.ts</code></td>
+            <td><span class="badge badge-type">Type</span></td>
+          </tr>
+          <tr>
+            <td><code>src/contexts/SessionContext.tsx</code></td>
+            <td><span class="badge badge-mod">Modified</span></td>
+          </tr>
+          <tr>
+            <td><code>src/app/layout.tsx</code></td>
+            <td><span class="badge badge-mod">Modified</span></td>
+          </tr>
+          <tr>
+            <td><code>src/lib/utils.ts</code></td>
+            <td><span class="badge badge-mod">Modified</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <table>
+        <thead>
+          <tr>
+            <th>UI Component Updated</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>cart/BillSection.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>cart/BillModal.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>cart/CartItem.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>cart/PreOrderView.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>cart/SplitSection.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>menu/MenuItem.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>menu/SearchBar.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>menu/RepeatCustomizationSheet.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>menu/VariationSelectionModal.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>order/PostOrderView.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>order/CustomizationModal.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>order/SplitSettingsModal.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>order/RunningTabs.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>order/PaymentModal.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>layout/Header.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>session/OrderTabs.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>session/ParticipantsList.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>app/my-tab/page.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+          <tr><td><code>app/order-summary/page.tsx</code></td><td><span class="badge badge-mod">Modified</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>5. Price Format</h2>
+
+  <pre>
+  <span class="c-gray">  formatPrice(amount, currencyCode?)  →  "{symbol} {amount.toFixed(2)}"</span>
+
+  <span class="c-green">  formatPrice(250,   "MUR")  →  "Rs 250.00"</span>
+  <span class="c-green">  formatPrice(12.5,  "USD")  →  "$ 12.50"</span>
+  <span class="c-green">  formatPrice(9.99,  "EUR")  →  "€ 9.99"</span>
+  <span class="c-green">  formatPrice(500,   "INR")  →  "₹ 500.00"</span>
+  <span class="c-green">  formatPrice(100)           →  "Rs 100.00"   ← MUR default</span>
+
+  <span class="c-gray">  Addon modifier format:</span>
+  <span class="c-green">  +{formatPrice(50)}         →  "+Rs 50.00"</span>
+  </pre>
+
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>6. API Integration (ready, pending backend)</h2>
+
+  <pre>
+  <span class="c-gray">  SessionDetail response  (fields already typed as optional)</span>
+  <span class="c-gray">  ┌──────────────────────────────────────────────────────────┐</span>
+  <span class="c-gray">  │</span>  {                                                       <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>    "branchId":   "branch_abc",                          <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>    "branchName": "Downtown",                            <span class="c-gray">│</span>
+  <span class="c-green">  │</span>    <span class="c-green">"currency":   "MUR",</span>   <span class="c-gray">← optional, read when present</span>  <span class="c-gray">│</span>
+  <span class="c-green">  │</span>    <span class="c-green">"timezone":   "Indian/Mauritius",</span>                    <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>    ...                                                  <span class="c-gray">│</span>
+  <span class="c-gray">  │</span>  }                                                      <span class="c-gray">│</span>
+  <span class="c-gray">  └──────────────────────────────────────────────────────────┘</span>
+
+  <span class="c-gray">  SessionContext.refreshSessionData()</span>
+
+       API response received
+              │
+        ──────┴──────
+       ╱             ╲
+  <span class="c-green">response has</span>          <span class="c-red">neither field</span>
+  <span class="c-green">currency / timezone</span>   <span class="c-red">present</span>
+       ╲             ╱
+        ──────┬──────
+              │
+  <span class="c-green">     setLocale({ currency, timezone })</span>          <span class="c-red">defaults stay</span>
+              │
+  <span class="c-green">     LocaleContext updates</span>
+              │
+  <span class="c-green">     All price displays re-render</span>
+  </pre>
+
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>7. Defaults</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Default value</th>
+        <th>Reason</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>currency</code></td>
+        <td><code>MUR</code> — Rs</td>
+        <td>Mauritius market default</td>
+      </tr>
+      <tr>
+        <td><code>timezone</code></td>
+        <td><code>Indian/Mauritius</code> (UTC+4)</td>
+        <td>Mauritius market default</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>Fallback rule:</strong> If the session API does not return <code>currency</code> or <code>timezone</code>,
+    the app silently stays on the Mauritius defaults. No loading state, no flash — defaults are applied
+    synchronously before the first render.
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <h2>8. How to Use in a New Component</h2>
+
+  <pre>
+  <span class="c-gray">  // 1. Import the hook</span>
+  <span class="c-blue">  import</span> { useLocale } <span class="c-blue">from</span> <span class="c-green">'@/contexts/LocaleContext'</span>;
+
+  <span class="c-gray">  // 2. Destructure inside your component</span>
+  <span class="c-blue">  const</span> { formatPrice } = useLocale();
+
+  <span class="c-gray">  // 3. Use everywhere a price is displayed</span>
+  &lt;span&gt;{formatPrice(item.price)}&lt;/span&gt;          <span class="c-gray">// "Rs 250.00"</span>
+  &lt;span&gt;{formatPrice(cart.total)}&lt;/span&gt;          <span class="c-gray">// "Rs 1,200.00"</span>
+
+  <span class="c-gray">  // 4. For timezone — display a UTC timestamp in branch local time</span>
+  <span class="c-blue">  const</span> { timezone } = useLocale();
+  <span class="c-blue">  const</span> formatted = <span class="c-blue">new</span> Intl.DateTimeFormat(<span class="c-green">'en-US'</span>, {
+    timeZone: timezone,
+    hour: <span class="c-green">'numeric'</span>,
+    minute: <span class="c-green">'2-digit'</span>,
+    hour12: <span class="c-blue">true</span>,
+  }).format(<span class="c-blue">new</span> Date(utcTimestamp));
+  <span class="c-gray">  // → "7:30 PM"</span>
+  </pre>
+
+  <hr />
+  <p style="margin-top:24px; font-size:12px; color:#475569; text-align:center;">
+    Morsel Customer App &nbsp;·&nbsp; Currency &amp; Timezone Implementation
+  </p>
+
+</div>
+</body>
+</html>

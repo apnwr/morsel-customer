@@ -15,6 +15,7 @@ import type { SessionParticipant, SessionOrder } from "@/types/api/session";
 import type { Participant } from "@/types/cart";
 import { isSplitApplicableForTotal } from "@/lib/split-utils";
 import { Footer } from "@/components/layout/Footer";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const SPLIT_MODE_LABELS: Record<string, string> = {
   even: "Split evenly",
@@ -58,6 +59,7 @@ function getParticipantDisplayName(
 
 export default function MyTabPage() {
   const router = useRouter();
+  const { formatPrice } = useLocale();
   useRequireRestaurantContext();
   useSessionValidation();
   const { sessionData } = useSession();
@@ -227,7 +229,7 @@ export default function MyTabPage() {
                     lineHeight: 1.22,
                   }}
                 >
-                  $ {amount.toFixed(2)}
+                  {formatPrice(amount)}
                 </span>
               </div>
             );
@@ -309,7 +311,7 @@ export default function MyTabPage() {
               lineHeight: 1.22,
             }}
           >
-            $ {payNowAmount.toFixed(2)}
+            {formatPrice(payNowAmount)}
           </span>
         </span>
         <div className="flex items-center gap-2">

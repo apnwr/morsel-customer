@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { SplitBill } from '@/types/cart';
 
@@ -12,6 +13,7 @@ interface RunningTabsProps {
 
 export default function RunningTabs({ split, total, onSplitClick }: RunningTabsProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const { formatPrice } = useLocale();
 
   return (
     <div className="p-6 border-b border-gray-100">
@@ -40,7 +42,7 @@ export default function RunningTabs({ split, total, onSplitClick }: RunningTabsP
                   <Avatar name={participant.name} size="md" />
                   <span className="font-medium">{participant.name}</span>
                 </div>
-                <span className="font-semibold">${amount.toFixed(2)}</span>
+                <span className="font-semibold">{formatPrice(amount)}</span>
               </div>
             );
           })}

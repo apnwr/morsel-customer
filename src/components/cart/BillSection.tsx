@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useCart } from '@/contexts/CartContext';
+import { useLocale } from '@/contexts/LocaleContext';
 
 interface BillSectionProps {
   userAmount: number;
@@ -9,6 +10,7 @@ interface BillSectionProps {
 
 export function BillSection({ userAmount }: BillSectionProps) {
   const { cart } = useCart();
+  const { formatPrice } = useLocale();
 
   // Delivery charge and packing fees are not currently implemented
   // Setting them to 0.00 as shown in the Figma design
@@ -41,7 +43,7 @@ export function BillSection({ userAmount }: BillSectionProps) {
               className="text-black text-[12px] leading-[1.2] font-normal"
               style={{ fontFamily: 'Lato, sans-serif' }}
             >
-              ${cart.subtotal.toFixed(2)}
+              {formatPrice(cart.subtotal)}
             </span>
           </div>
 
@@ -57,7 +59,7 @@ export function BillSection({ userAmount }: BillSectionProps) {
               className="text-black text-[12px] leading-[1.2] font-normal"
               style={{ fontFamily: 'Lato, sans-serif' }}
             >
-              ${cart.tax.toFixed(2)}
+              {formatPrice(cart.tax)}
             </span>
           </div>
 
@@ -73,7 +75,7 @@ export function BillSection({ userAmount }: BillSectionProps) {
               className="text-black text-[12px] leading-[1.2] font-normal"
               style={{ fontFamily: 'Lato, sans-serif' }}
             >
-              ${deliveryCharge.toFixed(2)}
+              {formatPrice(deliveryCharge)}
             </span>
           </div>
 
@@ -89,7 +91,7 @@ export function BillSection({ userAmount }: BillSectionProps) {
               className="text-black text-[12px] leading-[1.2] font-normal"
               style={{ fontFamily: 'Lato, sans-serif' }}
             >
-              ${packingFees.toFixed(2)}
+              {formatPrice(packingFees)}
             </span>
           </div>
 
@@ -105,7 +107,7 @@ export function BillSection({ userAmount }: BillSectionProps) {
               className="text-black text-[16px] leading-[1.22] font-medium"
               style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
             >
-              ${cart.total.toFixed(2)}
+              {formatPrice(cart.total)}
             </span>
           </div>
         </div>
@@ -123,7 +125,7 @@ export function BillSection({ userAmount }: BillSectionProps) {
           className="text-black text-[20px] leading-[1.22] font-bold"
           style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
         >
-          ${userAmount.toFixed(2)}
+          {formatPrice(userAmount)}
         </span>
       </div>
     </div>

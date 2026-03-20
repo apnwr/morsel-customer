@@ -5,6 +5,7 @@ import { useSyncExternalStore } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '@/contexts/CartContext';
+import { useLocale } from '@/contexts/LocaleContext';
 import { useOrder } from '@/contexts/OrderContext';
 import { useSession } from '@/contexts/SessionContext';
 import { Badge } from '@/components/ui/Badge';
@@ -31,6 +32,7 @@ interface HeaderProps {
 
 export function Header({ showTimer = false, showCart = true, showFilters = false, showOrderTabs = false, tabs: propTabs, orderIds = [], activeOrderId = null, onTabClick, onRightIconClick, centerLabel }: HeaderProps) {
   const router = useRouter();
+  const { formatPrice } = useLocale();
   const pathname = usePathname();
   const isCartPage = pathname === '/cart';
   const { cart, lastCartAction, clearLastCartAction } = useCart();
@@ -262,7 +264,7 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
                           }`}
                           style={{ fontFamily: 'Lato, sans-serif', lineHeight: '1.2em' }}
                         >
-                          $ {isCartEmpty ? '00.00' : cartTotal.toFixed(2)}
+                          {isCartEmpty ? formatPrice(0) : formatPrice(cartTotal)}
                         </span>
                         <Image
                           src="/icons/Diagonal_Arrow.png"

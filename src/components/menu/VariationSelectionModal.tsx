@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import { Modal } from '@/components/ui/Modal';
 import { CartItem } from '@/types/cart';
 import { Minus, Plus } from 'lucide-react';
@@ -77,6 +78,7 @@ export function VariationSelectionModal({
   onDecrement,
   onIncrement,
 }: VariationSelectionModalProps) {
+  const { formatPrice } = useLocale();
   const { sessionData } = useSession();
   
   // Get current user's sessionUserId
@@ -218,7 +220,7 @@ export function VariationSelectionModal({
                 
                 {/* Price info */}
                 <div className="text-sm text-gray-600 mt-1">
-                  {group.totalQuantity} × ${unitPrice.toFixed(2)} = ${(unitPrice * group.totalQuantity).toFixed(2)}
+                  {group.totalQuantity} × {formatPrice(unitPrice)} = {formatPrice(unitPrice * group.totalQuantity)}
                 </div>
 
                 {/* Show owner info for items not owned by current user */}

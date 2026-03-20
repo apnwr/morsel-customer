@@ -10,6 +10,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/contexts/CartContext';
@@ -117,6 +118,7 @@ interface PreOrderViewProps {
 
 export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps) {
   const router = useRouter();
+  const { formatPrice } = useLocale();
   const { cart, updateQuantity, removeItem, addItem } = useCart();
   const { split } = useSplit();
   const { sessionData } = useSession();
@@ -323,7 +325,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
             {isPlacingOrder ? 'Placing order...' : 'Place Order'}
           </span>
           <span className="flex-shrink-0">
-            $ {isClient ? userAmount.toFixed(2) : '0.00'}
+            {isClient ? formatPrice(userAmount) : formatPrice(0)}
           </span>
         </button>
       </div>

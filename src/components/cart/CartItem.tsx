@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import { CartItem as CartItemType } from '@/types/cart';
 import { OrderingSessionData } from '@/types/api/session';
 import { Minus } from 'lucide-react';
@@ -16,6 +17,7 @@ interface CartItemProps {
 
 export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, sessionData }: CartItemProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const { formatPrice } = useLocale();
 
   // Check for vegetarian/non-vegetarian status from allergens or dietary arrays
   const getDietaryType = useMemo(() => {
@@ -72,7 +74,7 @@ export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, s
   return (
     <article 
       className="flex items-start justify-between gap-4 md:gap-20 py-3"
-      aria-label={`${item.menuItem.name}, quantity ${item.quantity}, total $${item.itemTotal.toFixed(2)}`}
+      aria-label={`${item.menuItem.name}, quantity ${item.quantity}, total ${formatPrice(item.itemTotal)}`}
     >
       {/* Left Section - Item Details */}
       <div className="flex flex-col gap-2 w-full md:w-[178px] flex-1 min-w-0">
@@ -137,9 +139,9 @@ export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, s
             <p 
               className="text-sm leading-[1.22] opacity-50"
               style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
-              aria-label={`Unit price: ${item.menuItem.price.toFixed(2)} dollars`}
+              aria-label={`Unit price: ${formatPrice(item.menuItem.price)}`}
             >
-              $ {item.menuItem.price.toFixed(2)}
+              {formatPrice(item.menuItem.price)}
             </p>
           </div>
         </div>
@@ -211,9 +213,9 @@ export const CartItem = React.memo(function CartItem({ item, onUpdateQuantity, s
         <div 
           className="font-black text-xs leading-[1.2]"
           style={{ fontFamily: 'Lato, sans-serif', fontWeight: 900 }}
-          aria-label={`Item total: ${item.itemTotal.toFixed(2)} dollars`}
+          aria-label={`Item total: ${formatPrice(item.itemTotal)}`}
         >
-          $ {item.itemTotal.toFixed(2)}
+          {formatPrice(item.itemTotal)}
         </div>
       </div>
       

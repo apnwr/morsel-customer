@@ -7,6 +7,7 @@ import { CartProvider } from "@/contexts/CartContext";
 import { OrderProvider } from "@/contexts/OrderContext";
 import { SplitProvider } from "@/contexts/SplitContext";
 import { SessionProvider } from "@/contexts/SessionContext";
+import { LocaleProvider } from "@/contexts/LocaleContext";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import DebugPanelWrapper from "@/components/layout/DebugPanelWrapper";
 
@@ -43,20 +44,22 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <FirebaseAuthProvider>
-          <SessionProvider>
-            <RestaurantProvider>
-              <ThemeProvider>
-                <CartProvider>
-                  <OrderProvider>
-                    <SplitProvider>
-                      {children}
-                      <DebugPanelWrapper />
-                    </SplitProvider>
-                  </OrderProvider>
-                </CartProvider>
-              </ThemeProvider>
-            </RestaurantProvider>
-          </SessionProvider>
+          <LocaleProvider>
+            <SessionProvider>
+              <RestaurantProvider>
+                <ThemeProvider>
+                  <CartProvider>
+                    <OrderProvider>
+                      <SplitProvider>
+                        {children}
+                        <DebugPanelWrapper />
+                      </SplitProvider>
+                    </OrderProvider>
+                  </CartProvider>
+                </ThemeProvider>
+              </RestaurantProvider>
+            </SessionProvider>
+          </LocaleProvider>
         </FirebaseAuthProvider>
       </body>
     </html>

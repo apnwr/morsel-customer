@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import { Modal } from '@/components/ui/Modal';
 import { CartItem } from '@/types/cart';
 import { MenuItem } from '@/types/menu';
@@ -28,6 +29,7 @@ export function RepeatCustomizationSheet({
   onRepeatLast,
   onCustomize,
 }: RepeatCustomizationSheetProps) {
+  const { formatPrice } = useLocale();
   // Format customizations for display (including spice level)
   const customizationParts: string[] = [];
   if (lastCartItem.customizations.length > 0) {
@@ -137,7 +139,7 @@ export function RepeatCustomizationSheet({
               </div>
             )}
             <h3 className="font-bold text-base truncate">{item.name}</h3>
-            <p className="text-sm text-gray-500">${item.price.toFixed(2)}</p>
+            <p className="text-sm text-gray-500">{formatPrice(item.price)}</p>
           </div>
         </div>
 
@@ -157,7 +159,7 @@ export function RepeatCustomizationSheet({
             <div className="flex items-center gap-2 shrink-0">
               <span className="font-bold text-sm">
                 {/* Show itemTotal / quantity to get unit price with customizations */}
-                ${(lastCartItem.itemTotal / lastCartItem.quantity).toFixed(2)}
+                {formatPrice(lastCartItem.itemTotal / lastCartItem.quantity)}
               </span>
               <Image
                 src="/icons/Plus.png"

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import { Settings, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar } from '@/components/ui/Avatar';
@@ -31,6 +32,7 @@ const REFRESH_INTERVAL = 10000; // Refresh every 10 seconds (fallback when Fireb
 export function ParticipantsList() {
   const { split, calculateSplit, addParticipant, removeParticipant } = useSplit();
   const { sessionData } = useSession();
+  const { formatPrice } = useLocale();
   const { cart } = useCart();
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -446,7 +448,7 @@ export function ParticipantsList() {
                       {displayName}
                     </span>
                     <span className="text-lg font-black text-center text-white leading-tight">
-                      ${amount.toFixed(2)}
+                      {formatPrice(amount)}
                     </span>
                   </div>
                 );

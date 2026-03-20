@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
 import { useSplit } from '@/contexts/SplitContext';
 import { useCart } from '@/contexts/CartContext';
 import { Avatar } from '@/components/ui/Avatar';
@@ -10,6 +11,7 @@ import { SplitSettingsModal } from '@/components/order/SplitSettingsModal';
 export function SplitSection() {
   const { split, calculateSplit } = useSplit();
   const { cart } = useCart();
+  const { formatPrice } = useLocale();
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Recalculate split when cart total changes
@@ -80,7 +82,7 @@ export function SplitSection() {
                     {participant.name}
                   </span>
                   <span className="text-sm font-semibold mt-1">
-                    ${amount.toFixed(2)}
+                    {formatPrice(amount)}
                   </span>
                 </div>
               );

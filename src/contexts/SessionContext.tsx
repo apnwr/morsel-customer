@@ -6,6 +6,7 @@ import { sessionService } from '@/services/session.service';
 import { subscribeToParticipantsBySpace, isFirebaseAvailable } from '@/lib/firebase/realtime.service';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { mapSessionOrderToAPIOrder } from '@/lib/order-mapping';
+import { useLocale } from '@/contexts/LocaleContext';
 
 const STORAGE_KEY = 'morsel_session_data';
 const STORAGE_KEY_USER_ID = 'morsel_session_user_id';
@@ -38,6 +39,8 @@ interface SessionState {
 const SessionContext = createContext<SessionState | undefined>(undefined);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  const { setLocale } = useLocale();
+
   // Preview session: ephemeral state for QR scan preview (before login)
   const [previewSession, setPreviewSessionState] = useState<OrderingSessionData | null>(null);
 
@@ -224,6 +227,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Fetch latest session detail from API
       const response = await sessionService.getSessionById(sessionData.session.id);
 
+      // Apply branch currency / timezone if the API returns them
+      if (response.data.currency || response.data.timezone) {
+        setLocale({ currency: response.data.currency, timezone: response.data.timezone });
+      }
+
       // Persist full order (with items) to localStorage when API returns it, so all participants can view any tab. Skip if key exists to avoid overwriting our own order (_placedAt, _itemParticipants).
       const sessionId = response.data.id;
       const businessId = response.data.businessId || sessionData?.business?.id || sessionData?.business?.businessId || '';
@@ -265,7 +273,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       console.error('[SessionContext] Failed to refresh session data:', error);
       // Don't throw - allow the app to continue even if refresh fails
     }
-  }, [sessionData]);
+  }, [sessionData, setLocale]);
 
   // End the current session
   // Used when session expires or after payment is complete

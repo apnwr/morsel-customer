@@ -1,6 +1,7 @@
 /**
  * Utility functions for MORSEL Customer App
  */
+import { formatPrice as libFormatPrice } from '@/lib/currencies';
 
 type ClassValue = string | number | boolean | undefined | null | ClassValue[];
 
@@ -16,12 +17,11 @@ export function cn(...inputs: ClassValue[]): string {
 
 /**
  * Format currency value
+ * @deprecated Use `useLocale().formatPrice(amount)` in components,
+ * or `formatPrice(amount, currencyCode)` from `@/lib/currencies` for pure contexts.
  */
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
+export function formatCurrency(amount: number, currencyCode?: string): string {
+  return libFormatPrice(amount, currencyCode);
 }
 
 /**

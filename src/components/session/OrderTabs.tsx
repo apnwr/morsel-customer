@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from '@/contexts/LocaleContext';
 
 export interface TabInfo {
   id: string | null; // null = "New Order" tab
@@ -15,6 +16,7 @@ interface OrderTabsProps {
 }
 
 export function OrderTabs({ tabs, activeTabId, onTabClick }: OrderTabsProps) {
+  const { formatPrice } = useLocale();
   // Don't render if no tabs or only one tab
   if (tabs.length <= 1) {
     return null;
@@ -54,7 +56,7 @@ export function OrderTabs({ tabs, activeTabId, onTabClick }: OrderTabsProps) {
                 </div>
                 {tab.total && tab.total > 0 && (
                   <span className="text-xs opacity-70 mt-1">
-                    ${tab.total.toFixed(2)}
+                    {formatPrice(tab.total)}
                   </span>
                 )}
               </button>
