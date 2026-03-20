@@ -28,6 +28,7 @@ function CartPageContent() {
     pageState,
     activeOrderId,
     orderData,
+    orderDisplayLabel,
     cartItemsCount,
     tabsToShow,
     isLoading,
@@ -60,6 +61,7 @@ function CartPageContent() {
         activeOrderId={activeOrderId}
         onTabClick={handleTabSwitch}
         onRightIconClick={() => router.push("/menu")}
+        centerLabel={pageState === 'post-order' ? orderDisplayLabel ?? undefined : undefined}
       />
 
       {/* Content area */}

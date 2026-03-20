@@ -209,43 +209,43 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
   return (
     <>
       <div className="max-w-2xl mx-auto p-4 px-4 bg-[#F7F8F8] pb-32">
-        {/* Order Status Section */}
-        <div className="mb-6">
-          <div className="flex flex-col gap-3 mb-3">
-            <div className="flex items-center gap-3">
-              <span className="text-xl">👩‍🍳</span>
-              <span
-                className="text-black text-[16px] leading-[1.22] font-medium"
-                style={{
-                  fontFamily: 'Helvetica Neue, sans-serif',
-                  fontWeight: 500,
-                }}
-              >
-                Your order is getting prepared.
-              </span>
-            </div>
-            <p
-              className="text-black text-[12px] leading-[1.5] opacity-50"
-              style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
-            >
-              Click on the cook-time tracker to see your running order. You can place another order while we prep this.
-            </p>
-          </div>
-
-          {/* Timer and Edit Section. Edit only for orders placed by the current user. */}
-          <div className="flex items-center justify-between mb-3">
-            {isEditable && orderData?.sessionUserId === currentSessionUserId && (
-              <button
-                onClick={() => router.push('/cart')}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all"
-              >
-                <span className="text-lg">✏️</span>
-                <span className="text-black text-[14px] font-medium" style={{ fontFamily: 'Helvetica Neue, sans-serif' }}>
-                  Edit
+        {/* Order Status Section — visible only while timer is running */}
+        {remainingTime > 0 && (
+          <div className="mb-6">
+            <div className="flex flex-col gap-2 mb-3">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">👩‍🍳</span>
+                <span
+                  className="text-black text-[16px] leading-[1.22] font-medium"
+                  style={{
+                    fontFamily: 'Helvetica Neue, sans-serif',
+                    fontWeight: 500,
+                  }}
+                >
+                  Your order is getting prepared.
                 </span>
-              </button>
-            )}
-            <div className="flex items-center gap-2">
+              </div>
+              <p
+                className="text-black text-[12px] leading-[18px] opacity-50"
+                style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
+              >
+                Click on the cook-time tracker to see your running order. You can place another order while we prep this.
+              </p>
+            </div>
+
+            {/* Edit + Timer row */}
+            <div className="flex items-center gap-3">
+              {orderData?.sessionUserId === currentSessionUserId && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-[#F0F0F0] rounded-[10px]">
+                  <span className="text-base">✏️</span>
+                  <span
+                    className="text-black text-[12px] font-bold"
+                    style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
+                  >
+                    Edit
+                  </span>
+                </div>
+              )}
               <div className="relative">
                 <svg width="59" height="36" viewBox="0 0 59 36" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <rect x="0.5" y="0.5" width="58" height="35" rx="17.5" fill="black" stroke="black" />
@@ -259,87 +259,72 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
               </div>
             </div>
           </div>
-
-          {/* Order Info */}
-          <div className="mb-3">
-            <p className="text-black text-[14px] leading-[1.5] mb-1" style={{ fontFamily: 'Helvetica Neue, sans-serif' }}>
-              {itemCount} {itemCount === 1 ? 'item' : 'items'},{' '}
-              {diningType === 'dine-in' ? 'Dine-in' : diningType === 'takeaway' ? 'Takeaway' : 'Delivery'}
-              {splitMode && (
-                <>
-                  ,{' '}
-                  <button onClick={handleOpenSplitModal} className="text-[#007AFF] underline">
-                    {splitMode}
-                  </button>
-                </>
-              )}
-              .
-            </p>
-          </div>
-        </div>
+        )}
 
         {/* Order Summary */}
         <div className="mb-6">
           <h2
-            className="text-black text-[20px] leading-[1.22] font-bold mb-4"
+            className="text-black text-[20px] leading-normal font-bold opacity-80 mb-4"
             style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
           >
             Order Summary
           </h2>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-[15px]">
             {orderData?.items?.map((item: OrderItem, idx: number) => {
-              const participantId = itemParticipants[item.itemId];
-              const participantName = participantId ? getParticipantName(participantId) : null;
-              
-              // Get dietary type from stored real-time data
               const dietaryType = getDietaryTypeFromStoredData(itemDietary[item.itemId]);
-              
-              // Use stored image from real-time data
               const itemImage = itemImages[item.itemId];
 
+              // Collect all selected addon option names
+              const addonLabels = item.addOns
+                ?.flatMap((addon) => addon.selectedOptions?.map((o) => o.name) || [])
+                .filter(Boolean);
+
               return (
-                <div key={idx} className="flex gap-4 p-4 bg-white rounded-lg">
-                  <div className="relative w-[60px] h-[60px] flex-shrink-0 rounded-[12px] overflow-hidden bg-gray-100">
-                    {itemImage ? (
-                      <Image
-                        src={itemImage}
-                        alt={item.name || 'Item'}
-                        fill
-                        sizes="60px"
-                        style={{ objectFit: 'cover' }}
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-2xl">🍽️</div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {/* Vegetarian/Non-Vegetarian Symbol */}
+                <div key={idx} className="flex flex-col gap-2">
+                  {/* Item row */}
+                  <div className="flex items-center gap-[5px]">
+                    <div className="relative w-[47px] h-[47px] flex-shrink-0 rounded-[12px] overflow-hidden bg-[#F8F8F8]">
+                      {itemImage ? (
+                        <Image
+                          src={itemImage}
+                          alt={item.name || 'Item'}
+                          fill
+                          sizes="47px"
+                          style={{ objectFit: 'cover' }}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xl">🍽️</div>
+                      )}
+                    </div>
                     {dietaryType && <DietarySymbol dietaryType={dietaryType} />}
-                    <h4
-                      className="text-black text-[15px] leading-[1.22] font-medium truncate mt-1"
-                      style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
-                    >
-                      {item.name} {item.quantity > 1 && `×${item.quantity}`}
-                    </h4>
-                    <p
-                      className="text-black text-[14px] leading-[1.5] mt-1"
-                      style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
-                    >
-                      $ {item.itemTotal?.toFixed(2) || '0.00'}
-                    </p>
-                    {participantName && (
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <h4
+                        className="text-black text-[14px] leading-normal font-bold truncate"
+                        style={{ fontFamily: 'Lato, sans-serif' }}
+                      >
+                        {item.name}{item.quantity > 1 ? `, ×${item.quantity}` : ''}
+                      </h4>
                       <p
-                        className="text-black text-[12px] leading-[1.5] opacity-50 mt-1"
+                        className="text-black text-[14px] leading-normal font-medium opacity-50"
                         style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
                       >
-                        {participantName}
+                        $ {item.itemTotal?.toFixed(2) || '0.00'}
                       </p>
-                    )}
+                    </div>
                   </div>
+                  {/* Addon details below item */}
+                  {addonLabels && addonLabels.length > 0 && (
+                    <p
+                      className="text-black text-[12px] leading-normal"
+                      style={{ fontFamily: 'Lato, sans-serif' }}
+                    >
+                      {addonLabels.join(', ')}
+                    </p>
+                  )}
                 </div>
               );
             })}

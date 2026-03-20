@@ -25,9 +25,11 @@ interface HeaderProps {
   activeOrderId?: string | null;
   onTabClick?: (orderId: string | null) => void;
   onRightIconClick?: () => void;
+  /** When provided, renders this label in the center instead of "Cart" or the cart pill */
+  centerLabel?: string;
 }
 
-export function Header({ showTimer = false, showCart = true, showFilters = false, showOrderTabs = false, tabs: propTabs, orderIds = [], activeOrderId = null, onTabClick, onRightIconClick }: HeaderProps) {
+export function Header({ showTimer = false, showCart = true, showFilters = false, showOrderTabs = false, tabs: propTabs, orderIds = [], activeOrderId = null, onTabClick, onRightIconClick, centerLabel }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const isCartPage = pathname === '/cart';
@@ -191,9 +193,17 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
             )}
           </div>
 
-          {/* Cart Total - Center */}
-          {/* Center element: "Cart" text on cart page, cart pill with "View Cart" label elsewhere */}
-          {showCart && (
+          {/* Center element: centerLabel when provided, "Cart" on cart page, cart pill elsewhere */}
+          {centerLabel ? (
+            <div className="shrink-0 h-[59px] flex items-center justify-center">
+              <p
+                className="text-[24px] font-bold text-black"
+                style={{ fontFamily: 'Lato, sans-serif' }}
+              >
+                {centerLabel}
+              </p>
+            </div>
+          ) : showCart && (
             isCartPage ? (
               <div className="shrink-0 h-[59px] flex items-center justify-center">
                 <p

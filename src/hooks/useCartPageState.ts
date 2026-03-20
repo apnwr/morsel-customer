@@ -33,6 +33,7 @@ export interface CartPageState {
   pageState: PageState;
   activeOrderId: string | null;
   orderData: APIOrder | null;
+  orderDisplayLabel: string | null;
   allOrderIds: string[];
   cartItemsCount: number;
   tabsToShow: TabInfo[];
@@ -61,7 +62,7 @@ export function useCartPageState(): CartPageState {
 
   // Get all order IDs from session
   const allOrderIds = useMemo(() => {
-    return sessionData?.session?.orders?.map((o: any) => (typeof o === 'string' ? o : o.orderId)) || [];
+    return sessionData?.session?.orders?.map((o: string | SessionOrder) => (typeof o === 'string' ? o : o.orderId)) || [];
   }, [sessionData]);
 
   // On cart mount, refresh session so we get latest order IDs (including orders placed by other participants) and persist orders with items
@@ -136,6 +137,13 @@ export function useCartPageState(): CartPageState {
       cancelled = true;
     };
   }, [activeOrderId, sessionData?.session?.id, sessionData?.business?.id, sessionData?.business?.businessId, sessionData?.space?.id]);
+
+  // Compute display label from last 5 chars of the active order ID
+  const orderDisplayLabel = useMemo(() => {
+    if (!activeOrderId) return null;
+    const short = activeOrderId.slice(-5).toUpperCase();
+    return `Order - ${short}`;
+  }, [activeOrderId]);
 
   // Determine page state: pre-order or post-order
   const pageState: PageState = useMemo(() => {
@@ -256,6 +264,7 @@ export function useCartPageState(): CartPageState {
     pageState,
     activeOrderId,
     orderData,
+    orderDisplayLabel,
     allOrderIds,
     cartItemsCount: cart.items.length,
     tabsToShow,
