@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSyncExternalStore } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,6 +35,7 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
   const { formatPrice } = useLocale();
   const pathname = usePathname();
   const isCartPage = pathname === '/cart';
+  const isOrdersPage = pathname === '/orders';
   const { cart, lastCartAction, clearLastCartAction } = useCart();
   const [snackbar, setSnackbar] = useState<{ type: 'added' | 'removed'; count: number } | null>(null);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,6 +44,19 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
   const [remainingMinutes, setRemainingMinutes] = useState(0);
 
   const participantCount = sessionData?.participantsCount ?? 0;
+  const placedOrdersCount = sessionData?.session?.orders?.length ?? 0;
+
+  // Memoize participant dot positions — only recalculate when count changes
+  const participantDots = useMemo(() => {
+    return Array.from({ length: participantCount }).map((_, index) => {
+      const angle = (index * 360) / participantCount - 90;
+      const radian = (angle * Math.PI) / 180;
+      return {
+        x: 50 + 45 * Math.cos(radian),
+        y: 50 + 45 * Math.sin(radian),
+      };
+    });
+  }, [participantCount]);
 
   // Handle hydration using useSyncExternalStore (recommended React pattern)
   const mounted = useSyncExternalStore(
@@ -106,7 +120,7 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
 
   // Calculate header height for spacer (base ~70px + tabs ~50px + filters ~60px)
   const hasOrderTabs = showOrderTabs && tabs.length > 0 && onTabClick;
-  const baseHeight = 70;
+  const baseHeight = 80;
   const tabsHeight = hasOrderTabs ? 50 : 0;
   const filtersHeight = showFilters ? 60 : 0;
   const totalHeight = baseHeight + tabsHeight + filtersHeight;
@@ -156,25 +170,18 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
               <div className="relative w-[50px] h-[50px] flex items-center justify-center rounded-full">
                 <div className="absolute inset-0 border-[3px] border-black bg-[#F8F8F8] rounded-full" />
 
-                {/* Participant dots around the circle */}
-                {Array.from({ length: participantCount }).map((_, index) => {
-                  const angle = (index * 360) / participantCount - 90;
-                  const radian = (angle * Math.PI) / 180;
-                  const x = 50 + 45 * Math.cos(radian);
-                  const y = 50 + 45 * Math.sin(radian);
-
-                  return (
-                    <div
-                      key={index}
-                      className="absolute w-2 h-2 bg-black rounded-full"
-                      style={{
-                        left: `${x}%`,
-                        top: `${y}%`,
-                        transform: 'translate(-50%, -50%)',
-                      }}
-                    />
-                  );
-                })}
+                {/* Participant dots around the circle (positions memoized) */}
+                {participantDots.map((dot, index) => (
+                  <div
+                    key={index}
+                    className="absolute w-2 h-2 bg-black rounded-full"
+                    style={{
+                      left: `${dot.x}%`,
+                      top: `${dot.y}%`,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  />
+                ))}
 
                 {/* Morsel logo inside circle */}
                 <Image
@@ -195,7 +202,7 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
             )}
           </div>
 
-          {/* Center element: centerLabel when provided, "Cart" on cart page, cart pill elsewhere */}
+          {/* Center element: centerLabel when provided, "Cart" on cart/orders page, cart pill elsewhere */}
           {centerLabel ? (
             <div className="shrink-0 h-[59px] flex items-center justify-center">
               <p
@@ -206,13 +213,13 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
               </p>
             </div>
           ) : showCart && (
-            isCartPage ? (
+            isCartPage || isOrdersPage ? (
               <div className="shrink-0 h-[59px] flex items-center justify-center">
                 <p
                   className="text-[24px] font-bold text-black"
                   style={{ fontFamily: 'Lato, sans-serif' }}
                 >
-                  Cart
+                  {isOrdersPage ? 'Orders' : 'Cart'}
                 </p>
               </div>
             ) : (
@@ -281,18 +288,39 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
             )
           )}
 
-          {/* Hamburger Menu Button - Right */}
-          <button
-            onClick={onRightIconClick}
-            className="shrink-0 w-[50px] h-[50px] flex items-center justify-center rounded-full border-[3px] border-[#ECECEC] bg-[#F8F8F8]"
-            aria-label="Menu"
-          >
-            <svg width="20" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M1 1H19" stroke="black" strokeWidth="2" strokeLinecap="round" />
-              <path d="M1 7H19" stroke="black" strokeWidth="2" strokeLinecap="round" />
-              <path d="M1 13H19" stroke="black" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </button>
+          {/* Right side */}
+          <div className="flex items-center gap-2 shrink-0">
+            {isCartPage || isOrdersPage ? (
+              /* "Menu" text button on cart/orders pages */
+              <button
+                onClick={onRightIconClick}
+                className="shrink-0 px-5 h-[44px] flex items-center justify-center rounded-full bg-black text-white text-[14px] font-bold"
+                style={{ fontFamily: 'Lato, sans-serif' }}
+                aria-label="Menu"
+              >
+                Menu
+              </button>
+            ) : (
+              /* Orders icon on menu page — always visible, disabled when no orders */
+              <button
+                type="button"
+                onClick={() => placedOrdersCount > 0 && router.push('/orders')}
+                disabled={placedOrdersCount === 0}
+                className={`relative w-[50px] h-[50px] flex items-center justify-center rounded-full border-[3px] ${
+                  placedOrdersCount > 0
+                    ? 'border-black bg-[#F8F8F8] cursor-pointer'
+                    : 'border-[#ECECEC] bg-[#F8F8F8] opacity-40 cursor-default'
+                }`}
+                aria-label={placedOrdersCount > 0 ? `View ${placedOrdersCount} placed order${placedOrdersCount > 1 ? 's' : ''}` : 'No placed orders'}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <rect x="9" y="3" width="6" height="4" rx="1" stroke="black" strokeWidth="2"/>
+                  <path d="M9 12h6M9 16h4" stroke="black" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filter Pills */}

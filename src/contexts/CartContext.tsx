@@ -136,6 +136,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const firebaseUnsubscribeRef = useRef<(() => void) | null>(null);
   const isUsingFirebaseRef = useRef<boolean>(false);
+  /** Cached sessionUserId – read once, updated only on session change. Avoids repeated synchronous localStorage reads in every cart operation. */
+  const sessionUserIdRef = useRef<string | null>(getFromStorage<string>('morsel_session_user_id'));
   const [lastCartAction, setLastCartAction] = useState<{ type: 'added' | 'removed'; count: number } | null>(null);
   const clearLastCartAction = useCallback(() => setLastCartAction(null), []);
   /** Timestamp of our last addItem/removeItem; used to skip setting lastCartAction in processOrderQueueData when the update is our own sync echo. */
@@ -146,6 +148,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     cartRef.current = cart;
   }, [cart]);
+
+  // Keep sessionUserId ref in sync when session changes
+  useEffect(() => {
+    sessionUserIdRef.current = getFromStorage<string>('morsel_session_user_id');
+  }, [sessionData?.session?.id]);
 
   /**
    * Sync Queue with API
@@ -167,8 +174,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     console.log('[CartContext] ✅ Session available:', sessionData.session.id);
 
-    // Get current user's sessionUserId
-    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+    // Get current user's sessionUserId (cached ref — no localStorage read)
+    const currentSessionUserId = sessionUserIdRef.current;
     if (!currentSessionUserId) {
       console.warn('[CartContext] ⚠️ No sessionUserId found, skipping queue sync');
       return;
@@ -321,8 +328,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Validate session
-    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+    // Validate session (use cached ref)
+    const currentSessionUserId = sessionUserIdRef.current;
     if (!currentSessionUserId) {
       console.log('[CartContext] ⏭️ Skipping sync - user has not joined session yet');
       cleanup();
@@ -430,7 +437,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = (menuItem: MenuItem, customizations: Customization[] = [], notes?: string, quantity: number = 1, spiceLevel?: string) => {
     const validQuantity = sanitizeQuantity(quantity);
-    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+    const currentSessionUserId = sessionUserIdRef.current;
 
     // Cache the full menu item (with customOptions) for later retrieval
     // This ensures we can restore customization options when syncing from API
@@ -493,7 +500,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const removeItem = (cartItemId: string) => {
     // Check if user has permission to remove this item
-    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+    const currentSessionUserId = sessionUserIdRef.current;
     const itemToRemove = cart.items.find((item) => item.id === cartItemId);
 
     if (itemToRemove?.sessionUserId && itemToRemove.sessionUserId !== currentSessionUserId) {
@@ -525,7 +532,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const validQuantity = sanitizeQuantity(quantity);
 
     // Check if user has permission to update this item
-    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+    const currentSessionUserId = sessionUserIdRef.current;
     const itemToUpdate = cart.items.find((item) => item.id === cartItemId);
 
     if (itemToUpdate?.sessionUserId && itemToUpdate.sessionUserId !== currentSessionUserId) {
@@ -737,8 +744,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Get current sessionUserId
-    const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+    // Get current sessionUserId (cached ref)
+    const currentSessionUserId = sessionUserIdRef.current;
     if (!currentSessionUserId) {
       console.warn('[CartContext] ⚠️ Session user ID not found, skipping cart sync');
       return;
@@ -791,8 +798,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // ✅ Get sessionUserId from storage (provided by API during login)
-      const sessionUserId = getFromStorage<string>('morsel_session_user_id');
+      // ✅ Get sessionUserId (cached ref — no localStorage read)
+      const sessionUserId = sessionUserIdRef.current;
       if (!sessionUserId) {
         throw new Error('Session user ID not found. Please login again.');
       }
@@ -850,17 +857,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
       });
 
+      const kitchenNote = getFromStorage<string>('morsel_kitchen_note') || '';
       const orderWithTimestamp = {
         ...response.data,
         _placedAt: Date.now(), // Store when order was placed for timer calculation
         _itemParticipants: itemParticipantMap, // Map itemId -> sessionUserId
         _itemImages: itemImagesMap, // Map itemId -> image URL
         _itemDietary: itemDietaryMap, // Map itemId -> dietary info
+        _kitchenNote: kitchenNote, // Kitchen note at time of order
       };
       setInStorage(`morsel_order_${response.data.id}`, orderWithTimestamp);
 
-      // Clear the cart on successful order confirmation
-      clearCart();
+      // NOTE: Cart is NOT cleared here to avoid a flash of empty state before navigation.
+      // The caller (handlePlaceOrder) clears the cart after initiating navigation.
 
       return {
         orderId: response.data.id,

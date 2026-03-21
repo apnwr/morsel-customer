@@ -21,7 +21,7 @@ import { CartItem } from '@/components/cart/CartItem';
 import { CartItem as CartItemType, Customization } from '@/types/cart';
 import { BillSection } from '@/components/cart/BillSection';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { getFromStorage } from '@/mocks/mockStorage';
+import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { isSplitApplicableForTotal } from '@/lib/split-utils';
 
 // Lazy load CustomizationModal
@@ -33,83 +33,7 @@ const CustomizationModal = dynamic(
   { ssr: false }
 );
 
-const TIP_OPTIONS = [
-  { label: '😃  20%', value: 20 },
-  { label: '😊 10%', value: 10 },
-  { label: '0% ☹️', value: 0 },
-];
-
-function TipSelector() {
-  const [selectedTip, setSelectedTip] = useState<number>(10);
-  const [showCustomInput, setShowCustomInput] = useState(false);
-  const [customTip, setCustomTip] = useState('');
-
-  return (
-    <div className="flex flex-col gap-3 mt-6">
-      <div className="flex gap-3 items-start justify-center w-full">
-        {TIP_OPTIONS.map((option) => {
-          const isSelected = !showCustomInput && selectedTip === option.value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => {
-                setSelectedTip(option.value);
-                setShowCustomInput(false);
-                setCustomTip('');
-              }}
-              className={`flex-1 px-5 py-2 rounded-[30px] border-2 text-[16px] font-bold text-center transition-all ${
-                isSelected
-                  ? 'bg-black border-[#595959] text-white'
-                  : 'bg-white border-[#ECECEC] text-black'
-              }`}
-              style={{ fontFamily: 'Lato, sans-serif' }}
-            >
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-      {!showCustomInput ? (
-        <button
-          type="button"
-          onClick={() => setShowCustomInput(true)}
-          className="w-full px-5 py-2 rounded-[30px] border-2 border-[#ECECEC] bg-white text-[16px] font-bold text-black text-center transition-all hover:bg-gray-50"
-          style={{ fontFamily: 'Lato, sans-serif' }}
-        >
-          Custom Tip
-        </button>
-      ) : (
-        <div className="flex items-center gap-2 w-full">
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={customTip}
-            onChange={(e) => setCustomTip(e.target.value)}
-            placeholder="Enter tip amount"
-            className="flex-1 px-5 py-2 rounded-[30px] border-2 border-black bg-white text-[16px] font-bold text-black text-center focus:outline-none"
-            style={{ fontFamily: 'Lato, sans-serif' }}
-            autoFocus
-          />
-          <button
-            type="button"
-            onClick={() => {
-              setShowCustomInput(false);
-              if (customTip) {
-                setSelectedTip(-1); // custom value, deselect presets
-              }
-            }}
-            className="px-4 py-2 rounded-[30px] bg-black text-white text-sm font-bold shrink-0"
-            style={{ fontFamily: 'Lato, sans-serif' }}
-          >
-            Set
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
+const KITCHEN_NOTE_KEY = 'morsel_kitchen_note';
 
 interface PreOrderViewProps {
   onPlaceOrder: () => Promise<void>;
@@ -123,8 +47,9 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
   const { split } = useSplit();
   const { sessionData } = useSession();
 
-  const [kitchenNote, setKitchenNote] = useState('');
+  const [kitchenNote, setKitchenNote] = useState(() => getFromStorage<string>(KITCHEN_NOTE_KEY) || '');
   const [showNoteInput, setShowNoteInput] = useState(false);
+  const [isBillExpanded, setIsBillExpanded] = useState(true);
   const [isClient, setIsClient] = useState(false);
   const [itemToCustomize, setItemToCustomize] = useState<CartItemType | null>(null);
 
@@ -204,11 +129,54 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
     );
   }
 
+  // Persist kitchen note to localStorage
+  const handleSaveNote = useCallback(() => {
+    setShowNoteInput(false);
+    setInStorage(KITCHEN_NOTE_KEY, kitchenNote);
+  }, [kitchenNote]);
+
+  const handleCancelNote = useCallback(() => {
+    setShowNoteInput(false);
+    setKitchenNote('');
+    setInStorage(KITCHEN_NOTE_KEY, '');
+  }, []);
+
   return (
     <>
       {/* Cart Content */}
       <div className="max-w-2xl mx-auto p-4 px-4 bg-[#F7F8F8]">
-        {/* Participants List */}
+        {/* Bill Section — Collapsible Card */}
+        <div className="mb-4 border-2 border-[#ECECEC] rounded-[20px] bg-white overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setIsBillExpanded(!isBillExpanded)}
+            className="w-full flex items-center justify-between px-4 py-3"
+          >
+            <span
+              className="text-black font-bold text-[16px]"
+              style={{ fontFamily: 'Lato, sans-serif' }}
+            >
+              Total {formatPrice(cart.total)}
+            </span>
+            <svg
+              width="12"
+              height="8"
+              viewBox="0 0 12 8"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className={`transition-transform ${isBillExpanded ? 'rotate-180' : ''}`}
+            >
+              <path d="M1 1.5L6 6.5L11 1.5" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          {isBillExpanded && (
+            <div className="px-4 pb-4">
+              <BillSection userAmount={userAmount} />
+            </div>
+          )}
+        </div>
+
+        {/* Split / Participants Card */}
         <div className="mb-4">
           <ParticipantsList />
         </div>
@@ -234,12 +202,12 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
               className="w-[100%] flex justify-center items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors"
             >
               <span className="text-sm">Add a note to the kitchen</span>
-              <span className="text-xl">👩‍🍳</span>
+              <span className="text-xl">&#x1F469;&#x200D;&#x1F373;</span>
             </button>
           ) : (
             <div className="space-y-2 w-[80vw]">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xl">👩‍🍳</span>
+                <span className="text-xl">&#x1F469;&#x200D;&#x1F373;</span>
                 <span className="text-sm font-medium">Note to kitchen</span>
               </div>
               <textarea
@@ -254,16 +222,13 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
                 <span className="text-xs text-gray-400">{kitchenNote.length}/200</span>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => {
-                      setShowNoteInput(false);
-                      setKitchenNote('');
-                    }}
+                    onClick={handleCancelNote}
                     className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={() => setShowNoteInput(false)}
+                    onClick={handleSaveNote}
                     className="px-4 py-2 bg-black text-white text-sm rounded-lg hover:bg-gray-900 active:scale-95 transition-all"
                   >
                     Save
@@ -288,14 +253,6 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
             </div>
           )}
         </div>
-
-        {/* Bill Section */}
-        <div className="mt-6">
-          <BillSection userAmount={userAmount} />
-        </div>
-
-        {/* Tip Section */}
-        <TipSelector />
       </div>
 
       {/* Place Order Button */}

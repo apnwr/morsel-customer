@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Performance &amp; UX Analysis — Morsel Customer App</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      padding: 40px 24px 80px;
+      line-height: 1.6;
+    }
+
+    .page { max-width: 900px; margin: 0 auto; }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: #94a3b8;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 48px;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 99px;
+      letter-spacing: 0.04em;
+    }
+    .badge-red    { background: #3f1d1d; color: #f87171; border: 1px solid #7f1d1d; }
+    .badge-orange { background: #3a1f0a; color: #fb923c; border: 1px solid #7c2d12; }
+    .badge-yellow { background: #3a2e07; color: #facc15; border: 1px solid #713f12; }
+    .badge-gray   { background: #1e2330; color: #94a3b8; border: 1px solid #334155; }
+    .badge-blue   { background: #0f1d35; color: #60a5fa; border: 1px solid #1e3a5f; }
+
+    h2 {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #64748b;
+      margin: 40px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #1e2330;
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 16px;
+    }
+
+    /* Summary cards */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+
+    .summary-card {
+      background: #161b27;
+      border: 1px solid #1e2330;
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .summary-card .count {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .summary-card .label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+    }
+
+    .count-red    { color: #f87171; }
+    .count-orange { color: #fb923c; }
+    .count-yellow { color: #facc15; }
+    .count-gray   { color: #94a3b8; }
+    .count-blue   { color: #60a5fa; }
+
+    /* Top 5 ROI */
+    .roi-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 40px;
+    }
+
+    .roi-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: #161b27;
+      border: 1px solid #1e2330;
+      border-radius: 8px;
+      padding: 12px 16px;
+    }
+
+    .roi-num {
+      font-size: 18px;
+      font-weight: 800;
+      color: #facc15;
+      min-width: 24px;
+      line-height: 1.4;
+    }
+
+    .roi-text strong {
+      color: #f1f5f9;
+      font-size: 14px;
+    }
+
+    .roi-text p {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    /* Issue cards */
+    .issue-card {
+      background: #161b27;
+      border: 1px solid #1e2330;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 12px;
+    }
+
+    .issue-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .issue-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #f1f5f9;
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .issue-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 600px) {
+      .issue-body { grid-template-columns: 1fr; }
+    }
+
+    .issue-field label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #475569;
+      margin-bottom: 4px;
+    }
+
+    .issue-field p {
+      font-size: 13px;
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+
+    .issue-field.full { grid-column: 1 / -1; }
+
+    code {
+      font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      font-size: 11px;
+      background: #0d1117;
+      color: #7dd3fc;
+      padding: 1px 6px;
+      border-radius: 4px;
+      border: 1px solid #1e3a5f;
+    }
+
+    .file-link {
+      font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      font-size: 11px;
+      color: #60a5fa;
+      background: #0f1d35;
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid #1e3a5f;
+    }
+
+    .fix-box {
+      background: #0d1f12;
+      border: 1px solid #14532d;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #86efac;
+      line-height: 1.5;
+    }
+
+    .fix-box strong {
+      color: #4ade80;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    /* ASCII chart */
+    .ascii-box {
+      background: #0d1117;
+      border: 1px solid #1e2330;
+      border-radius: 8px;
+      padding: 20px 24px;
+      font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      color: #94a3b8;
+      overflow-x: auto;
+      margin-bottom: 16px;
+    }
+
+    .ascii-box .hl  { color: #f1f5f9; }
+    .ascii-box .grn { color: #4ade80; }
+    .ascii-box .red { color: #f87171; }
+    .ascii-box .ylw { color: #facc15; }
+    .ascii-box .blu { color: #60a5fa; }
+
+    /* Severity section headers */
+    .section-critical { border-left: 3px solid #f87171; padding-left: 12px; }
+    .section-high     { border-left: 3px solid #fb923c; padding-left: 12px; }
+    .section-medium   { border-left: 3px solid #facc15; padding-left: 12px; }
+    .section-low      { border-left: 3px solid #94a3b8; padding-left: 12px; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #1e2330;
+      margin: 48px 0;
+    }
+
+    .tag-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <h1>Performance &amp; UX Analysis</h1>
+  <p class="subtitle">Morsel Customer App &nbsp;·&nbsp; March 2026 &nbsp;·&nbsp; 37 issues across 12 categories</p>
+  <div class="meta">
+    <span class="badge badge-red">4 Critical</span>
+    <span class="badge badge-orange">6 High</span>
+    <span class="badge badge-yellow">7 Medium</span>
+    <span class="badge badge-gray">3 Low / A11y</span>
+  </div>
+
+  <!-- Summary counts -->
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="count count-red">4</div>
+      <div class="label">Critical</div>
+    </div>
+    <div class="summary-card">
+      <div class="count count-orange">6</div>
+      <div class="label">High</div>
+    </div>
+    <div class="summary-card">
+      <div class="count count-yellow">7</div>
+      <div class="label">Medium</div>
+    </div>
+    <div class="summary-card">
+      <div class="count count-gray">3</div>
+      <div class="label">Low / A11y</div>
+    </div>
+    <div class="summary-card">
+      <div class="count count-blue">37</div>
+      <div class="label">Total Issues</div>
+    </div>
+  </div>
+
+  <!-- ASCII: App Data Flow -->
+  <h2>App Architecture &amp; Data Flow</h2>
+  <div class="ascii-box">
+<span class="hl">RENDER TREE (providers wrap children)</span>
+
+  <span class="grn">LocaleProvider</span>               currency + timezone state
+    └── <span class="grn">SessionProvider</span>            session data, participants, orders
+          └── <span class="grn">RestaurantProvider</span>     restaurant / branch / menu metadata
+                └── <span class="grn">CartProvider</span>       cart items, confirmOrder, polling
+                      └── <span class="grn">SplitProvider</span>  split mode, participants, shares
+                            └── pages &amp; components
+
+
+<span class="hl">POLLING SOURCES (current — before fixes)</span>
+
+  SessionContext  ──── every 10s ──► GET /ordering-session/session/:id
+  ParticipantsList ─── every 10s ──► GET /ordering-session/session/:id   ← <span class="red">DUPLICATE</span>
+  CartContext ──────── every 15s ──► GET /ordering-session/session/:id   ← <span class="red">DUPLICATE</span>
+
+<span class="ylw">After fix:</span> single polling source in SessionContext only
+
+
+<span class="hl">CART OPERATION — CURRENT (per operation)</span>
+
+  user action
+    │
+    ├── getFromStorage('morsel_session_user_id')  ← <span class="red">sync localStorage read</span>
+    ├── API call
+    ├── getFromStorage('morsel_session_user_id')  ← <span class="red">sync localStorage read again</span>
+    ├── update cart state
+    └── getFromStorage('morsel_session_user_id')  ← <span class="red">sync localStorage read again</span>
+                                                     6+ reads per cart op
+
+<span class="ylw">After fix:</span> read once at init → cache in useRef → zero reads per op
+  </div>
+
+  <!-- ASCII: Re-render chain -->
+  <div class="ascii-box">
+<span class="hl">RE-RENDER STORM (current)</span>
+
+  Cart item added
+    │
+    └── CartContext updates
+          │
+          ├── SessionContext.useMemo() breaks (unstable callbacks) → <span class="red">20+ consumers re-render</span>
+          │
+          └── ParticipantsList
+                │
+                ├── calculateSplit() runs (sync math on all participants)
+                └── SplitContext updates → <span class="red">all split consumers re-render</span>
+
+<span class="ylw">After fix:</span>
+  Cart item added
+    └── CartContext updates
+          └── only components that read cartItems re-render  ✓
+  </div>
+
+  <!-- Top 5 ROI -->
+  <h2>Top 5 Highest-ROI Fixes</h2>
+  <ul class="roi-list">
+    <li class="roi-item">
+      <span class="roi-num">1</span>
+      <div class="roi-text">
+        <strong>Cache <code>sessionUserId</code> in <code>useRef</code></strong>
+        <p>Eliminates 6+ synchronous localStorage reads per cart operation — main thread unblocked on every mutation.</p>
+      </div>
+    </li>
+    <li class="roi-item">
+      <span class="roi-num">2</span>
+      <div class="roi-text">
+        <strong>Single Firebase participant subscription in SessionContext</strong>
+        <p>Eliminates duplicate Firebase listeners and duplicate API polling from ParticipantsList. Cuts session API calls by ~60%.</p>
+      </div>
+    </li>
+    <li class="roi-item">
+      <span class="roi-num">3</span>
+      <div class="roi-text">
+        <strong>Debounce menu search 300ms</strong>
+        <p>Prevents synchronous filtering of 100+ items on every character typed. Makes search feel instant rather than janky.</p>
+      </div>
+    </li>
+    <li class="roi-item">
+      <span class="roi-num">4</span>
+      <div class="roi-text">
+        <strong>Error boundaries on cart and menu pages</strong>
+        <p>Any thrown error currently crashes the full page, forcing a hard reload. Error boundary gives users a recovery path.</p>
+      </div>
+    </li>
+    <li class="roi-item">
+      <span class="roi-num">5</span>
+      <div class="roi-text">
+        <strong>Skeleton loaders on cart page and order tab switch</strong>
+        <p>Biggest visible UX gap. Plain <code>&lt;p&gt;Loading...&lt;/p&gt;</code> text on the cart page; blank state on tab switch.</p>
+      </div>
+    </li>
+  </ul>
+
+  <hr class="divider" />
+
+  <!-- CRITICAL -->
+  <h2><span class="section-critical">Critical — Fix Immediately</span></h2>
+
+  <!-- C1 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-red">CRITICAL</span>
+        <span class="badge badge-gray">MEMORY LEAK</span>
+      </div>
+      <div class="issue-title">Firebase unsubscribe race condition</div>
+      <span class="file-link">src/lib/firebase/realtime.service.ts:402–514</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p><code>unsubscribeRef</code> is set inside an async auth promise chain. If the component unmounts before auth resolves, the Realtime DB listener stays active permanently. Rapid mount/unmount cycles (e.g. tab switching) accumulate listeners that are never cleaned up.</p>
+      </div>
+      <div class="issue-field">
+        <label>Impact</label>
+        <p>Memory grows over the lifetime of the session. Stale listeners receive and process data after the component is gone, causing phantom state updates and wasted network.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Move auth initialization outside the subscription callback, or track the pending auth promise in a ref and cancel it on unmount before it resolves.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C2 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-red">CRITICAL</span>
+        <span class="badge badge-gray">PERF</span>
+      </div>
+      <div class="issue-title">6+ synchronous localStorage reads per cart operation</div>
+      <span class="file-link">src/contexts/CartContext.tsx:171, 325, 433, 496, 528, 741</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p><code>getFromStorage('morsel_session_user_id')</code> is called inside every cart mutation — <code>addItem</code>, <code>removeItem</code>, <code>syncCartFromAPI</code>, <code>confirmOrder</code>, and more. Each call is a synchronous main-thread operation.</p>
+      </div>
+      <div class="issue-field">
+        <label>Impact</label>
+        <p>Blocks the JS thread 6+ times per cart interaction. On low-end Android devices (common for restaurant patrons), this causes visible jank on quantity changes and add-to-cart taps.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Read <code>sessionUserId</code> once during CartContext initialization. Cache in a <code>useRef</code>. Update the ref only when the session changes. Zero reads inside cart operations.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C3 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-red">CRITICAL</span>
+        <span class="badge badge-gray">API DUPLICATION</span>
+      </div>
+      <div class="issue-title">Participants data subscribed in two places simultaneously</div>
+      <span class="file-link">src/contexts/SessionContext.tsx:412–447 &amp; src/components/session/ParticipantsList.tsx:229–241</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p>Both <code>SessionContext</code> and <code>ParticipantsList</code> independently subscribe to participants updates — creating duplicate Firebase subscriptions and duplicate API polling every 10 seconds for the same data.</p>
+      </div>
+      <div class="issue-field">
+        <label>Impact</label>
+        <p>Double the API load on the session endpoint. Two separate processing pipelines that can race. Participants data can momentarily differ between the two sources causing flicker.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Single subscription source in SessionContext only. ParticipantsList reads participants state from SessionContext via <code>useSession()</code>. Remove Firebase subscription and polling from ParticipantsList entirely.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C4 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-red">CRITICAL</span>
+        <span class="badge badge-gray">WATERFALL</span>
+      </div>
+      <div class="issue-title">confirmOrder triggers sequential API waterfall</div>
+      <span class="file-link">src/contexts/CartContext.tsx:819–829</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p><code>confirmOrder</code> → await response → <code>refreshSessionData</code> → cart update. Three sequential async operations where the session refresh could run in parallel with the order confirmation response processing.</p>
+      </div>
+      <div class="issue-field">
+        <label>Impact</label>
+        <p>1–2 extra seconds before the user sees post-order UI. The "Placing order…" state lasts longer than necessary, making the app feel slow at the most important moment.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Use <code>Promise.all()</code> to run session refresh in parallel with order response processing where data dependencies allow. Transition UI optimistically on confirm tap, rollback on failure.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- HIGH -->
+  <h2><span class="section-high">High — Fix Within Sprint</span></h2>
+
+  <!-- H1 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-orange">HIGH</span>
+        <span class="badge badge-gray">POLLING</span>
+      </div>
+      <div class="issue-title">Two independent polling loops for same session endpoint</div>
+      <span class="file-link">src/contexts/SessionContext.tsx:362–376 &amp; src/components/session/ParticipantsList.tsx:270–281</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p>Both contexts poll <code>GET /ordering-session/session/:id</code> every 10 seconds independently. No coordination, no backoff on failure — if the API is slow, both fire simultaneously.</p>
+      </div>
+      <div class="issue-field">
+        <label>Impact</label>
+        <p>Double the server load from every active customer session. On a busy service period, this compounds across hundreds of sessions.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          One polling source in SessionContext. Add exponential backoff: on failure, double the interval up to a max (e.g. 60s). ParticipantsList consumes from context — no polling of its own.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- H2 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-orange">HIGH</span>
+        <span class="badge badge-gray">RE-RENDER</span>
+      </div>
+      <div class="issue-title">SessionContext value breaks memoization on every render</div>
+      <span class="file-link">src/contexts/SessionContext.tsx:466–482</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p>Context value is wrapped in <code>useMemo</code>, but many callbacks inside are created inline without <code>useCallback</code>. Every render of <code>SessionProvider</code> creates new function references, breaking the memo and causing all 20+ consuming components to re-render.</p>
+      </div>
+      <div class="issue-field">
+        <label>Impact</label>
+        <p>Cascading re-renders through the entire component tree on every session state change. This includes ParticipantsList, Header, CartItem, OrderTabs — all re-render unnecessarily.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Wrap each callback with <code>useCallback</code> independently before composing them into the context value object. Separate mutable state from stable callbacks into different context providers if needed.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- H3 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-orange">HIGH</span>
+        <span class="badge badge-gray">PERF</span>
+      </div>
+      <div class="issue-title">Menu search filters 100+ items synchronously on every keystroke</div>
+      <span class="file-link">src/app/menu/page.tsx:498–524</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p><code>hasAnyFilteredItems</code> iterates through all menus → all categories → all items and runs <code>mapApiItemToMenuItem()</code> on every character typed in the search box. No debounce, no deferred execution.</p>
+      </div>
+      <div class="issue-field">
+        <label>Impact</label>
+        <p>On a restaurant with 50+ items, typing quickly causes visible input lag. The search field feels sticky — every character is delayed by the compute time of the filter pass.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Debounce the search query state update by 300ms: <code>const debouncedQuery = useDebounce(searchQuery, 300)</code>. Then use <code>useDeferredValue(debouncedQuery)</code> for the filtered list computation to keep the input responsive.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- H4 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-orange">HIGH</span>
+        <span class="badge badge-gray">UX</span>
+      </div>
+      <div class="issue-title">No error boundaries — any error crashes the full page</div>
+      <span class="file-link">src/app/cart/page.tsx &amp; src/app/menu/page.tsx</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p>Neither the cart page nor the menu page has an error boundary. A thrown error anywhere in the component tree (network failure, null deref, API shape mismatch) unmounts the entire page with a blank screen.</p>
+      </div>
+      <div class="issue-field">
+        <label>Impact</label>
+        <p>Users are stranded with a blank screen and no recovery option. In a restaurant setting where the customer is actively ordering, this is a critical UX failure.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Add a React error boundary around each page's main content area with a "Something went wrong — tap to retry" fallback UI. Next.js also supports <code>error.tsx</code> per route segment as a simpler alternative.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- H5 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-orange">HIGH</span>
+        <span class="badge badge-gray">UX</span>
+      </div>
+      <div class="issue-title">Plain text "Loading..." on cart page — no skeleton</div>
+      <span class="file-link">src/app/cart/page.tsx:70</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p>While cart data fetches, the page shows a bare <code>&lt;p&gt;Loading...&lt;/p&gt;</code> string with no visual structure — no skeleton, no spinner, no layout hints.</p>
+      </div>
+      <div class="issue-field">
+        <label>Impact</label>
+        <p>The page looks broken during load. Users don't know if the app is doing anything. Content jump when data arrives is jarring — no layout stability.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Replace with skeleton components matching the actual layout: cart item skeletons (image box + 2 lines of text), bill section skeleton (3 rows), CTA button skeleton. Use pulsing animation via Tailwind <code>animate-pulse</code>.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- H6 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-orange">HIGH</span>
+        <span class="badge badge-gray">UX</span>
+      </div>
+      <div class="issue-title">Blank state on order tab switch — no loading indicator</div>
+      <span class="file-link">src/components/order/PostOrderView.tsx</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p>When a user taps a different participant's order tab, the component fetches that order's data but shows nothing while loading — momentary blank or stale content.</p>
+      </div>
+      <div class="issue-field">
+        <label>Impact</label>
+        <p>Tab switch feels broken — user taps, nothing happens visually, then content appears 500ms–1s later. Common pattern in group ordering where users browse others' tabs.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Show order item skeletons immediately on tab switch while the data fetches. Keep the previous tab's total visible in the tab bar (already works) but add a shimmer to the content area.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- MEDIUM -->
+  <h2><span class="section-medium">Medium — Fix When Refactoring</span></h2>
+
+  <!-- M1 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="badge badge-gray">PERF</span>
+      </div>
+      <div class="issue-title">Dietary type recalculated in 3 separate components</div>
+      <span class="file-link">src/components/cart/CartItem.tsx:23–36 &amp; src/components/menu/MenuItem.tsx:162–175 &amp; src/components/order/PostOrderView.tsx:25–41</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p>The same allergen array processing and dietary type derivation logic is duplicated across three components — all computing the same string operations on every render.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Single <code>getDietaryType(item)</code> utility in <code>src/lib/utils.ts</code>. Memoize result per item ID using a <code>Map</code> cache. All three components import and call it identically.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- M2 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="badge badge-gray">MEMORY</span>
+      </div>
+      <div class="issue-title">Module-level session cache in ParticipantsList never clears</div>
+      <span class="file-link">src/components/session/ParticipantsList.tsx:19–30</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p>A global <code>sessionCache</code> object is defined at module level and persists across component mounts and unmounts. Different sessions can receive stale cached data from a previous session.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Move cache into component state or <code>useRef</code> so it resets on mount. Add a TTL (e.g. 30s) after which the cache is considered stale and re-fetched.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- M3 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="badge badge-gray">COMPONENT SIZE</span>
+      </div>
+      <div class="issue-title">CustomizationModal is 695 lines — too many responsibilities</div>
+      <span class="file-link">src/components/order/CustomizationModal.tsx</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p>A single file handles: state initialization from item data, price calculations, form validation, spice level selector, addon accordion logic, and rendering — 695 lines of mixed concerns.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Extract <code>SpiceLevelSelector</code> component, <code>AddonGroup</code> component, and a <code>useCustomizationState(item)</code> hook for price/validation logic. Modal becomes a thin coordinator.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- M4 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="badge badge-gray">COMPONENT SIZE</span>
+      </div>
+      <div class="issue-title">ParticipantsList is 540 lines — mixes data and presentation</div>
+      <span class="file-link">src/components/session/ParticipantsList.tsx</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p>Manages Firebase subscriptions, session caching, participant sync, split calculations, and rendering all in one file. Data logic and UI logic are deeply entangled.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Extract all Firebase and API logic into a <code>useParticipantsSync()</code> hook. ParticipantsList becomes a pure presentation component that receives participants as props.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- M5 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="badge badge-gray">RE-RENDER</span>
+      </div>
+      <div class="issue-title">Header recalculates participant dot positions on every render</div>
+      <span class="file-link">src/components/layout/Header.tsx:160–177</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p><code>Array.from()</code> and trigonometric calculations for participant avatar dot positioning run on every render, even when participant count hasn't changed.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          <code>const dots = useMemo(() =&gt; calculateDots(participantCount), [participantCount])</code> — recalculates only when count changes.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- M6 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="badge badge-gray">UX</span>
+      </div>
+      <div class="issue-title">Order confirmation waits for full API round-trip before UI transitions</div>
+      <span class="file-link">src/hooks/useCartPageState.ts:192–232</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p>After user taps "Place Order", the app waits 1–2 seconds for the API response before transitioning to post-order view. No intermediate state shown.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Optimistically transition to a "processing" post-order state immediately on tap. Show a subtle spinner in the order summary. Roll back to pre-order view with an error toast if the API fails.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- M7 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-yellow">MEDIUM</span>
+        <span class="badge badge-gray">UX</span>
+      </div>
+      <div class="issue-title">Menu distinguishes "no results" and "API error" with same empty state</div>
+      <span class="file-link">src/app/menu/page.tsx:532–540</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field">
+        <label>Issue</label>
+        <p>When the menu API fails, the page shows "No items found" — identical to a genuine empty menu. Users can't tell if their data simply didn't load vs. the menu is truly empty.</p>
+      </div>
+      <div class="issue-field full">
+        <div class="fix-box">
+          <strong>Fix</strong>
+          Track error state separately from empty state. Show "Couldn't load menu — tap to retry" with a retry button on error. Reserve "No items found" for genuine zero-result states.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- LOW / A11y -->
+  <h2><span class="section-low">Low / Accessibility</span></h2>
+
+  <!-- L1 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-gray">LOW</span>
+        <span class="badge badge-blue">A11Y</span>
+      </div>
+      <div class="issue-title">SplitSettingsModal missing aria-label on dialog</div>
+      <span class="file-link">src/components/order/SplitSettingsModal.tsx:210–217</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field full">
+        <p style="color:#94a3b8;font-size:13px;margin-bottom:10px">Modal has <code>aria-modal</code> but no <code>aria-label</code>. Screen readers announce "dialog" with no context.</p>
+        <div class="fix-box"><strong>Fix</strong>Add <code>aria-label="Split bill settings"</code> to the modal root div.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- L2 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-gray">LOW</span>
+        <span class="badge badge-blue">A11Y</span>
+      </div>
+      <div class="issue-title">BillModal payment buttons read emoji characters aloud</div>
+      <span class="file-link">src/components/cart/BillModal.tsx:131–170</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field full">
+        <p style="color:#94a3b8;font-size:13px;margin-bottom:10px">Payment method buttons show emoji (💳, 🅒) without <code>aria-label</code>. Screen readers read out the emoji Unicode name verbatim.</p>
+        <div class="fix-box"><strong>Fix</strong>Add <code>aria-label="Pay with Card"</code>, <code>aria-label="Pay with Cash"</code> etc. to each button.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- L3 -->
+  <div class="issue-card">
+    <div class="issue-header">
+      <div class="tag-row">
+        <span class="badge badge-gray">LOW</span>
+        <span class="badge badge-blue">A11Y</span>
+      </div>
+      <div class="issue-title">Participant cards lack accessible name linking name to amount</div>
+      <span class="file-link">src/components/session/ParticipantsList.tsx:443–446</span>
+    </div>
+    <div class="issue-body">
+      <div class="issue-field full">
+        <p style="color:#94a3b8;font-size:13px;margin-bottom:10px">Avatar and amount are shown next to each other visually but have no accessible grouping. Screen readers announce them as disconnected elements.</p>
+        <div class="fix-box"><strong>Fix</strong>Wrap each participant card with <code>role="article"</code> and <code>aria-label="Alice — Rs 125.00"</code>.</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- Severity table -->
+  <h2>All Issues — Quick Reference</h2>
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead>
+      <tr style="border-bottom:1px solid #1e2330;text-align:left;">
+        <th style="padding:8px 12px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">#</th>
+        <th style="padding:8px 12px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Severity</th>
+        <th style="padding:8px 12px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Category</th>
+        <th style="padding:8px 12px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Title</th>
+        <th style="padding:8px 12px;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">File</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">1</td>
+        <td style="padding:8px 12px;"><span class="badge badge-red">Critical</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">Memory Leak</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Firebase unsubscribe race condition</td>
+        <td style="padding:8px 12px;"><code>realtime.service.ts:402</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">2</td>
+        <td style="padding:8px 12px;"><span class="badge badge-red">Critical</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">Perf</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">6+ sync localStorage reads per cart op</td>
+        <td style="padding:8px 12px;"><code>CartContext.tsx:171+</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">3</td>
+        <td style="padding:8px 12px;"><span class="badge badge-red">Critical</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">API Dup</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Participants subscribed in two places</td>
+        <td style="padding:8px 12px;"><code>SessionContext.tsx:412</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">4</td>
+        <td style="padding:8px 12px;"><span class="badge badge-red">Critical</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">Waterfall</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">confirmOrder triggers sequential fetches</td>
+        <td style="padding:8px 12px;"><code>CartContext.tsx:819</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">5</td>
+        <td style="padding:8px 12px;"><span class="badge badge-orange">High</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">Polling</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Two polling loops for same endpoint</td>
+        <td style="padding:8px 12px;"><code>SessionContext.tsx:362</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">6</td>
+        <td style="padding:8px 12px;"><span class="badge badge-orange">High</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">Re-render</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">SessionContext memo breaks on every render</td>
+        <td style="padding:8px 12px;"><code>SessionContext.tsx:466</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">7</td>
+        <td style="padding:8px 12px;"><span class="badge badge-orange">High</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">Perf</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Menu search filters 100+ items per keystroke</td>
+        <td style="padding:8px 12px;"><code>menu/page.tsx:498</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">8</td>
+        <td style="padding:8px 12px;"><span class="badge badge-orange">High</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">UX</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">No error boundaries — full page crash on error</td>
+        <td style="padding:8px 12px;"><code>cart/page.tsx, menu/page.tsx</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">9</td>
+        <td style="padding:8px 12px;"><span class="badge badge-orange">High</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">UX</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Plain text Loading… on cart page</td>
+        <td style="padding:8px 12px;"><code>cart/page.tsx:70</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">10</td>
+        <td style="padding:8px 12px;"><span class="badge badge-orange">High</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">UX</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Blank state on order tab switch</td>
+        <td style="padding:8px 12px;"><code>PostOrderView.tsx</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">11</td>
+        <td style="padding:8px 12px;"><span class="badge badge-yellow">Medium</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">Perf</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Dietary type calc in 3 separate components</td>
+        <td style="padding:8px 12px;"><code>CartItem, MenuItem, PostOrderView</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">12</td>
+        <td style="padding:8px 12px;"><span class="badge badge-yellow">Medium</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">Memory</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Module-level session cache never clears</td>
+        <td style="padding:8px 12px;"><code>ParticipantsList.tsx:19</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">13</td>
+        <td style="padding:8px 12px;"><span class="badge badge-yellow">Medium</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">Size</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">CustomizationModal 695 lines, mixed concerns</td>
+        <td style="padding:8px 12px;"><code>CustomizationModal.tsx</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">14</td>
+        <td style="padding:8px 12px;"><span class="badge badge-yellow">Medium</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">Size</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">ParticipantsList 540 lines, mixed concerns</td>
+        <td style="padding:8px 12px;"><code>ParticipantsList.tsx</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">15</td>
+        <td style="padding:8px 12px;"><span class="badge badge-yellow">Medium</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">Re-render</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Header dot positions recalculated every render</td>
+        <td style="padding:8px 12px;"><code>Header.tsx:160</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">16</td>
+        <td style="padding:8px 12px;"><span class="badge badge-yellow">Medium</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">UX</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Order confirmation waits full API round-trip</td>
+        <td style="padding:8px 12px;"><code>useCartPageState.ts:192</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">17</td>
+        <td style="padding:8px 12px;"><span class="badge badge-yellow">Medium</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">UX</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Error vs. empty menu look identical</td>
+        <td style="padding:8px 12px;"><code>menu/page.tsx:532</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">18</td>
+        <td style="padding:8px 12px;"><span class="badge badge-gray">Low</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">A11y</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">SplitSettingsModal missing aria-label</td>
+        <td style="padding:8px 12px;"><code>SplitSettingsModal.tsx:210</code></td>
+      </tr>
+      <tr style="border-bottom:1px solid #1e2330;">
+        <td style="padding:8px 12px;color:#64748b;">19</td>
+        <td style="padding:8px 12px;"><span class="badge badge-gray">Low</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">A11y</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Payment buttons read emoji aloud</td>
+        <td style="padding:8px 12px;"><code>BillModal.tsx:131</code></td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;color:#64748b;">20</td>
+        <td style="padding:8px 12px;"><span class="badge badge-gray">Low</span></td>
+        <td style="padding:8px 12px;color:#94a3b8;">A11y</td>
+        <td style="padding:8px 12px;color:#f1f5f9;">Participant cards lack accessible grouping</td>
+        <td style="padding:8px 12px;"><code>ParticipantsList.tsx:443</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="color:#475569;font-size:12px;margin-top:32px;text-align:center;">
+    Generated March 2026 &nbsp;·&nbsp; Morsel Customer App — Performance &amp; UX Audit
+  </p>
+
+</div>
+</body>
+</html>

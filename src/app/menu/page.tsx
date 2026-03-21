@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useRef, useEffect } from "react";
+import React, { useMemo, useState, useRef, useEffect, useDeferredValue } from "react";
 import dynamic from "next/dynamic";
 import { Header } from "@/components/layout/Header";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -264,6 +264,8 @@ export default function MenuPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [useApiData, setUseApiData] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Defer the search query so typing stays responsive while filtering happens in the background
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -494,10 +496,10 @@ export default function MenuPage() {
   );
 
   // Check if there are any items matching the search query
-  // Must be before early returns (React Hook rules)
+  // Uses deferredSearchQuery so the input stays responsive while this heavy computation runs
   const hasAnyFilteredItems = React.useMemo(() => {
     if (!context?.restaurant) return true;
-    if (!searchQuery.trim()) return true; // No search means show all
+    if (!deferredSearchQuery.trim()) return true; // No search means show all
 
     // Check across all categories for any matching items
     if (useApiData && apiMenus.length > 0) {
@@ -508,20 +510,20 @@ export default function MenuPage() {
             const items = areSectionItemsObjects(section.items)
               ? section.items.map((item) => mapApiItemToMenuItem(item, menu.id, sessionData?.business.id || context.restaurant.id))
               : [];
-            return filterItemsBySearch(items, searchQuery).length > 0;
+            return filterItemsBySearch(items, deferredSearchQuery).length > 0;
           });
         } else {
           const items = menu.items.map((item) => mapApiItemToMenuItem(item, menu.id, sessionData?.business.id || context.restaurant.id));
-          return filterItemsBySearch(items, searchQuery).length > 0;
+          return filterItemsBySearch(items, deferredSearchQuery).length > 0;
         }
       });
     } else {
       return menuData.categories.some((category) => {
         const items = getItemsByCategory(context.restaurant.id, category.id);
-        return filterItemsBySearch(items, searchQuery).length > 0;
+        return filterItemsBySearch(items, deferredSearchQuery).length > 0;
       });
     }
-  }, [searchQuery, useApiData, apiMenus, menuData.categories, menuUsesSections, areSectionItemsObjects, mapApiItemToMenuItem, filterItemsBySearch, sessionData?.business.id, context?.restaurant]);
+  }, [deferredSearchQuery, useApiData, apiMenus, menuData.categories, menuUsesSections, areSectionItemsObjects, mapApiItemToMenuItem, filterItemsBySearch, sessionData?.business.id, context?.restaurant]);
 
   // Don't render if no context (will redirect) - must be after ALL hooks
   if (!context || !context.restaurant) {
@@ -554,7 +556,7 @@ export default function MenuPage() {
             title="No menu available"
             description="We're currently updating our menu. Please check back soon!"
           />
-        ) : searchQuery.trim() && !hasAnyFilteredItems ? (
+        ) : deferredSearchQuery.trim() && !hasAnyFilteredItems ? (
           <EmptyState
             icon="🔍"
             title="No items found"
@@ -587,7 +589,7 @@ export default function MenuPage() {
                     sectionRefs.current[id] = el;
                   }}
                   filterItemsBySearch={filterItemsBySearch}
-                  searchQuery={searchQuery}
+                  searchQuery={deferredSearchQuery}
                 />
               );
             } else {
@@ -597,8 +599,8 @@ export default function MenuPage() {
                 category.id
               );
 
-              // Filter items by search query
-              const filteredItems = filterItemsBySearch(items, searchQuery);
+              // Filter items by search query (deferred for responsiveness)
+              const filteredItems = filterItemsBySearch(items, deferredSearchQuery);
 
               if (filteredItems.length === 0) return null;
 
