@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useLocale } from '@/contexts/LocaleContext';
+import { Modal } from '@/components/ui/Modal';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 
 const STORAGE_KEY = 'morsel_tip';
@@ -26,16 +28,17 @@ interface TipSelectorProps {
 }
 
 export function TipSelector({ subtotal, onTipChange }: TipSelectorProps) {
+  const { formatPrice } = useLocale();
   const [selectedTip, setSelectedTip] = useState<number>(() => {
     const stored = getFromStorage<TipState>(STORAGE_KEY);
     return stored?.percentage ?? 10;
   });
-  const [showCustomInput, setShowCustomInput] = useState(false);
-  const [customTip, setCustomTip] = useState('');
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [customTipInput, setCustomTipInput] = useState('');
 
   // Calculate the actual tip amount
   const tipAmount = selectedTip === -1
-    ? parseFloat(customTip) || 0
+    ? parseFloat(getFromStorage<TipState>(STORAGE_KEY)?.amount?.toString() || '0') || 0
     : Math.round(subtotal * (selectedTip / 100) * 100) / 100;
 
   // Persist tip state and notify parent
@@ -47,70 +50,124 @@ export function TipSelector({ subtotal, onTipChange }: TipSelectorProps) {
 
   const handleSelectPreset = useCallback((value: number) => {
     setSelectedTip(value);
-    setShowCustomInput(false);
-    setCustomTip('');
   }, []);
 
+  // Get current tip label for the confirm button
+  const getTipLabel = () => {
+    if (selectedTip === -1) return 'Custom Tip';
+    return `Tip ${selectedTip}%`;
+  };
+
+  const handleConfirmCustomTip = useCallback(() => {
+    const amount = parseFloat(customTipInput) || 0;
+    setSelectedTip(-1);
+    const state: TipState = { percentage: -1, amount };
+    setInStorage(STORAGE_KEY, state);
+    onTipChange?.(state);
+    setShowCustomModal(false);
+    setCustomTipInput('');
+  }, [customTipInput, onTipChange]);
+
   return (
-    <div className="flex flex-col gap-3 mt-6">
-      <div className="flex gap-3 items-start justify-center w-full">
-        {TIP_OPTIONS.map((option) => {
-          const isSelected = !showCustomInput && selectedTip === option.value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => handleSelectPreset(option.value)}
-              className={`flex-1 px-5 py-2 rounded-[30px] border-2 text-[16px] font-bold text-center transition-all ${
-                isSelected
-                  ? 'bg-black border-[#595959] text-white'
-                  : 'bg-white border-[#ECECEC] text-black'
-              }`}
-              style={{ fontFamily: 'Lato, sans-serif' }}
-            >
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-      {!showCustomInput ? (
+    <>
+      <div className="flex flex-col gap-3">
+        <div className="flex gap-3 items-start justify-center w-full">
+          {TIP_OPTIONS.map((option) => {
+            const isSelected = selectedTip === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleSelectPreset(option.value)}
+                className={`flex-1 px-5 py-2 rounded-[30px] border-2 text-[16px] font-bold text-center transition-all ${
+                  isSelected
+                    ? 'bg-black border-[#595959] text-white'
+                    : 'bg-white border-[#ECECEC] text-black'
+                }`}
+                style={{ fontFamily: 'Lato, sans-serif' }}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
         <button
           type="button"
-          onClick={() => setShowCustomInput(true)}
-          className="w-full px-5 py-2 rounded-[30px] border-2 border-[#ECECEC] bg-white text-[16px] font-bold text-black text-center transition-all hover:bg-gray-50"
+          onClick={() => setShowCustomModal(true)}
+          className={`w-full px-5 py-2 rounded-[30px] border-2 text-[16px] font-bold text-center transition-all ${
+            selectedTip === -1
+              ? 'bg-black border-[#595959] text-white'
+              : 'bg-white border-[#ECECEC] text-black hover:bg-gray-50'
+          }`}
           style={{ fontFamily: 'Lato, sans-serif' }}
         >
           Custom Tip
         </button>
-      ) : (
-        <div className="flex items-center gap-2 w-full">
+      </div>
+
+      {/* Custom Tip Bottom Sheet */}
+      <Modal
+        isOpen={showCustomModal}
+        onClose={() => setShowCustomModal(false)}
+        size="sm"
+        showCloseButton={false}
+      >
+        <div className="p-6">
+          <h3
+            className="text-[22px] font-bold text-black mb-5"
+            style={{ fontFamily: 'Lato, sans-serif' }}
+          >
+            Custom Tip
+          </h3>
+
+          {/* Input */}
           <input
             type="number"
             min="0"
             step="0.01"
-            value={customTip}
-            onChange={(e) => setCustomTip(e.target.value)}
-            placeholder="Enter tip amount"
-            className="flex-1 px-5 py-2 rounded-[30px] border-2 border-black bg-white text-[16px] font-bold text-black text-center focus:outline-none"
+            value={customTipInput}
+            onChange={(e) => setCustomTipInput(e.target.value)}
+            placeholder="Enter Custom Tip amount"
+            className="w-full px-5 py-3 rounded-[30px] border-2 border-[#ECECEC] bg-white text-[16px] text-black text-center focus:outline-none focus:border-black"
             style={{ fontFamily: 'Lato, sans-serif' }}
             autoFocus
           />
+
+          {/* Bill summary */}
+          <div className="flex flex-col gap-1 mt-5">
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] text-black opacity-60" style={{ fontFamily: 'Lato, sans-serif' }}>
+                Total Bill
+              </span>
+              <span className="text-[13px] text-black opacity-60" style={{ fontFamily: 'Lato, sans-serif' }}>
+                {formatPrice(subtotal)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[16px] font-bold text-black" style={{ fontFamily: 'Lato, sans-serif' }}>
+                Tip
+              </span>
+              <span className="text-[20px] font-bold text-black" style={{ fontFamily: 'Lato, sans-serif' }}>
+                {formatPrice(parseFloat(customTipInput) || 0)}
+              </span>
+            </div>
+          </div>
+
+          {/* Confirm button */}
           <button
             type="button"
-            onClick={() => {
-              setShowCustomInput(false);
-              if (customTip) {
-                setSelectedTip(-1);
-              }
-            }}
-            className="px-4 py-2 rounded-[30px] bg-black text-white text-sm font-bold shrink-0"
+            onClick={handleConfirmCustomTip}
+            className="w-full mt-5 py-4 rounded-[30px] bg-black text-white text-[18px] font-bold text-center transition-all active:opacity-90"
             style={{ fontFamily: 'Lato, sans-serif' }}
           >
-            Set
+            {customTipInput && parseFloat(customTipInput) > 0
+              ? `Tip ${formatPrice(parseFloat(customTipInput))}`
+              : getTipLabel()
+            }
           </button>
         </div>
-      )}
-    </div>
+      </Modal>
+    </>
   );
 }
 

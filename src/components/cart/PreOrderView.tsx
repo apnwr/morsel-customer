@@ -13,6 +13,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useLocale } from '@/contexts/LocaleContext';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useCart } from '@/contexts/CartContext';
 import { useSplit } from '@/contexts/SplitContext';
 import { useSession } from '@/contexts/SessionContext';
@@ -55,6 +56,35 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
 
   // Current user's session ID
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+
+  // My items vs others' items
+  const myItems = useMemo(
+    () => cart.items.filter((item) => !item.sessionUserId || item.sessionUserId === currentSessionUserId),
+    [cart.items, currentSessionUserId]
+  );
+
+  const othersItems = useMemo(
+    () => cart.items.filter((item) => item.sessionUserId && item.sessionUserId !== currentSessionUserId),
+    [cart.items, currentSessionUserId]
+  );
+
+  // Group others' items by participant
+  const othersGrouped = useMemo(() => {
+    const groups: { sessionUserId: string; guestName: string; items: CartItemType[] }[] = [];
+    const seen = new Map<string, number>();
+
+    for (const item of othersItems) {
+      const uid = item.sessionUserId!;
+      if (!seen.has(uid)) {
+        const participant = sessionData?.session?.participants?.find((p) => p.sessionUserId === uid);
+        seen.set(uid, groups.length);
+        groups.push({ sessionUserId: uid, guestName: participant?.guestName || 'Guest', items: [item] });
+      } else {
+        groups[seen.get(uid)!].items.push(item);
+      }
+    }
+    return groups;
+  }, [othersItems, sessionData]);
 
   // Mark as client-side on mount
   useState(() => {
@@ -113,6 +143,17 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
     return cart.total;
   }, [split.participants, split.shares, useSplitShares, cart.total, currentSessionUserId]);
 
+  // Persist kitchen note to localStorage
+  const handleSaveNote = useCallback(() => {
+    setShowNoteInput(false);
+    setInStorage(KITCHEN_NOTE_KEY, kitchenNote);
+  }, [kitchenNote]);
+
+  const handleCancelNote = useCallback(() => {
+    setShowNoteInput(false);
+    setKitchenNote('');
+    setInStorage(KITCHEN_NOTE_KEY, '');
+  }, []);
 
   // Empty state
   if (!isClient || cart.items.length === 0) {
@@ -128,18 +169,6 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
       </div>
     );
   }
-
-  // Persist kitchen note to localStorage
-  const handleSaveNote = useCallback(() => {
-    setShowNoteInput(false);
-    setInStorage(KITCHEN_NOTE_KEY, kitchenNote);
-  }, [kitchenNote]);
-
-  const handleCancelNote = useCallback(() => {
-    setShowNoteInput(false);
-    setKitchenNote('');
-    setInStorage(KITCHEN_NOTE_KEY, '');
-  }, []);
 
   return (
     <>
@@ -181,18 +210,107 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
           <ParticipantsList />
         </div>
 
-        {/* Cart Items */}
-        <div className="space-y-2 pb-4 mb-1">
-          {cart.items.map((item) => (
-            <CartItem
-              key={item.id}
-              item={item}
-              onUpdateQuantity={handleUpdateQuantity}
-              onCustomize={handleCustomize}
-              sessionData={sessionData}
-            />
-          ))}
-        </div>
+        {/* My Cart */}
+        {myItems.length > 0 ? (
+          <div className="space-y-2 pb-4 mb-1">
+            {myItems.map((item) => (
+              <CartItem
+                key={item.id}
+                item={item}
+                onUpdateQuantity={handleUpdateQuantity}
+                onCustomize={handleCustomize}
+                sessionData={sessionData}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-6 px-4 mb-4 border-2 border-dashed border-gray-200 rounded-[20px] bg-white">
+            <span className="text-2xl mb-2">🛒</span>
+            <p className="text-sm font-semibold text-gray-500">Your cart is empty</p>
+            <button
+              onClick={() => router.push('/menu')}
+              className="mt-2 text-xs text-black underline"
+            >
+              Browse Menu
+            </button>
+          </div>
+        )}
+
+        {/* Table Orders — read-only view of other participants' items */}
+        {othersGrouped.length > 0 && (
+          <div className="mb-4">
+            <p
+              className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 px-1"
+              style={{ fontFamily: 'Lato, sans-serif' }}
+            >
+              Table Orders
+            </p>
+            <div className="border-2 border-[#ECECEC] rounded-[20px] bg-white overflow-hidden">
+              {othersGrouped.map((group, groupIndex) => (
+                <div
+                  key={group.sessionUserId}
+                  className={groupIndex > 0 ? 'border-t border-[#ECECEC]' : ''}
+                >
+                  <div className="px-4 pt-3 pb-1">
+                    <span
+                      className="inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-semibold rounded-full"
+                      style={{ fontFamily: 'Lato, sans-serif' }}
+                    >
+                      {group.guestName}
+                    </span>
+                  </div>
+                  {group.items.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between px-4 py-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="shrink-0 w-[36px] h-[36px] rounded-[10px] overflow-hidden bg-gray-100">
+                          {item.menuItem.image ? (
+                            <Image
+                              src={item.menuItem.image}
+                              alt={item.menuItem.name}
+                              width={36}
+                              height={36}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gray-200" />
+                          )}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span
+                            className="text-sm font-bold truncate"
+                            style={{ fontFamily: 'Lato, sans-serif' }}
+                          >
+                            {item.menuItem.name}
+                          </span>
+                          <span
+                            className="text-xs opacity-50"
+                            style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
+                          >
+                            {formatPrice(item.menuItem.price)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <span
+                          className="text-sm font-bold px-3 py-1 border-2 border-gray-200 rounded-[10px]"
+                          style={{ fontFamily: 'Lato, sans-serif' }}
+                        >
+                          ×{item.quantity}
+                        </span>
+                        <span
+                          className="text-xs font-black"
+                          style={{ fontFamily: 'Lato, sans-serif', fontWeight: 900 }}
+                        >
+                          {formatPrice(item.itemTotal)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Note to Kitchen */}
         <div className="border-3 border-[#ECECEC] py-2 px-3 rounded-[30px] mt-1 w-fit">
@@ -257,7 +375,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
 
       {/* Place Order Button */}
       <div
-        className="fixed left-0 right-0 z-20 rounded-t-[30px] overflow-hidden flex justify-center"
+        className="fixed left-0 right-0 z-20 flex justify-center"
         style={{
           bottom: 0,
           // iOS Safari fixed positioning fix
@@ -269,8 +387,8 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
       >
         <button
           onClick={onPlaceOrder}
-          disabled={isPlacingOrder}
-          className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-[22px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={isPlacingOrder || myItems.length === 0}
+          className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-[22px] transition-colors disabled:bg-gray-500 disabled:opacity-100 disabled:cursor-not-allowed"
           style={{
             fontFamily: 'Helvetica Neue, sans-serif',
             fontWeight: 700,

@@ -72,6 +72,7 @@ export function useOrdersPageState(): OrdersPageState {
   }, [sessionData?.session?.id]);
 
   // Load all orders and merge into unified view
+  // Strategy: show cached data instantly, then always refresh from API
   useEffect(() => {
     if (allOrderIds.length === 0) {
       setOrderData(null);
@@ -79,70 +80,76 @@ export function useOrdersPageState(): OrdersPageState {
       return;
     }
 
-    const loadedOrders: APIOrder[] = [];
-    const missingIds: string[] = [];
-
+    // 1. Show cached data immediately for fast UX
+    const cachedOrders: APIOrder[] = [];
     for (const orderId of allOrderIds) {
       const stored = getFromStorage<APIOrder>(`morsel_order_${orderId}`);
       if (stored && stored.items?.length > 0) {
-        loadedOrders.push(stored);
-      } else {
-        missingIds.push(orderId);
+        cachedOrders.push(stored);
       }
     }
 
-    // All in localStorage — merge immediately
-    if (missingIds.length === 0) {
-      setOrderData(mergeOrders(loadedOrders, allOrderIds[allOrderIds.length - 1]));
-      setIsLoading(false);
-      return;
+    if (cachedOrders.length > 0) {
+      setOrderData(mergeOrders(cachedOrders, allOrderIds[allOrderIds.length - 1]));
     }
 
-    // Fetch missing orders from session API
+    // 2. Always fetch from API to get latest data (dashboard-added items, etc.)
     const sessionId = sessionData?.session?.id;
     const businessId = sessionData?.business?.id || sessionData?.business?.businessId;
     const spaceId = sessionData?.space?.id;
 
     if (!sessionId || !businessId || !spaceId) {
-      if (loadedOrders.length > 0) {
-        setOrderData(mergeOrders(loadedOrders, allOrderIds[allOrderIds.length - 1]));
-      } else {
-        setOrderData(null);
-      }
+      // No session info — can only use cached data
+      if (cachedOrders.length === 0) setOrderData(null);
       setIsLoading(false);
       return;
     }
 
     let cancelled = false;
-    setIsLoading(true);
+    if (cachedOrders.length === 0) setIsLoading(true);
 
     sessionService
       .getSessionById(sessionId)
       .then((res) => {
         if (cancelled) return;
         const apiOrders = res.data?.orders ?? [];
+        const freshOrders: APIOrder[] = [];
 
         for (const o of apiOrders) {
           const order = typeof o === 'object' && o && 'orderId' in o ? (o as SessionOrder) : null;
           if (order?.items && Array.isArray(order.items) && order.items.length > 0) {
             const key = `morsel_order_${order.orderId}`;
-            if (!getFromStorage(key)) {
-              const mapped = mapSessionOrderToAPIOrder(order, sessionId, businessId, spaceId);
+            const existing = getFromStorage<APIOrder>(key);
+            const mapped = mapSessionOrderToAPIOrder(order, sessionId, businessId, spaceId);
+
+            if (existing) {
+              // Preserve client-only metadata while updating items from API
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const ext = existing as any;
+              const updated = {
+                ...mapped,
+                _placedAt: ext._placedAt ?? 0,
+                _itemParticipants: ext._itemParticipants ?? {},
+                _itemImages: ext._itemImages ?? {},
+                _itemDietary: ext._itemDietary ?? {},
+                _kitchenNote: ext._kitchenNote ?? '',
+              };
+              setInStorage(key, updated);
+              freshOrders.push(updated);
+            } else {
               setInStorage(key, mapped);
-            }
-            const stored = getFromStorage<APIOrder>(key);
-            if (stored && !loadedOrders.some(lo => lo.id === order.orderId)) {
-              loadedOrders.push(stored);
+              freshOrders.push(mapped);
             }
           }
         }
 
-        setOrderData(mergeOrders(loadedOrders, allOrderIds[allOrderIds.length - 1]));
+        if (freshOrders.length > 0) {
+          setOrderData(mergeOrders(freshOrders, allOrderIds[allOrderIds.length - 1]));
+        }
       })
       .catch(() => {
-        if (!cancelled && loadedOrders.length > 0) {
-          setOrderData(mergeOrders(loadedOrders, allOrderIds[allOrderIds.length - 1]));
-        } else if (!cancelled) {
+        // API failed — keep showing cached data (already set above)
+        if (!cancelled && cachedOrders.length === 0) {
           setOrderData(null);
         }
       })
