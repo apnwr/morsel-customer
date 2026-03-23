@@ -15,15 +15,12 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useCart } from '@/contexts/CartContext';
-import { useSplit } from '@/contexts/SplitContext';
 import { useSession } from '@/contexts/SessionContext';
-import { ParticipantsList } from '@/components/session/ParticipantsList';
 import { CartItem } from '@/components/cart/CartItem';
 import { CartItem as CartItemType, Customization } from '@/types/cart';
 import { BillSection } from '@/components/cart/BillSection';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
-import { isSplitApplicableForTotal } from '@/lib/split-utils';
 
 // Lazy load CustomizationModal
 const CustomizationModal = dynamic(
@@ -45,7 +42,6 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
   const router = useRouter();
   const { formatPrice } = useLocale();
   const { cart, updateQuantity, removeItem, addItem } = useCart();
-  const { split } = useSplit();
   const { sessionData } = useSession();
 
   const [kitchenNote, setKitchenNote] = useState(() => getFromStorage<string>(KITCHEN_NOTE_KEY) || '');
@@ -123,25 +119,6 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
     [itemToCustomize, removeItem, addItem]
   );
 
-  const useSplitShares = isSplitApplicableForTotal(split.splitForTotal, cart.total);
-
-  // Calculate user's amount; use split.shares only when they were calculated for this cart's total
-  const userAmount = useMemo(() => {
-    if (!split.participants || split.participants.length === 0) {
-      return cart.total;
-    }
-
-    const currentUser = split.participants.find((p) => p.id === currentSessionUserId);
-
-    if (!currentUser) {
-      return cart.total;
-    }
-
-    if (useSplitShares && typeof split.shares[currentUser.id] === 'number') {
-      return split.shares[currentUser.id];
-    }
-    return cart.total;
-  }, [split.participants, split.shares, useSplitShares, cart.total, currentSessionUserId]);
 
   // Persist kitchen note to localStorage
   const handleSaveNote = useCallback(() => {
@@ -200,14 +177,9 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
           </button>
           {isBillExpanded && (
             <div className="px-4 pb-4">
-              <BillSection userAmount={userAmount} />
+              <BillSection userAmount={cart.total} />
             </div>
           )}
-        </div>
-
-        {/* Split / Participants Card */}
-        <div className="mb-4">
-          <ParticipantsList />
         </div>
 
         {/* My Cart */}
@@ -400,7 +372,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
             {isPlacingOrder ? 'Placing order...' : 'Place Order'}
           </span>
           <span className="flex-shrink-0">
-            {isClient ? formatPrice(userAmount) : formatPrice(0)}
+            {isClient ? formatPrice(cart.total) : formatPrice(0)}
           </span>
         </button>
       </div>
