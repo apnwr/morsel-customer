@@ -1,9 +1,10 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
-import type { OrderingSessionData, Timestamp, SessionParticipant, SessionOrder } from '@/types/api/session';
+import type { OrderingSessionData, Timestamp, SessionDetail, SessionOrder } from '@/types/api/session';
 import { sessionService } from '@/services/session.service';
-import { subscribeToParticipantsBySpace, isFirebaseAvailable } from '@/lib/firebase/realtime.service';
+import { subscribeToSessionInfo, isFirebaseAvailable } from '@/lib/firebase/realtime.service';
+import { DEFAULT_TIMEZONE } from '@/lib/currencies';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { mapSessionOrderToAPIOrder } from '@/lib/order-mapping';
 import { useLocale } from '@/contexts/LocaleContext';
@@ -409,11 +410,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (isFirebaseAvailable()) {
       console.log('[SessionContext] 🔥 Firebase available - setting up realtime listener');
 
-      const unsubscribe = subscribeToParticipantsBySpace(
+      const unsubscribe = subscribeToSessionInfo(
         spaceId,
         sessionId,
-        (participants: SessionParticipant[]) => {
-          console.log('[SessionContext] 🔥 Firebase update received - participants:', participants.length);
+        (sessionInfo: Partial<SessionDetail>) => {
+          const participants = sessionInfo.participants || [];
+          console.log('[SessionContext] 🔥 Firebase update received - participants:', participants.length, 'timezone:', sessionInfo.timezone || '(not set)');
+
+          // Apply timezone and currency from real-time data (fallback to defaults)
+          setLocale({
+            timezone: sessionInfo.timezone || DEFAULT_TIMEZONE,
+            currency: sessionInfo.currency || undefined,
+          });
 
           // Update session data with latest participants
           setSessionDataState(prev => {

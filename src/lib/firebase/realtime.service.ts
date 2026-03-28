@@ -390,6 +390,128 @@ export function subscribeToOrderQueueBySpace(
 }
 
 /**
+ * Subscribe to the full sessionInfo node by spaceId and sessionId.
+ * Provides real-time updates for participants, orderQueue, status, timezone, currency, etc.
+ * Path: activeSessionsBySpace/{spaceId}/{sessionId}/sessionInfo
+ *
+ * @param spaceId - The space ID
+ * @param sessionId - The session ID
+ * @param onUpdate - Callback when session info updates
+ * @param onError - Optional callback for errors
+ * @returns Unsubscribe function
+ */
+export function subscribeToSessionInfo(
+  spaceId: string,
+  sessionId: string,
+  onUpdate: (data: Partial<SessionDetail>) => void,
+  onError?: (error: Error) => void
+): Unsubscribe | null {
+  const db = getFirebaseDatabase();
+
+  if (!db) {
+    console.log('[Firebase Realtime] Firebase not available, using polling fallback');
+    return null;
+  }
+
+  let unsubscribeRef: Unsubscribe | null = null;
+
+  initializeFirebaseAuth()
+    .then(() => {
+      console.log('[Firebase Realtime] ✅ Auth initialized, setting up sessionInfo subscription');
+
+      try {
+        const sessionInfoRef = ref(db, `activeSessionsBySpace/${spaceId}/${sessionId}/sessionInfo`);
+
+        console.log('[Firebase Realtime] 🔄 Subscribing to sessionInfo:', {
+          spaceId: spaceId.substring(0, 8) + '...',
+          sessionId: sessionId.substring(0, 8) + '...',
+          path: `activeSessionsBySpace/${spaceId}/${sessionId}/sessionInfo`
+        });
+
+        const unsubscribe = onValue(
+          sessionInfoRef,
+          (snapshot) => {
+            updateConnectionState('connected');
+            const data = snapshot.val();
+
+            if (data) {
+              console.log('[Firebase Realtime] 📥 SessionInfo received:', {
+                sessionId: data.id?.substring(0, 8) + '...',
+                participantsCount: data.participantsCount,
+                ordersCount: data.ordersCount,
+                status: data.status,
+                timezone: data.timezone || '(not set)',
+              });
+
+              // Handle participants: array or sparse object
+              let participants: SessionParticipant[] = [];
+              if (Array.isArray(data.participants)) {
+                participants = data.participants.filter((p: unknown) => p !== null && p !== undefined);
+              } else if (data.participants && typeof data.participants === 'object') {
+                participants = Object.values(data.participants).filter((p: unknown) => p !== null && p !== undefined) as SessionParticipant[];
+              }
+
+              // Handle orderQueue: array or sparse object
+              let orderQueue: SessionOrderQueue[] = [];
+              if (Array.isArray(data.orderQueue)) {
+                orderQueue = data.orderQueue.filter((q: unknown) => q !== null && q !== undefined);
+              } else if (data.orderQueue && typeof data.orderQueue === 'object') {
+                orderQueue = Object.values(data.orderQueue).filter((q: unknown) => q !== null && q !== undefined) as SessionOrderQueue[];
+              }
+
+              const sessionDetail: Partial<SessionDetail> = {
+                id: data.id,
+                spaceId: data.spaceId,
+                businessId: data.businessId,
+                status: data.status,
+                participants,
+                orderQueue,
+                orders: Array.isArray(data.orders) ? data.orders : [],
+                timezone: data.timezone || undefined,
+                currency: data.currency || undefined,
+              };
+
+              onUpdate(sessionDetail);
+            } else {
+              console.warn('[Firebase Realtime] ⚠️ SessionInfo is null');
+            }
+          },
+          (error) => {
+            updateConnectionState('error');
+            console.error('[Firebase Realtime] ❌ Error listening to sessionInfo:', error);
+            if (onError) {
+              onError(error as Error);
+            }
+          }
+        );
+
+        unsubscribeRef = () => {
+          console.log('[Firebase Realtime] 🔌 Unsubscribing from sessionInfo:', sessionId.substring(0, 8) + '...');
+          off(sessionInfoRef);
+          unsubscribe();
+        };
+      } catch (error) {
+        console.error('[Firebase Realtime] ❌ Failed to subscribe to sessionInfo:', error);
+        if (onError) {
+          onError(error as Error);
+        }
+      }
+    })
+    .catch((error) => {
+      console.error('[Firebase Realtime] ❌ Auth initialization failed:', error);
+      if (onError) {
+        onError(error);
+      }
+    });
+
+  return () => {
+    if (unsubscribeRef) {
+      unsubscribeRef();
+    }
+  };
+}
+
+/**
  * Subscribe to order queue updates by spaceId and sessionId
  * Uses actual Firebase structure: activeSessionsBySpace/{spaceId}/{sessionId}/sessionInfo/orderQueue
  *

@@ -16,9 +16,11 @@ export {
 export {
   subscribeToSession,
   subscribeToSessionBySpace,
+  subscribeToSessionInfo,
   subscribeToOrderQueue,
   subscribeToOrderQueueBySpace,
   subscribeToParticipants,
+  subscribeToParticipantsBySpace,
   getConnectionState,
   onConnectionStateChange,
   reconnect,

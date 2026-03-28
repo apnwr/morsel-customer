@@ -20,6 +20,7 @@ import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
 import { Footer } from "@/components/layout/Footer";
 import type { MenuWithItems } from "@/types/api/menu";
+import { useMenuAvailability } from "@/hooks/useMenuAvailability";
 
 // Lazy load CustomizationModal since it's only shown on demand
 const CustomizationModal = dynamic(
@@ -105,6 +106,8 @@ const MenuRenderer = React.memo(
     setSectionRef,
     filterItemsBySearch,
     searchQuery,
+    isAvailable,
+    unavailableMessage,
   }: {
     menu: MenuWithItems;
     category: { id: string; name: string; description?: string; order: number; showMenuName?: boolean };
@@ -123,6 +126,8 @@ const MenuRenderer = React.memo(
     setSectionRef?: (id: string, el: HTMLDivElement | null) => void;
     filterItemsBySearch: (items: MenuItemType[], query: string) => MenuItemType[];
     searchQuery: string;
+    isAvailable?: boolean;
+    unavailableMessage?: string | null;
   }) => {
     if (menuUsesSections(menu)) {
       // Sections flow: Items are directly in sections as full objects
@@ -178,18 +183,27 @@ const MenuRenderer = React.memo(
 
       if (sectionsWithItems.length === 0) return null;
 
+      const menuUnavailable = isAvailable === false;
+
       return (
         <MenuWithRef ref={(el) => setCategoryRef(category.id, el)}>
           <div className="mb-5 pb-3 border-b border-gray-200 last:border-b-0">
             {/* Menu Name Header - only show if visibility is active */}
             {menu.visibility === 'active' && (
               <div className="mb-4 pb-2 border-b-1 border-gray-300">
-                <h2 className="font-bold text-xl text-gray-900">{category.name}</h2>
+                <h2 className={`font-bold text-xl ${menuUnavailable ? 'text-gray-400' : 'text-gray-900'}`}>{category.name}</h2>
+              </div>
+            )}
+
+            {/* Unavailability banner */}
+            {menuUnavailable && unavailableMessage && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-3 text-sm text-amber-800 font-medium">
+                {unavailableMessage}
               </div>
             )}
 
             {/* Sections */}
-            <div className="space-y-3">
+            <div className={`space-y-3 ${menuUnavailable ? 'opacity-50 pointer-events-none' : ''}`}>
               {sectionsWithItems.map(({ section, sectionItems }) => (
                 <MenuSectionComponent
                   key={section.section_id || section.name}
@@ -214,18 +228,27 @@ const MenuRenderer = React.memo(
 
       if (filteredItems.length === 0) return null;
 
+      const menuUnavailable = isAvailable === false;
+
       return (
         <MenuWithRef ref={(el) => setCategoryRef(category.id, el)}>
           <div className="mb-5 pb-3 border-b border-gray-200 last:border-b-0">
             {/* Menu Name Header - only show if visibility is active */}
             {menu.visibility === 'active' && (
               <div className="mb-4 pb-2 border-b-2 border-gray-400">
-                <h2 className="font-bold text-xl text-gray-900">{category.name}</h2>
+                <h2 className={`font-bold text-xl ${menuUnavailable ? 'text-gray-400' : 'text-gray-900'}`}>{category.name}</h2>
+              </div>
+            )}
+
+            {/* Unavailability banner */}
+            {menuUnavailable && unavailableMessage && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-3 text-sm text-amber-800 font-medium">
+                {unavailableMessage}
               </div>
             )}
 
             {/* Items */}
-            <div className="space-y-3">
+            <div className={`space-y-3 ${menuUnavailable ? 'opacity-50 pointer-events-none' : ''}`}>
               {filteredItems.map((item) => (
                 <MenuItem key={item.id} item={item} onAdd={handleAddItem} />
               ))}
@@ -236,12 +259,13 @@ const MenuRenderer = React.memo(
     }
   },
   (prevProps, nextProps) => {
-    // Custom comparison - only rerender if menu, category, or search query changes
+    // Custom comparison - only rerender if menu, category, search query, or availability changes
     return (
       prevProps.menu.id === nextProps.menu.id &&
       prevProps.category.id === nextProps.category.id &&
       prevProps.restaurantId === nextProps.restaurantId &&
-      prevProps.searchQuery === nextProps.searchQuery
+      prevProps.searchQuery === nextProps.searchQuery &&
+      prevProps.isAvailable === nextProps.isAvailable
     );
   }
 );
@@ -263,6 +287,7 @@ export default function MenuPage() {
   const [apiMenus, setApiMenus] = useState<MenuWithItems[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [useApiData, setUseApiData] = useState(false);
+  const availabilityMap = useMenuAvailability(apiMenus);
   const [searchQuery, setSearchQuery] = useState("");
   // Defer the search query so typing stays responsive while filtering happens in the background
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -572,6 +597,8 @@ export default function MenuPage() {
               const restaurantId =
                 sessionData?.business.id || context.restaurant.id;
 
+              const menuAvailability = availabilityMap.get(menu.id);
+
               return (
                 <MenuRenderer
                   key={category.id}
@@ -590,6 +617,8 @@ export default function MenuPage() {
                   }}
                   filterItemsBySearch={filterItemsBySearch}
                   searchQuery={deferredSearchQuery}
+                  isAvailable={menuAvailability?.isAvailable ?? true}
+                  unavailableMessage={menuAvailability?.unavailableMessage}
                 />
               );
             } else {

@@ -7,7 +7,11 @@ export const config = {
   api: {
     baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || '',
   },
-} as const;
+  features: {
+    /** When false, all menus are treated as always available (ignores availability field) */
+    menuAvailabilityCheck: false,
+  },
+};
 
 /**
  * Validate that required environment variables are set

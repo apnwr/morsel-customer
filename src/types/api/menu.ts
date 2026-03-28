@@ -16,7 +16,7 @@ export interface Menu {
   name: string;
   description: string;
   type: 'food' | 'beverage' | 'dessert' | 'mixed' | string;
-  availability: MenuAvailability;
+  availability: MenuAvailability | MenuAvailability[] | undefined;
   status: 'active' | 'inactive' | string;
   createdAt: Timestamp;
   tags?: string[];

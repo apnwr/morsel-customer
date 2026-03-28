@@ -13,7 +13,7 @@ import type { SessionDetail, SessionParticipant } from '@/types/api/session';
 import { SplitSettingsModal } from '@/components/order/SplitSettingsModal';
 import { getFromStorage } from '@/mocks/mockStorage';
 import type { Participant } from '@/types/cart';
-import { subscribeToParticipants, isFirebaseAvailable } from '@/lib/firebase';
+import { subscribeToParticipantsBySpace, isFirebaseAvailable } from '@/lib/firebase';
 
 // Cache for session data to avoid unnecessary API calls
 let sessionCache: {
@@ -44,6 +44,7 @@ export function ParticipantsList() {
   const isUsingFirebaseRef = useRef<boolean>(false);
 
   const sessionId = sessionData?.session?.id;
+  const spaceId = sessionData?.space?.id;
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
 
   // Recalculate split when cart total or participants change
@@ -214,8 +215,8 @@ export function ParticipantsList() {
       isUsingFirebaseRef.current = false;
     };
 
-    // Early exit if no session
-    if (!sessionId) {
+    // Early exit if no session or space
+    if (!sessionId || !spaceId) {
       cleanup();
       return;
     }
@@ -226,7 +227,8 @@ export function ParticipantsList() {
     if (isFirebaseAvailable()) {
       console.log('[ParticipantsList] 🔥 Firebase available - setting up realtime listener');
 
-      const unsubscribe = subscribeToParticipants(
+      const unsubscribe = subscribeToParticipantsBySpace(
+        spaceId,
         sessionId,
         (participants: SessionParticipant[]) => {
           console.log('[ParticipantsList] 🔥 Firebase update received:', participants.length, 'participants');
@@ -282,7 +284,7 @@ export function ParticipantsList() {
 
     // Cleanup on unmount or session change
     return cleanup;
-  }, [sessionId, fetchSessionDetails, syncParticipantsWithSplit]);
+  }, [sessionId, spaceId, fetchSessionDetails, syncParticipantsWithSplit]);
 
   // Refresh on window focus to catch new participants
   useEffect(() => {

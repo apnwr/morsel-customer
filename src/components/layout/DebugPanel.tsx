@@ -8,6 +8,7 @@ import { useSplit } from '@/contexts/SplitContext';
 import { useRouter } from 'next/navigation';
 import { restaurants } from '@/mocks/restaurants';
 import { getMenuForRestaurant } from '@/mocks/menuData';
+import { config } from '@/lib/config';
 
 export default function DebugPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -240,6 +241,35 @@ export default function DebugPanel() {
                   >
                     Reset Order
                   </button>
+                </div>
+              </div>
+
+              {/* Feature Toggles */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Feature Toggles</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                    <div>
+                      <div className="text-sm font-medium text-gray-800">Menu Availability</div>
+                      <div className="text-xs text-gray-500">Disable menus outside time window</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        config.features.menuAvailabilityCheck = !config.features.menuAvailabilityCheck;
+                        // Force re-render
+                        setDisplayTableNumber((prev) => prev);
+                      }}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${
+                        config.features.menuAvailabilityCheck ? 'bg-green-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                          config.features.menuAvailabilityCheck ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
 
