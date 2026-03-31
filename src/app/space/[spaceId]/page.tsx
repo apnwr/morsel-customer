@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { sessionService } from '@/services/session.service';
 import { useSession } from '@/contexts/SessionContext';
+import { useCart } from '@/contexts/CartContext';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { LoginModal } from '@/components/session/LoginModal';
 import type { OrderingSessionData } from '@/types/api/session';
@@ -17,30 +18,42 @@ function hasValidLogo(logo: string | undefined | null): logo is string {
 export default function SpacePage() {
   const params = useParams();
   const router = useRouter();
-  const { setPreviewSession, sessionData } = useSession();
+  const { setPreviewSession, sessionData, endSession } = useSession();
+  const { clearCart } = useCart();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [spaceData, setSpaceData] = useState<OrderingSessionData | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
-    // Check if user already has an active session for this space
-    // This handles the back button case - redirect to menu instead of showing login again
-    const existingUserId = localStorage.getItem('morsel_session_user_id');
-    const existingSessionData = sessionData?.session;
+    const spaceId = params.spaceId as string;
 
-    if (existingUserId && existingSessionData?.status === 'active') {
-      const currentSpaceId = params.spaceId as string;
-      // If user already has a session (same or different space), go to menu
-      console.log('[SpacePage] User already has active session, redirecting to menu');
-      router.replace('/menu');
-      return;
-    }
+    const init = async () => {
+      // Check if user already has an active session
+      const existingUserId = localStorage.getItem('morsel_session_user_id');
+      const existingSessionData = sessionData?.session;
 
-    const fetchSessionData = async () => {
+      if (existingUserId && existingSessionData?.status === 'active') {
+        if (existingSessionData.spaceId === spaceId) {
+          // Same space — back button case, resume existing session
+          console.log('[SpacePage] User already has active session for this space, redirecting to menu');
+          router.replace('/menu');
+          return;
+        }
+
+        // Different space — user scanned a new QR, clean up old session
+        console.log('[SpacePage] Different space detected, ending previous session');
+        try {
+          await endSession('left');
+          clearCart();
+        } catch (e) {
+          console.error('[SpacePage] Failed to end previous session:', e);
+          // clearSession is already called in endSession's catch block
+        }
+      }
+
+      // Fetch new space data
       try {
-        const spaceId = params.spaceId as string;
-
         if (!spaceId) {
           setError('Invalid space ID');
           setIsLoading(false);
@@ -107,8 +120,9 @@ export default function SpacePage() {
       }
     };
 
-    fetchSessionData();
-  }, [params.spaceId, router, setPreviewSession, sessionData]);
+    init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.spaceId]);
 
   if (error) {
     return (
