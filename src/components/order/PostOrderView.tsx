@@ -21,6 +21,7 @@ import { TipSelector, getStoredTip } from '@/components/cart/TipSelector';
 import { ParticipantsList } from '@/components/session/ParticipantsList';
 import { isSplitApplicableForTotal } from '@/lib/split-utils';
 import type { Order as APIOrder, OrderItem } from '@/types/api/order';
+import type { SessionBill } from '@/types/api/bill';
 
 // Helper function to get dietary type from stored dietary data
 const getDietaryTypeFromStoredData = (storedDietary: { allergens?: string[]; dietary?: string[] } | undefined) => {
@@ -62,10 +63,11 @@ const DietarySymbol = ({ dietaryType }: { dietaryType: 'vegetarian' | 'non-veget
 interface PostOrderViewProps {
   orderId: string;
   orderData: APIOrder;
+  bill?: SessionBill | null;
   onOrderMoreFood: () => void;
 }
 
-export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrderViewProps) {
+export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: PostOrderViewProps) {
   const router = useRouter();
   const { formatPrice } = useLocale();
   const { endSession } = useSession();
@@ -121,25 +123,27 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
   }, [remainingTime]);
 
   const orderTotal = orderData?.total || 0;
-  const useSplitShares = isSplitApplicableForTotal(split.splitForTotal, orderTotal);
+  // Bill total includes taxes/charges — use it for split when available, fall back to order items total
+  const billTotal = bill?.total ?? orderTotal;
+  const useSplitShares = isSplitApplicableForTotal(split.splitForTotal, billTotal);
 
 
-  // Calculate user amount; use split.shares only when they were calculated for this order's total
+  // Calculate user amount; use split.shares only when they were calculated for this bill/order total
   const userAmount = useMemo(() => {
     if (!split.participants || split.participants.length === 0) {
-      return orderTotal;
+      return billTotal;
     }
 
     const currentUser = split.participants.find((p) => p.id === currentSessionUserId);
     if (!currentUser) {
-      return orderTotal;
+      return billTotal;
     }
 
     if (useSplitShares && typeof split.shares[currentUser.id] === 'number') {
       return split.shares[currentUser.id];
     }
-    return orderTotal;
-  }, [split.participants, split.shares, useSplitShares, orderTotal, currentSessionUserId]);
+    return billTotal;
+  }, [split.participants, split.shares, useSplitShares, billTotal, currentSessionUserId]);
 
   // Handle payment
   const handlePayNow = useCallback(async () => {
@@ -273,7 +277,7 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
 
         {/* 5. Split / Participants Card */}
         <div className="mb-6">
-          <ParticipantsList />
+          <ParticipantsList totalOverride={billTotal} />
         </div>
 
         {/* 6. Bill Section */}
@@ -285,38 +289,53 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
             Bill
           </h3>
           <div className="flex flex-col gap-2 w-full">
+            {/* Items total */}
             <div className="flex items-center justify-between w-full">
               <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
                 Items total
               </span>
               <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                {formatPrice(orderTotal)}
+                {formatPrice(bill?.subtotal ?? orderTotal)}
               </span>
             </div>
-            <div className="flex items-center justify-between w-full">
-              <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                Taxes
-              </span>
-              <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                {formatPrice(0)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between w-full">
-              <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                Delivery charge
-              </span>
-              <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                {formatPrice(0)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between w-full">
-              <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                Restaurant Packing fees
-              </span>
-              <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                {formatPrice(0)}
-              </span>
-            </div>
+
+            {/* Individual tax lines */}
+            {bill?.taxes && Object.entries(bill.taxes).map(([taxId, tax]) => (
+              <div key={taxId} className="flex items-center justify-between w-full">
+                <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                  {tax.name} ({tax.percentage}%)
+                </span>
+                <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                  {formatPrice(tax.amount)}
+                </span>
+              </div>
+            ))}
+
+            {/* Individual charge lines */}
+            {bill?.charges && Object.entries(bill.charges).map(([chargeId, charge]) => (
+              <div key={chargeId} className="flex items-center justify-between w-full">
+                <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                  {charge.name}
+                </span>
+                <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                  {formatPrice(charge.amount)}
+                </span>
+              </div>
+            ))}
+
+            {/* Discount — only when > 0 */}
+            {(bill?.totalDiscount ?? 0) > 0 && (
+              <div className="flex items-center justify-between w-full">
+                <span className="text-green-700 text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                  Discount
+                </span>
+                <span className="text-green-700 text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                  -{formatPrice(bill?.totalDiscount ?? 0)}
+                </span>
+              </div>
+            )}
+
+            {/* Tip */}
             <div className="flex items-center justify-between w-full">
               <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
                 Tip
@@ -325,6 +344,8 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
                 {formatPrice(tipAmount)}
               </span>
             </div>
+
+            {/* Grand total */}
             <div className="flex items-center justify-between w-full pt-2 border-t border-gray-200">
               <span
                 className="text-black text-[16px] font-medium"
@@ -336,7 +357,7 @@ export function PostOrderView({ orderId, orderData, onOrderMoreFood }: PostOrder
                 className="text-black text-[16px] font-medium"
                 style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
               >
-                {formatPrice(totalWithTip)}
+                {formatPrice((bill?.total ?? orderTotal) + tipAmount)}
               </span>
             </div>
           </div>

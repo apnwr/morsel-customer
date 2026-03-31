@@ -44,7 +44,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
     return shares;
   };
 
-  const [localMode, setLocalMode] = useState<'even' | 'custom' | 'self' | 'all'>(split.mode);
+  const [localMode, setLocalMode] = useState<'even' | 'custom' | 'self' | 'all' | 'items'>(split.mode);
   const [localShares, setLocalShares] = useState<Record<string, string>>(initializeLocalShares);
   const [validationError, setValidationError] = useState<string>('');
 
@@ -111,13 +111,23 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
         });
         break;
       }
+      case 'items': {
+        // "Pay for items" - each participant pays for their own items
+        split.participants.forEach(p => {
+          const participantTotal = cart.items
+            .filter(item => item.sessionUserId === p.id)
+            .reduce((sum, item) => sum + item.itemTotal, 0);
+          newLocalShares[p.id] = (Math.round(participantTotal * 100) / 100).toFixed(2);
+        });
+        break;
+      }
     }
 
     setLocalShares(newLocalShares);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, localMode, split.participants.length, effectiveTotal, userItemsTotal]);
 
-  const handleModeChange = (mode: 'even' | 'custom' | 'self' | 'all') => {
+  const handleModeChange = (mode: 'even' | 'custom' | 'self' | 'all' | 'items') => {
     // Only update local mode - don't update context until Save is clicked
     setLocalMode(mode);
     setValidationError('');
@@ -240,10 +250,10 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
             {/* Split Mode Info */}
             <div className="mb-4">
               <h3 className="font-bold text-xl leading-tight text-black">
-                {localMode === 'even' ? 'Split evenly' : localMode === 'custom' ? 'Custom split' : localMode === 'all' ? 'Pay for everyone' : 'Pay for self'}
+                {localMode === 'even' ? 'Split evenly' : localMode === 'custom' ? 'Custom split' : localMode === 'all' ? 'Pay for everyone' : localMode === 'items' ? 'Pay for items' : 'Pay for self'}
               </h3>
               <p className="text-[10px] leading-tight text-black opacity-40">
-                {localMode === 'even' ? 'The bill will be divided equally among all participants.' : localMode === 'custom' ? 'Each participant pays a custom amount.' : localMode === 'all' ? 'You will pay for everyone in this session.' : 'You will only pay for your own items.'}
+                {localMode === 'even' ? 'The bill will be divided equally among all participants.' : localMode === 'custom' ? 'Each participant pays a custom amount.' : localMode === 'all' ? 'You will pay for everyone in this session.' : localMode === 'items' ? 'Each participant pays for what they ordered.' : 'You will only pay for your own items.'}
               </p>
             </div>
 
@@ -423,6 +433,16 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
                   className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
                 >
                   <span className="font-medium">Pay for self</span>
+                </button>
+              )}
+
+              {localMode !== 'items' && (
+                <button
+                  disabled
+                  className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-50 opacity-40 cursor-not-allowed"
+                >
+                  <span className="font-medium">Pay for items</span>
+                  <span className="text-xs text-gray-400">Coming soon</span>
                 </button>
               )}
             </div>

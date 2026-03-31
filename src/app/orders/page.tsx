@@ -19,6 +19,7 @@ function OrdersPageContent() {
 
   const {
     orderData,
+    bill,
     orderDisplayLabel,
     allOrderIds,
     isLoading,
@@ -56,6 +57,7 @@ function OrdersPageContent() {
           key={orderData.id}
           orderId={orderData.id}
           orderData={orderData}
+          bill={bill}
           onOrderMoreFood={handleOrderMoreFood}
         />
       ) : (

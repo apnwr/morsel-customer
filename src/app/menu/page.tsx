@@ -391,7 +391,7 @@ export default function MenuPage() {
                   .map((v, idx) => ({
                     id: `variant-${idx}`,
                     label: v.name,
-                    priceModifier: (v.price ?? 0) - apiItem.price, // Price difference, default to 0
+                    priceModifier: v.price ?? 0, // Absolute variant price
                   })),
               },
             ]

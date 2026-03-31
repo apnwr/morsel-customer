@@ -23,7 +23,7 @@ function calculateUserItemsTotal(cart: Cart | null, currentSessionUserId: string
 
 interface SplitState {
   split: SplitBill;
-  setSplitMode: (mode: 'even' | 'custom' | 'self' | 'all') => void;
+  setSplitMode: (mode: 'even' | 'custom' | 'self' | 'all' | 'items') => void;
   setSplitForTotal: (total: number | null) => void;
   addParticipant: (participant: Participant) => void;
   removeParticipant: (participantId: string) => void;
@@ -64,7 +64,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
     setInStorage(STORAGE_KEY, split);
   }, [split]);
 
-  const setSplitMode = useCallback((mode: 'even' | 'custom' | 'self' | 'all') => {
+  const setSplitMode = useCallback((mode: 'even' | 'custom' | 'self' | 'all' | 'items') => {
     setSplit((prev) => ({
       ...prev,
       mode,
@@ -213,6 +213,29 @@ export function SplitProvider({ children }: { children: ReactNode }) {
             }
           }
           break;
+
+        case 'items': {
+          // "Pay for items" - Each participant pays for their own items
+          if (cart) {
+            prev.participants.forEach((p) => {
+              const participantTotal = cart.items
+                .filter(item => item.sessionUserId === p.id)
+                .reduce((sum, item) => sum + item.itemTotal, 0);
+              newShares[p.id] = Math.round(participantTotal * 100) / 100;
+            });
+            console.log('[SplitContext] 💰 Pay for items calculated:', {
+              shares: Object.entries(newShares).map(([id, amount]) => ({
+                id: id.substring(0, 8) + '...',
+                name: prev.participants.find(p => p.id === id)?.name || 'Unknown',
+                amount: `$${amount.toFixed(2)}`
+              }))
+            });
+          } else {
+            // No cart available, fallback to even split
+            newShares = calculateEvenSplit(total, prev.participants);
+          }
+          break;
+        }
 
         case 'custom':
           // Keep existing shares, but validate

@@ -8,9 +8,8 @@ import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
 import { useSession } from "@/contexts/SessionContext";
 import { useSplit } from "@/contexts/SplitContext";
-import { sessionService } from "@/services/session.service";
 import { getFromStorage } from "@/mocks/mockStorage";
-import type { SessionOrder } from "@/types/api/session";
+import { billService } from "@/services/bill.service";
 import { isSplitApplicableForTotal } from "@/lib/split-utils";
 import { Footer } from "@/components/layout/Footer";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -28,7 +27,7 @@ export default function MyTabPage() {
   const { split } = useSplit();
   const currentSessionUserId = getFromStorage<string>("morsel_session_user_id");
 
-  const [ordersTotal, setOrdersTotal] = useState<number>(0);
+  const [billTotal, setBillTotal] = useState<number>(0);
 
   const sessionId = sessionData?.session?.id;
   const apiParticipants = useMemo(
@@ -38,30 +37,23 @@ export default function MyTabPage() {
 
   useEffect(() => {
     if (!sessionId) {
-      queueMicrotask(() => setOrdersTotal(0));
+      queueMicrotask(() => setBillTotal(0));
       return;
     }
-    sessionService
-      .getSessionById(sessionId)
-      .then((res) => {
-        const orders = res.data?.orders ?? [];
-        const total = orders.reduce((sum: number, o: SessionOrder | string) => {
-          if (typeof o === "object" && o != null && "total" in o) {
-            return sum + (Number((o as SessionOrder).total) || 0);
-          }
-          return sum;
-        }, 0);
-        setOrdersTotal(total);
+    billService
+      .getSessionBill(sessionId)
+      .then((bill) => {
+        setBillTotal(bill.total ?? 0);
       })
-      .catch(() => setOrdersTotal(0));
+      .catch(() => setBillTotal(0));
   }, [sessionId]);
 
   const n = Math.max(1, apiParticipants.length);
-  const evenShare = ordersTotal / n;
+  const evenShare = billTotal / n;
 
   const tableLabel = sessionData?.space?.name ?? "Table";
 
-  const useSplitShares = isSplitApplicableForTotal(split.splitForTotal, ordersTotal);
+  const useSplitShares = isSplitApplicableForTotal(split.splitForTotal, billTotal);
 
   const payNowAmount = useSplitShares && typeof split.shares[currentSessionUserId ?? ""] === "number"
     ? split.shares[currentSessionUserId!]
@@ -106,7 +98,7 @@ export default function MyTabPage() {
         </h1>
 
         {/* Split / Participants Card */}
-        <ParticipantsList />
+        <ParticipantsList totalOverride={billTotal} />
 
         {/* Google Reviews — links to Maps; replace URL with API when integrated */}
         <a

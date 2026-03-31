@@ -34,7 +34,7 @@ export interface Participant {
 }
 
 export interface SplitBill {
-  mode: 'even' | 'custom' | 'self' | 'all';
+  mode: 'even' | 'custom' | 'self' | 'all' | 'items';
   participants: Participant[];
   shares: Record<string, number>;
   isValid: boolean;

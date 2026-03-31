@@ -15,12 +15,16 @@ import { mapSessionOrderToAPIOrder } from '@/lib/order-mapping';
 import { mergeOrders } from '@/lib/order-merging';
 import type { Order as APIOrder } from '@/types/api/order';
 import type { SessionOrder } from '@/types/api/session';
+import type { SessionBill } from '@/types/api/bill';
+import { billService } from '@/services/bill.service';
 
 const ORDERS_POLL_INTERVAL = 30000; // 30s — catch other participants' orders
 
 export interface OrdersPageState {
   /** Merged order data — all placed orders combined */
   orderData: APIOrder | null;
+  /** Session bill from API — taxes, charges, discounts, grand total */
+  bill: SessionBill | null;
   /** Display label for header (e.g. "Order - ABCDE" or "Orders (3)") */
   orderDisplayLabel: string | null;
   /** All placed order IDs in this session */
@@ -36,6 +40,7 @@ export function useOrdersPageState(): OrdersPageState {
   const { clearCart } = useCart();
 
   const [orderData, setOrderData] = useState<APIOrder | null>(null);
+  const [bill, setBill] = useState<SessionBill | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -46,10 +51,25 @@ export function useOrdersPageState(): OrdersPageState {
     ) || [];
   }, [sessionData]);
 
+  // Fetch bill from API
+  const fetchBill = useCallback(async () => {
+    const sessionId = sessionData?.session?.id;
+    if (!sessionId) return;
+
+    try {
+      const billData = await billService.getSessionBill(sessionId);
+      setBill(billData);
+    } catch (error) {
+      console.error('[useOrdersPageState] Failed to fetch bill:', error);
+      // Keep existing bill data on error
+    }
+  }, [sessionData?.session?.id]);
+
   // Refresh session on mount to get latest orders (including from other participants)
   useEffect(() => {
     if (sessionData?.session?.id) {
       refreshSessionData();
+      fetchBill();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, [sessionData?.session?.id]);
@@ -60,6 +80,7 @@ export function useOrdersPageState(): OrdersPageState {
 
     pollRef.current = setInterval(() => {
       refreshSessionData();
+      fetchBill();
     }, ORDERS_POLL_INTERVAL);
 
     return () => {
@@ -182,6 +203,7 @@ export function useOrdersPageState(): OrdersPageState {
 
   return {
     orderData,
+    bill,
     orderDisplayLabel,
     allOrderIds,
     isLoading,

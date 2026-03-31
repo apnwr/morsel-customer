@@ -20,5 +20,8 @@ export const endpoints = {
     update: (sessionId: string) => `/ordering-session/session/${sessionId}/queue`,
     confirm: (sessionId: string) => `/ordering-session/session/${sessionId}/queue/confirm`,
   },
+  bill: {
+    getBySessionId: (sessionId: string) => `/ordering-session/session/${sessionId}/bill`,
+  },
   // Add more endpoint groups as we integrate more APIs
 } as const;

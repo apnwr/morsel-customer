@@ -29,7 +29,12 @@ let sessionCache: {
 const CACHE_DURATION = 30000; // 30 seconds
 const REFRESH_INTERVAL = 10000; // Refresh every 10 seconds (fallback when Firebase unavailable)
 
-export function ParticipantsList() {
+interface ParticipantsListProps {
+  /** When set, used instead of cart.total for split calculations (e.g. bill total with taxes/charges) */
+  totalOverride?: number;
+}
+
+export function ParticipantsList({ totalOverride }: ParticipantsListProps = {}) {
   const { split, calculateSplit, addParticipant, removeParticipant } = useSplit();
   const { sessionData } = useSession();
   const { formatPrice } = useLocale();
@@ -47,23 +52,23 @@ export function ParticipantsList() {
   const spaceId = sessionData?.space?.id;
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
 
-  // Recalculate split when cart total or participants change
-  // This will automatically trigger when API participants are synced to split
+  // The effective total for split — bill total (with taxes/charges) takes priority over cart total
+  const splitTotal = typeof totalOverride === 'number' ? totalOverride : cart.total;
+
+  // Recalculate split when total or participants change
   useEffect(() => {
     if (split.participants.length > 0) {
       console.log('[ParticipantsList] 🔄 Recalculating split:', {
-        cartTotal: `$${cart.total.toFixed(2)}`,
-        cartSubtotal: `$${cart.subtotal.toFixed(2)}`,
-        cartTax: `$${cart.tax.toFixed(2)}`,
+        splitTotal: `$${splitTotal.toFixed(2)}`,
+        source: typeof totalOverride === 'number' ? 'bill API' : 'cart',
         participantsCount: split.participants.length,
         splitMode: split.mode
       });
-      // Pass cart for 'self' mode to calculate user's own items total
-      calculateSplit(cart.total, cart);
+      calculateSplit(splitTotal, cart);
     } else {
       console.log('[ParticipantsList] ⚠️ No participants yet, skipping split calculation');
     }
-  }, [cart, split.participants.length, split.mode, calculateSplit]);
+  }, [splitTotal, cart, split.participants.length, split.mode, calculateSplit, totalOverride]);
 
   // Sync API participants with split participants
   const syncParticipantsWithSplit = useCallback(
@@ -381,6 +386,8 @@ export function ParticipantsList() {
         return 'Pay for everyone';
       case 'self':
         return 'Pay for self';
+      case 'items':
+        return 'Pay for items';
       default:
         return 'Split bill';
     }
@@ -535,6 +542,7 @@ export function ParticipantsList() {
       <SplitSettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
+        total={splitTotal}
       />
     </>
   );
