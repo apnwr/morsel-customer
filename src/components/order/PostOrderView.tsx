@@ -20,6 +20,7 @@ import { PaymentModal } from '@/components/order/PaymentModal';
 import { TipSelector, getStoredTip } from '@/components/cart/TipSelector';
 import { ParticipantsList } from '@/components/session/ParticipantsList';
 import { isSplitApplicableForTotal } from '@/lib/split-utils';
+import { useFlowType } from '@/hooks/useFlowType';
 import type { Order as APIOrder, OrderItem } from '@/types/api/order';
 import type { SessionBill } from '@/types/api/bill';
 
@@ -72,6 +73,7 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
   const { formatPrice } = useLocale();
   const { endSession } = useSession();
   const { split } = useSplit();
+  const flowType = useFlowType();
 
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -275,10 +277,12 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
           />
         </div>
 
-        {/* 5. Split / Participants Card */}
-        <div className="mb-6">
-          <ParticipantsList totalOverride={billTotal} />
-        </div>
+        {/* 5. Split / Participants Card (hidden in area flow) */}
+        {flowType !== 'area' && (
+          <div className="mb-6">
+            <ParticipantsList totalOverride={billTotal} />
+          </div>
+        )}
 
         {/* 6. Bill Section */}
         <div className="mb-6">

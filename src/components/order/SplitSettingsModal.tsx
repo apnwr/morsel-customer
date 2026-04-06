@@ -5,11 +5,13 @@ import { useLocale } from '@/contexts/LocaleContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSplit } from '@/contexts/SplitContext';
 import { useCart } from '@/contexts/CartContext';
+import { useSession } from '@/contexts/SessionContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Plus, AlertCircle, X } from 'lucide-react';
 import { modalVariants, backdropVariants } from '@/lib/animations';
 import { getFromStorage } from '@/mocks/mockStorage';
+import { ItemizedPickerSheet } from '@/components/order/ItemizedPickerSheet';
 
 interface SplitSettingsModalProps {
   isOpen: boolean;
@@ -19,9 +21,12 @@ interface SplitSettingsModalProps {
 }
 
 export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModalProps) {
-  const { split, setSplitMode, setSplitForTotal, removeParticipant, updateShare } = useSplit();
+  const { split, setSplitMode, setSplitForTotal, removeParticipant, updateShare, syncSplitToServer, itemizedSelections } = useSplit();
   const { cart } = useCart();
+  const { sessionData } = useSession();
   const { formatPrice } = useLocale();
+  const [showItemizedPicker, setShowItemizedPicker] = useState(false);
+  const sessionId = sessionData?.session?.id;
 
   const effectiveTotal = typeof total === 'number' ? total : cart.total;
 
@@ -67,9 +72,9 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  // Calculate local shares when local mode changes (but not for custom mode)
+  // Calculate local shares when local mode changes (but not for custom or items mode)
   useEffect(() => {
-    if (!isOpen || localMode === 'custom') return;
+    if (!isOpen || localMode === 'custom' || localMode === 'items') return;
 
     const newLocalShares: Record<string, string> = {};
 
@@ -108,16 +113,6 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
           } else {
             newLocalShares[p.id] = amountPerOther.toFixed(2);
           }
-        });
-        break;
-      }
-      case 'items': {
-        // "Pay for items" - each participant pays for their own items
-        split.participants.forEach(p => {
-          const participantTotal = cart.items
-            .filter(item => item.sessionUserId === p.id)
-            .reduce((sum, item) => sum + item.itemTotal, 0);
-          newLocalShares[p.id] = (Math.round(participantTotal * 100) / 100).toFixed(2);
         });
         break;
       }
@@ -198,6 +193,16 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
     }
 
     setSplitForTotal(effectiveTotal);
+
+    // Sync to server in background — pass values explicitly to avoid stale closures
+    if (sessionId) {
+      const sharesSnapshot: Record<string, number> = {};
+      Object.entries(localShares).forEach(([id, val]) => {
+        sharesSnapshot[id] = parseFloat(val) || 0;
+      });
+      syncSplitToServer(sessionId, localMode, sharesSnapshot, split.participants);
+    }
+
     onClose();
   };
 
@@ -438,11 +443,13 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
 
               {localMode !== 'items' && (
                 <button
-                  disabled
-                  className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-50 opacity-40 cursor-not-allowed"
+                  onClick={() => {
+                    handleModeChange('items');
+                    setShowItemizedPicker(true);
+                  }}
+                  className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
                 >
                   <span className="font-medium">Pay for items</span>
-                  <span className="text-xs text-gray-400">Coming soon</span>
                 </button>
               )}
             </div>
@@ -459,6 +466,23 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
           </motion.div>
         </div>
       )}
+
+      {/* Itemized Picker Sheet */}
+      <ItemizedPickerSheet
+        isOpen={showItemizedPicker}
+        onClose={() => setShowItemizedPicker(false)}
+        onConfirm={(shares) => {
+          setShowItemizedPicker(false);
+          // Update localShares immediately with picker's computed values
+          const updatedLocalShares: Record<string, string> = {};
+          Object.entries(shares).forEach(([id, amount]) => {
+            updatedLocalShares[id] = amount.toFixed(2);
+          });
+          setLocalShares(updatedLocalShares);
+        }}
+        sessionId={sessionId || ''}
+        total={effectiveTotal}
+      />
     </AnimatePresence>
   );
 }

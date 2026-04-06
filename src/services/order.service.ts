@@ -10,6 +10,7 @@ import type {
   QueueUpdateResponse,
   QueueConfirmRequest,
   OrderConfirmResponse,
+  QueueItem,
 } from '@/types/api/order';
 
 /**
@@ -52,6 +53,27 @@ export const orderService = {
   ): Promise<OrderConfirmResponse> => {
     return apiClient.post<OrderConfirmResponse>(
       endpoints.queue.confirm(sessionId),
+      data
+    );
+  },
+
+  /**
+   * Place Area Order
+   * Appends an order to an existing area session via area-single-order endpoint.
+   * Used in area flow where queue/confirm is replaced by a single call.
+   *
+   * @param data - Area order payload with sessionId, areaId, guestName, items
+   * @returns Order confirmation response
+   */
+  placeAreaOrder: async (data: {
+    sessionId: string;
+    areaId: string;
+    guestName: string;
+    items: QueueItem[];
+    paymentType?: string;
+  }): Promise<OrderConfirmResponse> => {
+    return apiClient.post<OrderConfirmResponse>(
+      endpoints.area.startSession(),
       data
     );
   },

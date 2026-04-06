@@ -58,6 +58,33 @@ export const sessionService = {
   },
 
   /**
+   * Start an area-scoped single-user session (and optionally place an order)
+   * POST /ordering-session/session/area-single-order
+   * @param data - Area session data with areaId, guestName, and optional items
+   */
+  startAreaSession: async (
+    data: {
+      areaId: string;
+      guestName: string;
+      sessionId?: string;
+      patronId?: string;
+      items?: Array<{
+        itemId: string;
+        quantity: number;
+        variantIndex?: number;
+        addOns?: Array<{ addonIndex: number }>;
+      }>;
+      paymentType?: string;
+      businessId?: string;
+    }
+  ): Promise<StartSessionResponse> => {
+    return apiClient.post<StartSessionResponse>(
+      endpoints.area.startSession(),
+      data
+    );
+  },
+
+  /**
    * End an active ordering session
    * Marks the session as completed/ended
    * @param sessionId - The session ID to end

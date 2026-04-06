@@ -23,5 +23,11 @@ export const endpoints = {
   bill: {
     getBySessionId: (sessionId: string) => `/ordering-session/session/${sessionId}/bill`,
   },
+  split: {
+    calculate: (sessionId: string) => `/ordering-session/session/${sessionId}/split`,
+  },
+  area: {
+    startSession: () => `/ordering-session/session/area-single-order`,
+  },
   // Add more endpoint groups as we integrate more APIs
 } as const;

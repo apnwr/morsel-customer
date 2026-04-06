@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { sessionService } from '@/services/session.service';
 import { useSession } from '@/contexts/SessionContext';
 import { useCart } from '@/contexts/CartContext';
+import { setInStorage } from '@/mocks/mockStorage';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { LoginModal } from '@/components/session/LoginModal';
 import type { OrderingSessionData } from '@/types/api/session';
@@ -29,6 +30,10 @@ export default function SpacePage() {
     const spaceId = params.spaceId as string;
 
     const init = async () => {
+      // Clear any stale area flow state — space flow must start clean
+      setInStorage('morsel_flow_type', 'space');
+      localStorage.removeItem('morsel_area_id');
+
       // Check if user already has an active session
       const existingUserId = localStorage.getItem('morsel_session_user_id');
       const existingSessionData = sessionData?.session;
