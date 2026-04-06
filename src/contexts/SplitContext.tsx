@@ -6,6 +6,7 @@ import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { calculateEvenSplit, validateSplit, generateMockParticipant } from '@/mocks/mockSplit';
 import { sanitizeSplitAmount } from '@/lib/validation';
 import { splitService } from '@/services/split.service';
+import { useSession } from '@/contexts/SessionContext';
 import type { SplitCalculateRequest, SplitEntry } from '@/types/api/split';
 
 const STORAGE_KEY = 'morsel_split';
@@ -59,7 +60,24 @@ function getEmptySplit(): SplitBill {
   };
 }
 
+/**
+ * Map server split config type to local split mode.
+ * Server uses: 'equal' | 'participant' | 'custom' | 'itemized'
+ * Client uses: 'even' | 'self' | 'custom' | 'all' | 'items'
+ */
+function serverTypeToLocalMode(serverType: string): SplitBill['mode'] {
+  switch (serverType) {
+    case 'equal': return 'even';
+    case 'participant': return 'self';
+    case 'custom': return 'custom';
+    case 'itemized': return 'items';
+    default: return 'even';
+  }
+}
+
 export function SplitProvider({ children }: { children: ReactNode }) {
+  const { serverSplitConfig, splitPaymentStatus, refreshSessionData } = useSession();
+
   const [split, setSplit] = useState<SplitBill>(() => {
     // Initialize from localStorage or use empty split
     const stored = getFromStorage<SplitBill>(STORAGE_KEY);
@@ -80,6 +98,53 @@ export function SplitProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setInStorage(STORAGE_KEY, split);
   }, [split]);
+
+  // Hydrate split mode AND shares from server.
+  // serverSplitConfig has the mode; splitPaymentStatus has the per-participant amounts.
+  // Server splits are ordered by index (0, 1, 2...) matching participant order.
+  // sessionUserId may be null, so we map by index to split.participants.
+  useEffect(() => {
+    if (!serverSplitConfig?.type) return;
+    if (!splitPaymentStatus || splitPaymentStatus.length === 0) return;
+
+    const serverMode = serverTypeToLocalMode(serverSplitConfig.type);
+
+    setSplit(prev => {
+      if (prev.participants.length === 0) return prev;
+
+      // Map server splits to participants by index order
+      const serverShares: Record<string, number> = {};
+      const sortedSplits = [...splitPaymentStatus].sort((a, b) => a.index - b.index);
+
+      for (let i = 0; i < sortedSplits.length && i < prev.participants.length; i++) {
+        const entry = sortedSplits[i];
+        const participant = prev.participants[i];
+        // Use sessionUserId if available, otherwise map by index
+        const id = entry.sessionUserId || participant.id;
+        serverShares[id] = entry.amount;
+      }
+
+      const serverTotal = sortedSplits.reduce((sum, e) => sum + e.amount, 0);
+
+      // Check if local state already matches server
+      const modeMatches = prev.mode === serverMode;
+      const sharesMatch = modeMatches && Object.keys(serverShares).length > 0
+        && Object.entries(serverShares).every(([id, amt]) =>
+          typeof prev.shares[id] === 'number' && Math.abs(prev.shares[id] - amt) < 0.01
+        );
+
+      if (modeMatches && sharesMatch) return prev;
+
+      console.log(`[SplitContext] Hydrating from server: mode ${prev.mode} → ${serverMode}, shares:`, serverShares);
+      return {
+        ...prev,
+        mode: serverMode,
+        shares: { ...prev.shares, ...serverShares },
+        splitForTotal: serverTotal > 0 ? serverTotal : prev.splitForTotal,
+        isValid: true,
+      };
+    });
+  }, [serverSplitConfig, splitPaymentStatus]);
 
   const setSplitMode = useCallback((mode: 'even' | 'custom' | 'self' | 'all' | 'items') => {
     setSplit((prev) => ({
@@ -302,6 +367,9 @@ export function SplitProvider({ children }: { children: ReactNode }) {
   ) => {
     if (!sessionId || participants.length === 0) return;
 
+    // Always send numberOfSplits and amounts. itemIds only for 'itemized' (flat array).
+    const amounts = participants.map((p) => shares[p.id] || 0);
+
     let payload: SplitCalculateRequest;
 
     switch (mode) {
@@ -309,27 +377,29 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         payload = {
           type: 'equal',
           numberOfSplits: participants.length,
+          amounts,
         };
         break;
 
       case 'all':
-      case 'custom': {
-        const amounts = participants.map((p) => shares[p.id] || 0);
+      case 'custom':
         payload = {
           type: 'custom',
+          numberOfSplits: participants.length,
           amounts,
         };
         break;
-      }
 
       case 'self':
         payload = {
           type: 'participant',
+          numberOfSplits: participants.length,
+          amounts,
         };
         break;
 
       case 'items': {
-        // Flatten all participants' selections into a single array of item IDs
+        // Flat array of all claimed item IDs across participants
         const itemIds: string[] = [];
         for (const p of participants) {
           const pItems = itemizedSelections[p.id] || [];
@@ -337,6 +407,8 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         }
         payload = {
           type: 'itemized',
+          numberOfSplits: participants.length,
+          amounts,
           itemIds,
         };
         break;
@@ -346,6 +418,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         payload = {
           type: 'equal',
           numberOfSplits: participants.length,
+          amounts,
         };
     }
 
@@ -354,11 +427,13 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       .then((response) => {
         console.log('[SplitContext] Split synced to server:', response.data);
         setServerSplits(response.data?.splits || null);
+        // Refresh session so splitPaymentStatus + serverSplitConfig update for all participants
+        refreshSessionData();
       })
       .catch((error) => {
         console.error('[SplitContext] Failed to sync split to server:', error);
       });
-  }, [itemizedSelections]);
+  }, [itemizedSelections, refreshSessionData]);
 
   const addMockParticipant = useCallback(() => {
     setSplit((prev) => {

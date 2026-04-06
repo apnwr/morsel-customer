@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocale } from '@/contexts/LocaleContext';
 import { Modal } from '@/components/ui/Modal';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
+import { tipService } from '@/services/tip.service';
 
 const STORAGE_KEY = 'morsel_tip';
 
@@ -25,9 +26,13 @@ interface TipSelectorProps {
   subtotal: number;
   /** Called whenever the tip amount changes */
   onTipChange?: (tip: TipState) => void;
+  /** Session ID for server sync */
+  sessionId?: string;
+  /** Current participant's session user ID */
+  sessionUserId?: string;
 }
 
-export function TipSelector({ subtotal, onTipChange }: TipSelectorProps) {
+export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }: TipSelectorProps) {
   const { formatPrice } = useLocale();
   const [selectedTip, setSelectedTip] = useState<number>(() => {
     const stored = getFromStorage<TipState>(STORAGE_KEY);
@@ -41,12 +46,31 @@ export function TipSelector({ subtotal, onTipChange }: TipSelectorProps) {
     ? parseFloat(getFromStorage<TipState>(STORAGE_KEY)?.amount?.toString() || '0') || 0
     : Math.round(subtotal * (selectedTip / 100) * 100) / 100;
 
-  // Persist tip state and notify parent
+  // Sync tip to server (fire-and-forget, debounced)
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncTipToServer = useCallback((amount: number) => {
+    if (!sessionId || !sessionUserId) return;
+
+    // Debounce: wait 500ms before sending to avoid rapid-fire API calls
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      if (amount > 0) {
+        tipService.addOrUpdateParticipantTip(sessionId, sessionUserId, amount)
+          .catch(err => console.error('[TipSelector] Failed to sync tip:', err));
+      } else {
+        tipService.removeParticipantTip(sessionId, sessionUserId)
+          .catch(err => console.error('[TipSelector] Failed to remove tip:', err));
+      }
+    }, 500);
+  }, [sessionId, sessionUserId]);
+
+  // Persist tip state, notify parent, and sync to server
   useEffect(() => {
     const state: TipState = { percentage: selectedTip, amount: tipAmount };
     setInStorage(STORAGE_KEY, state);
     onTipChange?.(state);
-  }, [selectedTip, tipAmount, onTipChange]);
+    syncTipToServer(tipAmount);
+  }, [selectedTip, tipAmount, onTipChange, syncTipToServer]);
 
   const handleSelectPreset = useCallback((value: number) => {
     setSelectedTip(value);

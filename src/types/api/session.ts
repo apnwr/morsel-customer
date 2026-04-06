@@ -161,6 +161,12 @@ export interface SessionDetail {
   participants: SessionParticipant[];
   orders: SessionOrder[];
   orderQueue: SessionOrderQueue[];
+  /** Split entries with payment status — populated after a split is calculated */
+  splits?: import('./split').SplitEntry[];
+  /** Split configuration (type, itemIds, etc.) */
+  splitConfig?: import('./split').SplitConfig;
+  /** Payment records for the session */
+  payments?: any[];
   updatedAt: Timestamp;
 }
 

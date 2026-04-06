@@ -40,16 +40,24 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
     .reduce((sum, item) => sum + item.itemTotal, 0);
   const userItemsTotal = Math.round(userItemsSubtotal * 100) / 100;
 
-  // Initialize local shares from split.shares
+  // Effective mode: when shares are all empty/zero, treat as "even" instead of stale mode
+  const hasValidShares = split.participants.length > 0
+    && Object.values(split.shares).some(v => typeof v === 'number' && v > 0);
+  const effectiveMode = hasValidShares ? split.mode : 'even';
+
+  // Initialize local shares from split.shares — fall back to even split when shares are empty
   const initializeLocalShares = () => {
     const shares: Record<string, string> = {};
+    const useEvenFallback = !hasValidShares && split.participants.length > 0 && effectiveTotal > 0;
+    const evenAmount = useEvenFallback ? effectiveTotal / split.participants.length : 0;
     split.participants.forEach((p) => {
-      shares[p.id] = (split.shares[p.id] || 0).toFixed(2);
+      const amount = useEvenFallback ? evenAmount : (split.shares[p.id] || 0);
+      shares[p.id] = amount.toFixed(2);
     });
     return shares;
   };
 
-  const [localMode, setLocalMode] = useState<'even' | 'custom' | 'self' | 'all' | 'items'>(split.mode);
+  const [localMode, setLocalMode] = useState<'even' | 'custom' | 'self' | 'all' | 'items'>(effectiveMode);
   const [localShares, setLocalShares] = useState<Record<string, string>>(initializeLocalShares);
   const [validationError, setValidationError] = useState<string>('');
 
@@ -62,10 +70,10 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const difference = effectiveTotal - currentSum;
   const isValidSum = Math.abs(difference) < 0.01; // Allow for rounding errors
 
-  // Reset local state when modal opens
+  // Reset local state when modal opens — use effective mode (not raw split.mode)
   useEffect(() => {
     if (isOpen) {
-      setLocalMode(split.mode);
+      setLocalMode(effectiveMode);
       setLocalShares(initializeLocalShares());
       setValidationError('');
     }
@@ -209,7 +217,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end">
+        <div key="split-settings-modal" className="fixed inset-0 z-50 flex items-end">
           {/* Backdrop */}
           <motion.div
             className="absolute inset-0 bg-black/50"

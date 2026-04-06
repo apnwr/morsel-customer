@@ -53,3 +53,16 @@ export interface SplitCalculateResponse {
     allPaid: boolean;
   };
 }
+
+/**
+ * Split configuration stored on the session
+ * Returned by GET /ordering-session/session/{sessionId}
+ */
+export interface SplitConfig {
+  type: 'equal' | 'participant' | 'custom' | 'itemized';
+  itemIds?: string[];
+  itemizedSplit?: boolean;
+  remainingItems?: any[];
+  numberOfSplits?: number;
+  amounts?: number[];
+}

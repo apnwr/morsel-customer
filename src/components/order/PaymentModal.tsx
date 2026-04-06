@@ -44,7 +44,7 @@ export function PaymentModal({ isOpen, onClose, onStartNewOrder, onPaymentComple
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end">
+        <div key="payment-modal" className="fixed inset-0 z-50 flex items-end">
           {/* Backdrop */}
           <motion.div
             className="absolute inset-0 bg-black/50"

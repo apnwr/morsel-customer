@@ -4,8 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocale } from '@/contexts/LocaleContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSplit } from '@/contexts/SplitContext';
-import { Button } from '@/components/ui/Button';
-import { Check, Lock, Minus, Plus, Loader2 } from 'lucide-react';
+import { Minus, Plus, Loader2 } from 'lucide-react';
 import { modalVariants, backdropVariants } from '@/lib/animations';
 import { getFromStorage } from '@/mocks/mockStorage';
 import { sessionService } from '@/services/session.service';
@@ -209,21 +208,39 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
 
     setItemizedSelection(currentSessionUserId, itemIds);
 
-    // Build shares map
+    // Build shares map respecting existing claims from other participants
     const newShares: Record<string, number> = {};
 
     // Current user pays for selected items (with pro-rata tax/charges)
     newShares[currentSessionUserId] = selectedTotal;
     updateShare(currentSessionUserId, selectedTotal);
 
-    // Distribute remaining among others evenly
-    const others = split.participants.filter((p) => p.id !== currentSessionUserId);
-    if (others.length > 0) {
-      const perOther = Math.round((remainingTotal / others.length) * 100) / 100;
-      others.forEach((p) => {
-        newShares[p.id] = perOther;
-        updateShare(p.id, perOther);
-      });
+    // Determine which other participants already have claims vs unclaimed
+    let totalClaimed = selectedTotal;
+    const unclaimedParticipants: string[] = [];
+
+    for (const p of split.participants) {
+      if (p.id === currentSessionUserId) continue;
+      const theirItems = itemizedSelections[p.id] || [];
+      if (theirItems.length > 0) {
+        // Already claimed items — keep their existing share
+        const existingShare = split.shares[p.id] || 0;
+        newShares[p.id] = existingShare;
+        updateShare(p.id, existingShare);
+        totalClaimed += existingShare;
+      } else {
+        unclaimedParticipants.push(p.id);
+      }
+    }
+
+    // Remaining goes to unclaimed participants evenly
+    const remaining = Math.max(0, total - totalClaimed);
+    if (unclaimedParticipants.length > 0) {
+      const perUnclaimed = Math.round((remaining / unclaimedParticipants.length) * 100) / 100;
+      for (const id of unclaimedParticipants) {
+        newShares[id] = perUnclaimed;
+        updateShare(id, perUnclaimed);
+      }
     }
 
     // Pass computed shares to parent so it can update localShares immediately
@@ -239,7 +256,8 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-end">
+        <div key="itemized-picker-sheet" className="fixed inset-0 z-[60] flex items-end">
+          {/* Backdrop */}
           <motion.div
             className="absolute inset-0 bg-black/50"
             onClick={onClose}
@@ -251,7 +269,7 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
           />
 
           <motion.div
-            className="relative w-full bg-white rounded-t-[12px] shadow-xl max-h-[85vh] flex flex-col"
+            className="relative w-full bg-[#F7F8F8] rounded-t-[12px] shadow-xl h-[95vh] flex flex-col"
             role="dialog"
             aria-modal="true"
             variants={modalVariants}
@@ -260,156 +278,183 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
             exit="exit"
           >
             {/* Header */}
-            <div className="sticky top-0 bg-white p-6 pb-4 z-10 border-b border-gray-100">
-              <h2 className="text-xl font-black text-black">Select items to pay for</h2>
-              <p className="text-xs text-black/40 mt-1">
+            <div className="sticky top-0 bg-[#F7F8F8] rounded-t-[12px] px-[18px] py-[14px] z-10">
+              <div className="flex items-center justify-between">
+                <h2
+                  className="text-[24px] text-black"
+                  style={{ fontFamily: 'Lato, sans-serif', fontWeight: 900 }}
+                >
+                  Pay for Items
+                </h2>
+                <button
+                  onClick={onClose}
+                  className="text-[14px] font-medium text-black/60"
+                >
+                  Close
+                </button>
+              </div>
+              <p
+                className="text-[10px] text-black opacity-40 mt-1"
+                style={{ fontFamily: 'Lato, sans-serif' }}
+              >
                 Pick the items you want to pay for. Other participants can claim the rest.
               </p>
             </div>
 
             {/* Items List */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-3">
-              {isLoadingItems ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-                  <span className="ml-2 text-sm text-gray-500">Loading items...</span>
-                </div>
-              ) : allItems.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-sm text-gray-500">No items in this session yet.</p>
-                </div>
-              ) : (
-                allItems.map((item) => {
-                  const availableQty = getAvailableQty(item);
-                  const selectedQty = selections[item.key] || 0;
-                  const isSelected = selectedQty > 0;
-                  const otherClaim = claimedByOthers[item.key];
-                  const isFullyClaimed = availableQty === 0 && selectedQty === 0;
+            <div className="flex-1 overflow-y-auto px-[17px] pt-[16px] pb-[100px]">
+              <div className="flex flex-col gap-[20px]">
+                {isLoadingItems ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+                    <span className="ml-2 text-sm text-gray-500">Loading items...</span>
+                  </div>
+                ) : allItems.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-gray-500">No items in this session yet.</p>
+                  </div>
+                ) : (
+                  allItems.map((item) => {
+                    const availableQty = getAvailableQty(item);
+                    const selectedQty = selections[item.key] || 0;
+                    const otherClaim = claimedByOthers[item.key];
+                    const isFullyClaimed = availableQty === 0 && selectedQty === 0;
+                    const lineTotal = selectedQty * item.unitPrice;
 
-                  return (
-                    <div
-                      key={item.key}
-                      className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-colors ${
-                        isFullyClaimed
-                          ? 'border-gray-200 bg-gray-50 opacity-60'
-                          : isSelected
-                            ? 'border-black bg-gray-50'
-                            : 'border-gray-200 bg-white'
-                      }`}
-                    >
-                      {/* Checkbox / Lock */}
-                      <button
-                        onClick={() => !isFullyClaimed && handleToggle(item.key, availableQty)}
-                        disabled={isFullyClaimed}
-                        className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-colors ${
-                          isFullyClaimed
-                            ? 'bg-gray-200'
-                            : isSelected
-                              ? 'bg-black'
-                              : 'border-2 border-gray-300'
-                        }`}
+                    return (
+                      <div
+                        key={item.key}
+                        className={`flex items-center justify-between h-[67px] ${isFullyClaimed ? 'opacity-70' : ''}`}
                       >
-                        {isFullyClaimed ? (
-                          <Lock className="w-3.5 h-3.5 text-gray-400" />
-                        ) : isSelected ? (
-                          <Check className="w-4 h-4 text-white" />
-                        ) : null}
-                      </button>
-
-                      {/* Item Info */}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm text-black truncate">{item.name}</p>
-                        <p className="text-xs text-black/40">
-                          {formatPrice(item.unitPrice)} each
-                          {otherClaim && !isFullyClaimed && (
-                            <span className="ml-2 text-orange-500">
-                              {otherClaim.qty} claimed by {otherClaim.name}
-                            </span>
-                          )}
-                          {isFullyClaimed && otherClaim && (
-                            <span className="ml-1">Claimed by {otherClaim.name}</span>
-                          )}
-                        </p>
-                      </div>
-
-                      {/* Quantity Stepper (for items with qty > 1) */}
-                      {!isFullyClaimed && item.quantity > 1 ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleDecrement(item.key)}
-                            disabled={selectedQty === 0}
-                            className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center disabled:opacity-30"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="text-sm font-bold w-6 text-center">
-                            {selectedQty}/{availableQty}
-                          </span>
-                          <button
-                            onClick={() => handleIncrement(item.key, availableQty)}
-                            disabled={selectedQty >= availableQty}
-                            className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center disabled:opacity-30"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
+                        {/* Left: Item Info */}
+                        <div className="flex gap-[5px] items-center w-[178px]">
+                          <div className="w-[47px] h-[47px] rounded-[12px] bg-[#F8F8F8] shrink-0 flex items-center justify-center text-xl">
+                            &#x1F37D;&#xFE0F;
+                          </div>
+                          <div className="flex flex-col gap-[4px] min-w-0">
+                            <p
+                              className="text-[14px] text-black truncate"
+                              style={{ fontFamily: 'Lato, sans-serif', fontWeight: 700 }}
+                            >
+                              {item.name}
+                            </p>
+                            <p
+                              className="text-[14px] text-black opacity-50"
+                              style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
+                            >
+                              {formatPrice(item.unitPrice)}
+                            </p>
+                            {isFullyClaimed && otherClaim && (
+                              <p className="text-[10px] text-orange-500">
+                                Claimed by {otherClaim.name}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      ) : !isFullyClaimed ? (
-                        <span className="text-sm font-bold text-black">
-                          {formatPrice(item.unitPrice)}
-                        </span>
-                      ) : null}
+
+                        {/* Right: Quantity Stepper + Line Total */}
+                        {!isFullyClaimed && (
+                          <div className="flex flex-col gap-[8px] items-end justify-center w-[106px]">
+                            <div className="w-full bg-white border-2 border-black rounded-[12px] flex items-center justify-between px-[10px] py-[8px]">
+                              <button
+                                onClick={() => handleDecrement(item.key)}
+                                disabled={selectedQty === 0}
+                                className="w-[20px] h-[20px] flex items-center justify-center disabled:opacity-30"
+                              >
+                                <Minus className="w-[14px] h-[14px]" strokeWidth={2.5} />
+                              </button>
+                              <span
+                                className="text-[20px] text-black"
+                                style={{ fontFamily: 'Lato, sans-serif', fontWeight: 700 }}
+                              >
+                                {selectedQty}
+                              </span>
+                              <button
+                                onClick={() => handleIncrement(item.key, availableQty)}
+                                disabled={selectedQty >= availableQty}
+                                className="w-[20px] h-[20px] flex items-center justify-center disabled:opacity-30"
+                              >
+                                <Plus className="w-[14px] h-[14px]" strokeWidth={2.5} />
+                              </button>
+                            </div>
+                            <p
+                              className="text-[12px] text-black"
+                              style={{ fontFamily: 'Lato, sans-serif', fontWeight: 900 }}
+                            >
+                              {formatPrice(lineTotal)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+
+                {/* Bill Breakdown */}
+                <div className="flex flex-col gap-[12px] mt-[22px]">
+                  <h3
+                    className="text-[20px] text-black"
+                    style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
+                  >
+                    Bill
+                  </h3>
+                  <div className="flex flex-col gap-[16px]">
+                    <div className="flex flex-col gap-[8px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[12px] text-black" style={{ fontFamily: 'Lato, sans-serif' }}>Items total</span>
+                        <span className="text-[12px] text-black" style={{ fontFamily: 'Lato, sans-serif' }}>{formatPrice(selectedSubtotal)}</span>
+                      </div>
+                      {yourTax > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[12px] text-black" style={{ fontFamily: 'Lato, sans-serif' }}>Taxes</span>
+                          <span className="text-[12px] text-black" style={{ fontFamily: 'Lato, sans-serif' }}>{formatPrice(yourTax)}</span>
+                        </div>
+                      )}
+                      {yourCharges > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[12px] text-black" style={{ fontFamily: 'Lato, sans-serif' }}>Service charge</span>
+                          <span className="text-[12px] text-black" style={{ fontFamily: 'Lato, sans-serif' }}>{formatPrice(yourCharges)}</span>
+                        </div>
+                      )}
+                      {yourDiscount > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[12px] text-green-700" style={{ fontFamily: 'Lato, sans-serif' }}>Discount</span>
+                          <span className="text-[12px] text-green-700" style={{ fontFamily: 'Lato, sans-serif' }}>-{formatPrice(yourDiscount)}</span>
+                        </div>
+                      )}
                     </div>
-                  );
-                })
-              )}
+                    <div className="flex items-center justify-between pt-[8px] border-t border-gray-200">
+                      <span
+                        className="text-[16px] text-black"
+                        style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
+                      >
+                        Grand total
+                      </span>
+                      <span
+                        className="text-[16px] text-black"
+                        style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
+                      >
+                        {formatPrice(selectedTotal)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Footer */}
-            <div className="sticky bottom-0 bg-white border-t border-gray-100 p-6 space-y-3">
-              {/* Breakdown */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-black/40">Items</span>
-                  <span className="text-xs font-medium text-black/60">{formatPrice(selectedSubtotal)}</span>
-                </div>
-                {yourTax > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-black/40">Tax</span>
-                    <span className="text-xs font-medium text-black/60">+{formatPrice(yourTax)}</span>
-                  </div>
-                )}
-                {yourCharges > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-black/40">Charges</span>
-                    <span className="text-xs font-medium text-black/60">+{formatPrice(yourCharges)}</span>
-                  </div>
-                )}
-                {yourDiscount > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-green-600">Discount</span>
-                    <span className="text-xs font-medium text-green-600">-{formatPrice(yourDiscount)}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Total */}
-              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                <span className="text-sm font-medium text-black/60">Your total</span>
-                <span className="text-xl font-black text-black">{formatPrice(selectedTotal)}</span>
-              </div>
-              {remainingTotal > 0.01 && (
-                <p className="text-xs text-orange-500">
-                  {formatPrice(remainingTotal)} remaining — will be split among other participants
-                </p>
-              )}
-              <Button
+            {/* Fixed Bottom CTA */}
+            <div
+              className="fixed left-0 right-0 bottom-0 z-20 flex justify-center"
+              style={{ transform: 'translateZ(0)' }}
+            >
+              <button
                 onClick={handleConfirm}
-                variant="primary"
-                size="lg"
-                className="w-full rounded-[40px]"
+                className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-[22px]"
+                style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700, fontSize: '20px' }}
               >
-                Confirm Selection
-              </Button>
+                <span>Pay Now</span>
+                <span>{formatPrice(selectedTotal)}</span>
+              </button>
             </div>
           </motion.div>
         </div>
