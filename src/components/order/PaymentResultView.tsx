@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, XCircle, Star, Settings, Download } from 'lucide-react';
+import { CheckCircle2, XCircle, Star, Settings, Download, Loader2 } from 'lucide-react';
 import { useLocale } from '@/contexts/LocaleContext';
 import { useSession } from '@/contexts/SessionContext';
 import { useSplit } from '@/contexts/SplitContext';
@@ -11,6 +11,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import { getFromStorage } from '@/mocks/mockStorage';
+import { receiptService } from '@/services/receipt.service';
 import type { SessionBill } from '@/types/api/bill';
 
 const GOOGLE_REVIEWS_URL = 'https://maps.app.goo.gl/cyKBZ3Yn5qnS5c947';
@@ -65,6 +66,42 @@ export function PaymentResultView({
 
   // Show participants card only in space flow with 2+ participants
   const showParticipantsCard = !isAreaFlow && sortedParticipants.length > 1;
+
+  const [isReceiptLoading, setIsReceiptLoading] = useState(false);
+
+  const handleGetReceipt = async () => {
+    const sessionId = sessionData?.session?.id;
+    if (!sessionId) return;
+
+    setIsReceiptLoading(true);
+    try {
+      const html = await receiptService.getReceipt(sessionId, currentSessionUserId || undefined);
+
+      // Inject a sticky download button that triggers print (Save as PDF)
+      const downloadBtn = `
+        <div id="receipt-actions" style="position:sticky;top:0;z-index:9999;background:#000;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;">
+          <span style="color:#fff;font-family:Helvetica Neue,sans-serif;font-size:16px;font-weight:700;">Receipt</span>
+          <button onclick="document.getElementById('receipt-actions').style.display='none';window.print();document.getElementById('receipt-actions').style.display='flex';"
+            style="background:#fff;color:#000;border:none;padding:8px 20px;border-radius:20px;font-family:Helvetica Neue,sans-serif;font-size:14px;font-weight:700;cursor:pointer;">
+            Download PDF
+          </button>
+        </div>`;
+
+      // Insert button at start of body (or before existing content)
+      const injectedHtml = html.includes('<body')
+        ? html.replace(/(<body[^>]*>)/i, `$1${downloadBtn}`)
+        : `${downloadBtn}${html}`;
+
+      const blob = new Blob([injectedHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (err) {
+      console.error('[PaymentResultView] Failed to get receipt:', err);
+    } finally {
+      setIsReceiptLoading(false);
+    }
+  };
 
   const getModeLabel = () => {
     const effectiveMode = hasValidShares ? split.mode : 'even';
@@ -317,8 +354,9 @@ export function PaymentResultView({
       >
         {isSuccess ? (
           <button
-            onClick={onBackToMenu}
-            className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-[22px] transition-all"
+            onClick={handleGetReceipt}
+            disabled={isReceiptLoading}
+            className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-[22px] transition-all disabled:opacity-70"
             style={{
               fontFamily: 'Helvetica Neue, sans-serif',
               fontWeight: 700,
@@ -326,9 +364,13 @@ export function PaymentResultView({
               lineHeight: '1.22',
             }}
           >
-            <span className="flex-shrink-0">Get Receipt</span>
+            <span className="flex-shrink-0">{isReceiptLoading ? 'Loading...' : 'Get Receipt'}</span>
             <div className="w-[30px] h-[30px] rounded-[4px] border-2 border-[#4B4B4B] flex items-center justify-center">
-              <Download className="w-[14px] h-[14px] text-white" />
+              {isReceiptLoading ? (
+                <Loader2 className="w-[14px] h-[14px] text-white animate-spin" />
+              ) : (
+                <Download className="w-[14px] h-[14px] text-white" />
+              )}
             </div>
           </button>
         ) : (

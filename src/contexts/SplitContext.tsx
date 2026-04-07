@@ -399,12 +399,18 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         break;
 
       case 'items': {
-        // Flat array of all claimed item IDs across participants
-        const itemIds: string[] = [];
+        // Aggregate item selections across participants: key → total quantity
+        // Key format: orderId_itemId_variantIndex
+        const keyCountMap: Record<string, number> = {};
         for (const p of participants) {
-          const pItems = itemizedSelections[p.id] || [];
-          itemIds.push(...pItems);
+          for (const key of (itemizedSelections[p.id] || [])) {
+            keyCountMap[key] = (keyCountMap[key] || 0) + 1;
+          }
         }
+        const itemIds = Object.entries(keyCountMap).map(([key, quantity]) => {
+          const [orderId, itemId] = key.split('_');
+          return { itemId, orderId, quantity };
+        });
         payload = {
           type: 'itemized',
           numberOfSplits: participants.length,

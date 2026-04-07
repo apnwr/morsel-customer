@@ -64,17 +64,18 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
     }, 500);
   }, [sessionId, sessionUserId]);
 
-  // Persist tip state, notify parent, and sync to server
+  // Persist tip state and notify parent (NO server sync here — that happens only on user action)
   useEffect(() => {
     const state: TipState = { percentage: selectedTip, amount: tipAmount };
     setInStorage(STORAGE_KEY, state);
     onTipChange?.(state);
-    syncTipToServer(tipAmount);
-  }, [selectedTip, tipAmount, onTipChange, syncTipToServer]);
+  }, [selectedTip, tipAmount, onTipChange]);
 
   const handleSelectPreset = useCallback((value: number) => {
     setSelectedTip(value);
-  }, []);
+    const amount = Math.round(subtotal * (value / 100) * 100) / 100;
+    syncTipToServer(amount);
+  }, [subtotal, syncTipToServer]);
 
   // Get current tip label for the confirm button
   const getTipLabel = () => {
@@ -88,9 +89,10 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
     const state: TipState = { percentage: -1, amount };
     setInStorage(STORAGE_KEY, state);
     onTipChange?.(state);
+    syncTipToServer(amount);
     setShowCustomModal(false);
     setCustomTipInput('');
-  }, [customTipInput, onTipChange]);
+  }, [customTipInput, onTipChange, syncTipToServer]);
 
   return (
     <>

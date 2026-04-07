@@ -10,6 +10,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { useLocale } from '@/contexts/LocaleContext';
 import Image from 'next/image';
 import { useSession } from '@/contexts/SessionContext';
@@ -18,9 +19,15 @@ import { getFromStorage } from '@/mocks/mockStorage';
 import { TipSelector, getStoredTip } from '@/components/cart/TipSelector';
 import { ParticipantsList } from '@/components/session/ParticipantsList';
 import { isSplitApplicableForTotal } from '@/lib/split-utils';
+import { prefetchSDK } from '@/lib/peach-payments/sdk-loader';
 import { useFlowType } from '@/hooks/useFlowType';
 import type { Order as APIOrder, OrderItem } from '@/types/api/order';
 import type { SessionBill } from '@/types/api/bill';
+
+const PeachCheckoutModal = dynamic(
+  () => import('@/components/payment/PeachCheckoutModal').then(m => ({ default: m.PeachCheckoutModal })),
+  { ssr: false }
+);
 
 // Helper function to get dietary type from stored dietary data
 const getDietaryTypeFromStoredData = (storedDietary: { allergens?: string[]; dietary?: string[] } | undefined) => {
@@ -73,7 +80,7 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood, onPay
   const { split } = useSplit();
   const flowType = useFlowType();
 
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   // Current user
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
@@ -171,19 +178,25 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood, onPay
   const isCurrentUserPaid = currentSessionUserId ? isParticipantPaid(currentSessionUserId) : false;
   const allSplitsPaid = splitPaymentStatus != null && splitPaymentStatus.length > 0 && splitPaymentStatus.every(s => s.paid);
 
-  // Handle payment
-  const handlePayNow = useCallback(async () => {
-    setIsProcessingPayment(true);
-    try {
-      // Simulate payment processing
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      setIsProcessingPayment(false);
-      // Notify parent of payment result
-      onPaymentResult?.('success', totalWithTip, tipAmount);
-    } catch {
-      setIsProcessingPayment(false);
-      onPaymentResult?.('failure', totalWithTip, tipAmount);
-    }
+  // Derive current user's split identifier for the payment API
+  const currentUserSplitIdentifier = useMemo(() => {
+    if (!splitPaymentStatus || !currentSessionUserId) return undefined;
+    const entry = splitPaymentStatus.find(s => s.sessionUserId === currentSessionUserId);
+    return entry ? String(entry.index) : undefined;
+  }, [splitPaymentStatus, currentSessionUserId]);
+
+  // Prefetch Peach SDK on mount for fast checkout
+  useEffect(() => { prefetchSDK(); }, []);
+
+  // Handle payment — open checkout modal
+  const handlePayNow = useCallback(() => {
+    setIsCheckoutOpen(true);
+  }, []);
+
+  // Handle checkout result from PeachCheckoutModal
+  const handleCheckoutResult = useCallback((result: 'success' | 'failure') => {
+    setIsCheckoutOpen(false);
+    onPaymentResult?.(result, totalWithTip, tipAmount);
   }, [onPaymentResult, totalWithTip, tipAmount]);
 
   return (
@@ -396,7 +409,7 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood, onPay
       >
         <button
           onClick={isCurrentUserPaid ? undefined : handlePayNow}
-          disabled={isProcessingPayment || isCurrentUserPaid}
+          disabled={isCurrentUserPaid}
           className={`w-full max-w-2xl h-[70px] flex items-center justify-between px-[22px] transition-all disabled:cursor-not-allowed ${
             isCurrentUserPaid
               ? 'bg-green-600 text-white'
@@ -410,7 +423,7 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood, onPay
           }}
         >
           <span className="flex-shrink-0">
-            {isCurrentUserPaid ? 'Paid' : isProcessingPayment ? 'Processing...' : 'Pay Now'}
+            {isCurrentUserPaid ? 'Paid' : 'Pay Now'}
           </span>
           <span className="flex-shrink-0">
             {formatPrice(totalWithTip)}
@@ -418,6 +431,18 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood, onPay
         </button>
       </div>
 
+      {/* Peach Payments Checkout Modal */}
+      {sessionData?.session?.id && (
+        <PeachCheckoutModal
+          isOpen={isCheckoutOpen}
+          onClose={() => setIsCheckoutOpen(false)}
+          onPaymentResult={handleCheckoutResult}
+          sessionId={sessionData.session.id}
+          sessionUserId={currentSessionUserId || undefined}
+          splitIdentifier={currentUserSplitIdentifier}
+          amount={totalWithTip}
+        />
+      )}
     </>
   );
 }

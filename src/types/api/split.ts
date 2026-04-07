@@ -12,8 +12,8 @@ export interface SplitCalculateRequest {
   numberOfSplits?: number;
   /** Array of amounts per split (used for 'custom' type) */
   amounts?: number[];
-  /** Flat array of selected item IDs (used for 'itemized' type) */
-  itemIds?: string[];
+  /** Selected items with quantity (used for 'itemized' type) */
+  itemIds?: Array<{ itemId: string; orderId: string; quantity: number }>;
 }
 
 /**

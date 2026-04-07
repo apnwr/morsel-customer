@@ -37,5 +37,12 @@ export const endpoints = {
   area: {
     startSession: () => `/ordering-session/session/area-single-order`,
   },
-  // Add more endpoint groups as we integrate more APIs
+  receipt: {
+    /** GET — generate HTML receipt (optional sessionUserId query param for user-specific receipt) */
+    generate: (sessionId: string) => `/ordering-session/session/${sessionId}/receipt`,
+  },
+  payment: {
+    createEmbeddedCheckout: () => `/payments/peach-payments/embedded`,
+    verify: () => `/payments/peach-payments/verify`,
+  },
 } as const;

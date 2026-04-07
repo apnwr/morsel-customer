@@ -34,6 +34,10 @@ tags:
     description: Business APIs for managing discount codes and applying discounts
   - name: Discounts - Patron
     description: Patron APIs for applying and removing discount codes
+  - name: Payments - Peach
+    description: Peach Payments embedded checkout APIs for processing payments
+  - name: Secrets
+    description: Business APIs for storing and retrieving encrypted secrets (e.g., payment provider credentials)
 
 paths:
   # ==================== AUTH ====================
@@ -2598,6 +2602,207 @@ paths:
           description: Discount removed successfully
         '404':
           description: Session not found
+
+  # ==================== PAYMENTS - PEACH APIS ====================
+  /payments/peach-payments/embedded:
+    post:
+      tags: [Payments - Peach]
+      summary: Create Peach embedded checkout session
+      description: Create a Peach embedded checkout session for payment. Returns checkoutId and checkoutUrl for rendering embedded checkout on client.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sessionId:
+                  type: string
+                  description: Ordering session ID (to create new transaction)
+                sessionUserId:
+                  type: string
+                  description: Optional participant ID in the session (for multi-participant sessions)
+                splitIdentifier:
+                  type: string
+                  description: Optional split identifier to create checkout for a specific split (splitId or index)
+      responses:
+        '200':
+          description: Peach embedded checkout session created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkout:
+                    type: object
+                    properties:
+                      checkoutId:
+                        type: string
+                        description: Peach embedded checkout ID
+                      checkoutUrl:
+                        type: string
+                        description: URL/widget for embedded checkout
+                      entityId:
+                        type: string
+                        description: Peach entity ID (from stored business secrets) — client uses as `key` in Checkout.initiate()
+                  transactionId:
+                    type: string
+                    description: Created/used transaction ID
+        '400':
+          description: Invalid request parameters
+        '404':
+          description: Session, order, or transaction not found
+
+  /payments/peach-payments/verify:
+    post:
+      tags: [Payments - Peach]
+      summary: Verify Peach embedded checkout and settle transaction
+      description: |
+        Verify the status of a Peach embedded checkout and settle the transaction if successful.
+        On success, marks split as paid (if applicable), updates order statuses, and sends receipt.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [checkoutId]
+              properties:
+                transactionId:
+                  type: string
+                  description: Transaction ID (optional, can lookup by checkoutId)
+                checkoutId:
+                  type: string
+                  description: Peach checkout ID to verify
+                clientId:
+                  type: string
+                  description: Optional client identifier to fetch per-client Peach credentials
+                phone:
+                  type: string
+                  description: Optional phone number for receipt notification
+                splitId:
+                  type: string
+                  description: Optional split ID to mark as paid (if splitting bill)
+                sessionUserId:
+                  type: string
+                  description: Optional participant ID (for multi-participant sessions)
+      responses:
+        '200':
+          description: Checkout verified and transaction settled (or failed)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Whether verification was successful
+                  status:
+                    type: string
+                    enum: [success, failed]
+                    description: Payment status
+                  verification:
+                    type: object
+                    description: Peach verification response with full transaction details
+                  transactionId:
+                    type: string
+                    description: Associated transaction ID
+        '400':
+          description: Invalid request - missing checkoutId or invalid parameters
+        '404':
+          description: Transaction or checkout not found
+
+  # ==================== SECRETS - BUSINESS APIS ====================
+  /business/secrets:
+    post:
+      tags: [Secrets]
+      summary: Store encrypted secret (ciphertext) for a business
+      description: |
+        Stores ciphertext only. The platform will not attempt to decrypt secrets. Use client-side
+        encryption before sending secrets to this endpoint.
+
+        For Peach Payments integration, store credentials as PEACH_PAYMENTS_KEYS with the following encrypted JSON structure:
+        - entityId: Peach entity identifier
+        - clientSecret: Encrypted client secret from Peach
+        - clientId: Client identifier from Peach
+        - merchantId: Merchant identifier from Peach
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, ciphertext]
+              properties:
+                name:
+                  type: string
+                  description: Identifier for the secret (e.g., 'PEACH_PAYMENTS_KEYS')
+                ciphertext:
+                  type: string
+                  description: Base64/UTF-8 encoded ciphertext produced by the business; server stores as-is
+                description:
+                  type: string
+                  description: Optional human-friendly description
+            examples:
+              PeachPaymentsKeys:
+                summary: Peach Payments Credentials
+                value:
+                  name: PEACH_PAYMENTS_KEYS
+                  ciphertext: '{"entityId":"8ac7a4c895d9a0020195db63cbd40250","clientSecret":"...","clientId":"f7c2ee5408ffc05fd9d28650f0ff0a","merchantId":"f80b693b2d454c858a694a8dbb0ce8fd"}'
+                  description: Peach Payments credentials for business
+      responses:
+        '201':
+          description: Secret stored successfully
+        '400':
+          description: Invalid request - missing required fields
+        '401':
+          description: Unauthorized - authentication required
+        '403':
+          description: Forbidden - insufficient permissions
+
+  /business/secrets/{name}:
+    get:
+      tags: [Secrets]
+      summary: Retrieve ciphertext for a business secret
+      description: Returns ciphertext only. Client must decrypt locally using their private key.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+          description: Secret name/identifier (e.g., 'PEACH_PAYMENTS_KEYS')
+      responses:
+        '200':
+          description: Ciphertext retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  secret:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      ciphertext:
+                        type: string
+                      description:
+                        type: string
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Secret not found
 
 components:
   securitySchemes:

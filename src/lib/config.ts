@@ -7,6 +7,10 @@ export const config = {
   api: {
     baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || '',
   },
+  peachPayments: {
+    entityKey: process.env.NEXT_PUBLIC_PEACH_PAYMENTS_ENTITY_KEY || '',
+    sandbox: process.env.NEXT_PUBLIC_PEACH_PAYMENTS_SANDBOX !== 'false',
+  },
   features: {
     /** When false, all menus are treated as always available (ignores availability field) */
     menuAvailabilityCheck: false,
