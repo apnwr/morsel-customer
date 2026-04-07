@@ -151,6 +151,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Clear flow-specific keys to prevent stale state across flows
       localStorage.removeItem('morsel_flow_type');
       localStorage.removeItem('morsel_area_id');
+      // Clear split data to prevent leakage between sessions/flows
+      localStorage.removeItem('morsel_split');
+      localStorage.removeItem('morsel_itemized_selections');
       // Also clear restaurant context since it's tied to the session
       localStorage.removeItem('morsel_restaurant_context');
       console.log('[SessionContext] 🗑️ Cleared restaurant context (must scan QR again)');

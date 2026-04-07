@@ -82,11 +82,29 @@ export function useCartPageState(): CartPageState {
           paymentType: 'cash',
         });
 
-        orderId = response.data.id;
-        console.log('[useCartPageState] Area order placed:', orderId);
+        console.log('[useCartPageState] Area order response:', JSON.stringify(response));
 
-        // Refresh session to get updated orders array
-        try { await refreshSessionData(); } catch { /* non-blocking */ }
+        // Try to get orderId from response — structure may vary
+        orderId = response?.data?.id
+          || (response?.data as any)?.orderId
+          || (response as any)?.orderId
+          || (response as any)?.id;
+
+        // Refresh session to get updated orders array (also extracts orderId if missing)
+        try {
+          await refreshSessionData();
+          // If orderId still missing, get latest order from refreshed session
+          if (!orderId && sessionData?.session?.orders?.length) {
+            const orders = sessionData.session.orders;
+            const lastOrder = orders[orders.length - 1];
+            orderId = typeof lastOrder === 'string' ? lastOrder : (lastOrder as any)?.orderId;
+          }
+        } catch { /* non-blocking */ }
+
+        if (!orderId) {
+          console.warn('[useCartPageState] Could not extract orderId from area order response');
+        }
+        console.log('[useCartPageState] Area order placed:', orderId);
       } else {
         // Space flow: use queue/confirm
         const result = await confirmOrder('cash');

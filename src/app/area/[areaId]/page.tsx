@@ -22,29 +22,42 @@ export default function AreaPage() {
 
   useEffect(() => {
     const init = async () => {
-      // Check if user already has an active area session
+      // Check if user already has an active area session for THIS area
       const existingUserId = getFromStorage<string>('morsel_session_user_id');
       const existingFlowType = getFromStorage<string>('morsel_flow_type');
       const existingAreaId = getFromStorage<string>('morsel_area_id');
       const existingSession = sessionData?.session;
 
-      if (existingUserId && existingSession?.status === 'active') {
-        if (existingFlowType === 'area' && existingAreaId === areaId) {
-          // Same area — resume existing session
-          console.log('[AreaPage] Active area session exists, redirecting to menu');
-          router.replace('/menu');
-          return;
-        }
+      if (existingUserId && existingSession?.status === 'active'
+        && existingFlowType === 'area' && existingAreaId === areaId) {
+        // Same area — resume existing session
+        console.log('[AreaPage] Active area session exists, redirecting to menu');
+        router.replace('/menu');
+        return;
+      }
 
-        // Different area or was a space session — clean up
+      // Any other case — different area, space flow, or stale session. Clean everything.
+      if (existingUserId && existingSession?.status === 'active') {
         console.log('[AreaPage] Different session detected, ending previous');
         try {
           await endSession('left');
-          clearCart();
         } catch (e) {
           console.error('[AreaPage] Failed to end previous session:', e);
         }
       }
+
+      // Clear ALL stale data — ensures no space flow leakage
+      clearCart();
+      localStorage.removeItem('morsel_session_data');
+      localStorage.removeItem('morsel_session_user_id');
+      localStorage.removeItem('morsel_active_order_id');
+      localStorage.removeItem('morsel_split');
+      localStorage.removeItem('morsel_itemized_selections');
+      localStorage.removeItem('morsel_kitchen_note');
+      localStorage.removeItem('morsel_tip');
+      localStorage.removeItem('morsel_flow_type');
+      localStorage.removeItem('morsel_area_id');
+      localStorage.removeItem('morsel_restaurant_context');
 
       if (!areaId) {
         setError('Invalid area ID');

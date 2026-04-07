@@ -1,12 +1,12 @@
 'use client';
 
 import { useMemo } from 'react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, XCircle, Star, Settings, Download } from 'lucide-react';
 import { useLocale } from '@/contexts/LocaleContext';
 import { useSession } from '@/contexts/SessionContext';
 import { useSplit } from '@/contexts/SplitContext';
+import { useFlowType } from '@/hooks/useFlowType';
 import { Avatar } from '@/components/ui/Avatar';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
@@ -34,29 +34,37 @@ export function PaymentResultView({
 }: PaymentResultViewProps) {
   const router = useRouter();
   const { formatPrice } = useLocale();
-  const { splitPaymentStatus, isParticipantPaid } = useSession();
+  const { sessionData, splitPaymentStatus, isParticipantPaid } = useSession();
   const { split } = useSplit();
+  const flowType = useFlowType();
 
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
   const isSuccess = result === 'success';
-  const allPaid = splitPaymentStatus != null
-    && splitPaymentStatus.length > 0
-    && splitPaymentStatus.every(s => s.paid);
+  const isAreaFlow = flowType === 'area';
 
   // Bill total WITHOUT tips — tip is shown separately and added per participant
   const billTotalWithoutTip = bill ? (bill.total - (bill.totalTip || 0)) : 0;
 
-  // Sort participants: current user first
+  const allPaid = splitPaymentStatus != null
+    && splitPaymentStatus.length > 0
+    && splitPaymentStatus.every(s => s.paid);
+
+  // Participants from session API (server truth), sorted current user first
+  const apiParticipants = sessionData?.session?.participants;
   const sortedParticipants = useMemo(() => {
-    return [...split.participants].sort((a, b) => {
-      if (a.id === currentSessionUserId) return -1;
-      if (b.id === currentSessionUserId) return 1;
+    if (!apiParticipants || apiParticipants.length === 0) return [];
+    return [...apiParticipants].sort((a, b) => {
+      if (a.sessionUserId === currentSessionUserId) return -1;
+      if (b.sessionUserId === currentSessionUserId) return 1;
       return 0;
     });
-  }, [split.participants, currentSessionUserId]);
+  }, [apiParticipants, currentSessionUserId]);
 
   const hasValidShares = split.participants.length > 0
     && Object.values(split.shares).some(v => typeof v === 'number' && v > 0);
+
+  // Show participants card only in space flow with 2+ participants
+  const showParticipantsCard = !isAreaFlow && sortedParticipants.length > 1;
 
   const getModeLabel = () => {
     const effectiveMode = hasValidShares ? split.mode : 'even';
@@ -69,6 +77,11 @@ export function PaymentResultView({
       default: return 'Split bill';
     }
   };
+
+  // Bill section title: area flow always "Bill", space flow depends on paid status
+  const billSectionTitle = isAreaFlow ? 'Bill' : (isSuccess ? 'Pending Amount' : 'Bill');
+  // Show bill section: always in area/failure, hide in space flow when all paid
+  const showBillSection = isAreaFlow || !allPaid;
 
   return (
     <div className="min-h-screen bg-[#F7F8F8] overflow-x-hidden">
@@ -138,24 +151,24 @@ export function PaymentResultView({
           </div>
         )}
 
-        {/* Participants Card — same structure as ParticipantsList dark card */}
-        {sortedParticipants.length > 0 && (
+        {/* Participants Card — space flow only, 2+ participants */}
+        {showParticipantsCard && (
           <div className="mb-6 rounded-[30px] bg-black p-5">
             {/* Participant Avatars Row */}
             <div className="flex items-start gap-5 overflow-x-auto pb-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {sortedParticipants.map(participant => {
-                const paid = isParticipantPaid(participant.id);
-                const isYou = participant.id === currentSessionUserId;
-                const displayName = isYou ? 'You' : participant.name;
-                const shareAmount = split.shares[participant.id] || 0;
+                const paid = isParticipantPaid(participant.sessionUserId);
+                const isYou = participant.sessionUserId === currentSessionUserId;
+                const displayName = isYou ? 'You' : participant.guestName;
+                const shareAmount = split.shares[participant.sessionUserId] || 0;
 
                 return (
-                  <div key={participant.id} className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0">
+                  <div key={participant.sessionUserId} className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0">
                     {/* Avatar with Paid overlay */}
                     <div className="relative">
                       <div className={paid ? 'opacity-40' : ''}>
                         <Avatar
-                          name={participant.name}
+                          name={participant.guestName}
                           className="w-[50px] h-[50px]"
                         />
                       </div>
@@ -203,14 +216,14 @@ export function PaymentResultView({
           </div>
         )}
 
-        {/* Bill Section (hidden when all paid on success) */}
-        {!allPaid && (
+        {/* Bill Section */}
+        {showBillSection && (
           <div className="mb-6">
             <h3
               className="text-black text-[20px] leading-[1.22] font-bold mb-3"
               style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
             >
-              {isSuccess ? 'Pending Amount' : 'Bill'}
+              {billSectionTitle}
             </h3>
             <div className="flex flex-col gap-2 w-full">
               {/* Items total */}
