@@ -13,148 +13,126 @@ import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useSession } from '@/contexts/SessionContext';
 import type { OrderingSessionData } from '@/types/api/session';
 
-// Helper to check if logo URL is valid and non-empty
 function hasValidLogo(logo: string | undefined | null): logo is string {
   return typeof logo === 'string' && logo.trim().length > 0;
 }
 
-type DiningType = 'dine-in' | 'takeaway';
-
-interface LoginModalProps {
+interface AreaLoginModalProps {
   isOpen: boolean;
+  areaId: string;
   previewSession: OrderingSessionData | null;
 }
 
-export function LoginModal({ isOpen, previewSession }: LoginModalProps) {
+export function AreaLoginModal({ isOpen, areaId, previewSession }: AreaLoginModalProps) {
   const router = useRouter();
   const { setContext } = useRestaurant();
   const { setSessionData } = useSession();
   const [customerName, setCustomerName] = useState('');
-  const [diningType, setDiningType] = useState<DiningType>('dine-in');
   const [error, setError] = useState('');
   const [isStarting, setIsStarting] = useState(false);
 
-  const handleSubmit = async (authMethod: 'guest' | 'google' | 'apple') => {
-    // Validate name input
+  const handleSubmit = async () => {
     const validation = validateCustomerName(customerName);
-
     if (!validation.isValid) {
       setError(validation.error || 'Invalid name');
       return;
     }
 
-    // Sanitize the name
     const sanitizedName = sanitizeCustomerName(customerName);
-
     setIsStarting(true);
     setError('');
 
     try {
-      console.log('[LoginModal] Starting session join process...');
-
-      // Validate we have preview session from QR scan
-      if (!previewSession?.space?.id) {
-        throw new Error('No session preview available. Please scan the QR code again.');
+      if (!areaId) {
+        throw new Error('No area ID available. Please scan the QR code again.');
       }
 
-      console.log('[LoginModal] Calling /ordering-session/start API...');
-      console.log('[LoginModal] Request:', {
-        spaceId: previewSession.space.id,
+      // Start area session (no items — just create session)
+      // Response: { data: { session: {...}, order: {...} } }
+      const response = await sessionService.startAreaSession({
+        areaId,
         guestName: sanitizedName,
-        existingSession: previewSession.session ? 'Will JOIN existing' : 'Will CREATE new',
+        businessId: previewSession?.business?.id,
       });
 
-      // Call /start endpoint - this is smart and will:
-      // 1. Join existing active session for this space (if exists)
-      // 2. OR create a NEW session if no active session exists
-      const sessionResponse = await sessionService.startSession({
-        spaceId: previewSession.space.id,
-        guestName: sanitizedName,
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resData = response.data as any;
+      const session = resData.session || resData;
+      const participants = session.participants || [];
 
-      console.log('[LoginModal] Session API response:', {
-        sessionId: sessionResponse.data.id,
-        status: sessionResponse.data.status,
-        participantsCount: sessionResponse.data.participants.length,
-      });
-
-      // Extract sessionUserId from the participant entry
-      const currentUser = sessionResponse.data.participants.find(
-        (p) => p.guestName === sanitizedName
+      // Extract sessionUserId from participants
+      const currentUser = participants.find(
+        (p: { guestName: string }) => p.guestName === sanitizedName
       );
 
       if (!currentUser) {
         throw new Error('Failed to join session - participant not found in response');
       }
 
-      console.log('[LoginModal] Found current user in participants:', {
-        sessionUserId: currentUser.sessionUserId,
-        guestName: currentUser.guestName,
-      });
-
-      // Save everything to localStorage (user is confirmed participant)
-      console.log('[LoginModal] Saving session data to localStorage...');
-
-      // Store customer information
-      setInStorage('morsel_flow_type', 'space');
+      // Save flow type as area
+      setInStorage('morsel_flow_type', 'area');
+      setInStorage('morsel_area_id', areaId);
       setInStorage('morsel_customer_name', sanitizedName);
-      setInStorage('morsel_dining_type', diningType);
-      setInStorage('morsel_auth_method', authMethod);
-
-      // Store the API-provided sessionUserId (CRITICAL for cart sync)
+      setInStorage('morsel_auth_method', 'guest');
       setInStorage('morsel_session_user_id', currentUser.sessionUserId);
 
-      // Update active session in context (this also saves to localStorage)
+      // Update active session in context — map area response to session shape
       setSessionData({
-        ...previewSession,
-        session: sessionResponse.data,
-        participantsCount: sessionResponse.data.participants.length,
+        space: previewSession?.space || { id: '', name: session.areaName || 'Counter' } as any,
+        business: previewSession?.business || { id: session.businessId, businessName: '' } as any,
+        session: {
+          id: session.id,
+          spaceId: session.spaceId || '',
+          businessId: session.businessId,
+          status: session.status,
+          participants,
+          orders: (session.orders || []).map((o: any) => typeof o === 'string' ? o : o.orderId),
+          createdAt: session.createdAt,
+          expiresAt: session.expiresAt,
+        },
+        participantsCount: 1,
       });
 
-      // Set restaurant context from API data
-      console.log('[LoginModal] Setting restaurant context from API data');
+      // Set restaurant context from session response
       setContext({
         restaurant: {
-          id: previewSession.business.id,
-          name: previewSession.business.businessName,
+          id: session.businessId,
+          name: previewSession?.business?.businessName || '',
           themeColor: '#E68E2E',
-          logo: previewSession.business.logo || '', // Use logo from API if available
+          logo: previewSession?.business?.logo || '',
           branches: [{
-            id: previewSession.space.id,
-            name: previewSession.space.name,
-            tables: 50,
+            id: session.branchId || areaId,
+            name: session.branchName || session.areaName || 'Counter',
+            tables: 1,
           }],
         },
         branch: {
-          id: previewSession.space.id,
-          name: previewSession.space.name,
-          tables: 50,
+          id: session.branchId || areaId,
+          name: session.branchName || session.areaName || 'Counter',
+          tables: 1,
         },
         table: 1,
       });
 
-      console.log('[LoginModal] Session joined successfully!');
-
-      // Navigate to menu page using replace to prevent back button issues
       router.replace('/menu');
-    } catch (error) {
-      console.error('[LoginModal] Failed to join session:', error);
-
+    } catch (err) {
+      console.error('[AreaLoginModal] Failed to start area session:', err);
       setError(
-        error instanceof Error
-          ? error.message
-          : 'Could not join the ordering session. Please try again.'
+        err instanceof Error
+          ? err.message
+          : 'Could not start ordering. Please try again.'
       );
     } finally {
       setIsStarting(false);
     }
   };
 
+  const businessName = previewSession?.business?.businessName || 'morsel';
+
   return (
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-end">
-          {/* Backdrop - no onClick to prevent closing */}
           <motion.div
             className="absolute inset-0 bg-black/50"
             aria-hidden="true"
@@ -164,12 +142,11 @@ export function LoginModal({ isOpen, previewSession }: LoginModalProps) {
             exit="exit"
           />
 
-          {/* Modal content - bottom sheet style */}
           <motion.div
             className="relative w-full bg-white rounded-t-[20px] shadow-xl max-h-[85vh] overflow-y-auto"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="login-modal-title"
+            aria-labelledby="area-login-title"
             variants={modalVariants}
             initial="hidden"
             animate="visible"
@@ -187,13 +164,12 @@ export function LoginModal({ isOpen, previewSession }: LoginModalProps) {
                   <div className="relative w-20 h-20 rounded-xl overflow-hidden shadow-sm bg-gray-100">
                     <Image
                       src={previewSession.business.logo}
-                      alt={`${previewSession?.business?.displayName || previewSession?.business?.businessName || 'Business'} logo`}
+                      alt={`${businessName} logo`}
                       fill
                       className="object-contain"
                       sizes="80px"
-                      unoptimized // Required for external Firebase URLs
+                      unoptimized
                       onError={(e) => {
-                        // Hide image on error
                         const target = e.target as HTMLImageElement;
                         target.style.display = 'none';
                       }}
@@ -204,15 +180,15 @@ export function LoginModal({ isOpen, previewSession }: LoginModalProps) {
                     className="h-16 rounded-xl shadow-sm flex items-center justify-center text-xl font-bold text-white px-6 text-center"
                     style={{ backgroundColor: '#000000' }}
                   >
-                    {previewSession?.business?.businessName || 'morsel'}
+                    {businessName}
                   </div>
                 )}
               </div>
 
-              {/* Space/Table Name and Name Input */}
+              {/* Name Input */}
               <div className="mb-6">
                 <div className="text-sm font-semibold mb-2 text-gray-700">
-                  {previewSession?.space?.name || 'Welcome'}
+                  Quick order
                 </div>
                 <input
                   type="text"
@@ -231,40 +207,16 @@ export function LoginModal({ isOpen, previewSession }: LoginModalProps) {
                 )}
               </div>
 
-              {/* Dining Type Toggle */}
-              <div className="flex gap-2 mb-6">
-                <button
-                  onClick={() => setDiningType('dine-in')}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    diningType === 'dine-in'
-                      ? 'bg-black text-white'
-                      : 'bg-white text-gray-600 border border-gray-200'
-                  }`}
-                >
-                  Dine-in
-                </button>
-                <button
-                  onClick={() => setDiningType('takeaway')}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    diningType === 'takeaway'
-                      ? 'bg-black text-white'
-                      : 'bg-white text-gray-600 border border-gray-200'
-                  }`}
-                >
-                  Take-Away
-                </button>
-              </div>
-
-              {/* Authentication Button */}
+              {/* Start Button */}
               <div className="pb-4">
                 <Button
                   variant="primary"
                   fullWidth
-                  onClick={() => handleSubmit('guest')}
+                  onClick={handleSubmit}
                   disabled={isStarting}
                   loading={isStarting}
                 >
-                  {isStarting ? 'Starting Session...' : 'Continue as Guest'}
+                  {isStarting ? 'Starting...' : 'Start Ordering'}
                 </Button>
               </div>
             </div>

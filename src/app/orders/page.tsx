@@ -1,12 +1,14 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
 import { useOrdersPageState } from "@/hooks/useOrdersPageState";
+import { useSession } from "@/contexts/SessionContext";
 import { Header } from "@/components/layout/Header";
 import { PostOrderView } from "@/components/order/PostOrderView";
+import { PaymentResultView } from "@/components/order/PaymentResultView";
 import { Footer } from "@/components/layout/Footer";
 import OrdersLoading from "./loading";
 
@@ -16,6 +18,11 @@ function OrdersPageContent() {
   const router = useRouter();
   const restaurantContext = useRequireRestaurantContext();
   useSessionValidation();
+  const { endSession } = useSession();
+
+  const [paymentResult, setPaymentResult] = useState<'success' | 'failure' | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [paymentTip, setPaymentTip] = useState(0);
 
   const {
     orderData,
@@ -25,6 +32,21 @@ function OrdersPageContent() {
     isLoading,
     handleOrderMoreFood,
   } = useOrdersPageState();
+
+  const handlePaymentResult = useCallback((result: 'success' | 'failure', amount: number, tipAmount: number) => {
+    setPaymentResult(result);
+    setPaymentAmount(amount);
+    setPaymentTip(tipAmount);
+  }, []);
+
+  const handleBackToMenu = useCallback(async () => {
+    await endSession('completed');
+    router.push('/menu');
+  }, [endSession, router]);
+
+  const handleRetryPayment = useCallback(() => {
+    setPaymentResult(null);
+  }, []);
 
   // Redirect to /cart if no orders exist
   useEffect(() => {
@@ -40,6 +62,20 @@ function OrdersPageContent() {
   // Still loading or about to redirect
   if (isLoading || allOrderIds.length === 0) {
     return <OrdersLoading />;
+  }
+
+  // Payment result screen replaces everything
+  if (paymentResult) {
+    return (
+      <PaymentResultView
+        result={paymentResult}
+        amount={paymentAmount}
+        bill={bill}
+        tipAmount={paymentTip}
+        onBackToMenu={handleBackToMenu}
+        onRetryPayment={handleRetryPayment}
+      />
+    );
   }
 
   return (
@@ -59,6 +95,7 @@ function OrdersPageContent() {
           orderData={orderData}
           bill={bill}
           onOrderMoreFood={handleOrderMoreFood}
+          onPaymentResult={handlePaymentResult}
         />
       ) : (
         <OrdersLoading />

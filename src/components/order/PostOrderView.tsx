@@ -11,15 +11,14 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocale } from '@/contexts/LocaleContext';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useSession } from '@/contexts/SessionContext';
 import { useSplit } from '@/contexts/SplitContext';
 import { getFromStorage } from '@/mocks/mockStorage';
-import { PaymentModal } from '@/components/order/PaymentModal';
 import { TipSelector, getStoredTip } from '@/components/cart/TipSelector';
 import { ParticipantsList } from '@/components/session/ParticipantsList';
 import { isSplitApplicableForTotal } from '@/lib/split-utils';
+import { useFlowType } from '@/hooks/useFlowType';
 import type { Order as APIOrder, OrderItem } from '@/types/api/order';
 import type { SessionBill } from '@/types/api/bill';
 
@@ -65,15 +64,15 @@ interface PostOrderViewProps {
   orderData: APIOrder;
   bill?: SessionBill | null;
   onOrderMoreFood: () => void;
+  onPaymentResult?: (result: 'success' | 'failure', amount: number, tipAmount: number) => void;
 }
 
-export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: PostOrderViewProps) {
-  const router = useRouter();
+export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood, onPaymentResult }: PostOrderViewProps) {
   const { formatPrice } = useLocale();
-  const { endSession } = useSession();
+  const { sessionData, splitPaymentStatus, isParticipantPaid } = useSession();
   const { split } = useSplit();
+  const flowType = useFlowType();
 
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   // Current user
@@ -123,12 +122,22 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
   }, [remainingTime]);
 
   const orderTotal = orderData?.total || 0;
-  // Bill total includes taxes/charges — use it for split when available, fall back to order items total
-  const billTotal = bill?.total ?? orderTotal;
+  // Bill total WITHOUT tips — used for split calculation so tip isn't double-counted.
+  // Each participant adds their own tip separately via totalWithTip.
+  const billTotalWithoutTip = bill ? (bill.total - (bill.totalTip || 0)) : orderTotal;
+  const billTotal = billTotalWithoutTip;
   const useSplitShares = isSplitApplicableForTotal(split.splitForTotal, billTotal);
 
 
-  // Calculate user amount; use split.shares only when they were calculated for this bill/order total
+  // Calculate user amount.
+  // When valid shares exist (at least one participant has > 0), use them as-is.
+  // When NO shares are configured at all, fall back to even split.
+  const hasValidShares = useMemo(() =>
+    split.participants.length > 0
+    && Object.values(split.shares).some(v => typeof v === 'number' && v > 0),
+    [split.participants.length, split.shares]
+  );
+
   const userAmount = useMemo(() => {
     if (!split.participants || split.participants.length === 0) {
       return billTotal;
@@ -139,37 +148,43 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
       return billTotal;
     }
 
-    if (useSplitShares && typeof split.shares[currentUser.id] === 'number') {
+    // Valid shares exist — use this user's share (even if it's 0)
+    if (hasValidShares && useSplitShares && typeof split.shares[currentUser.id] === 'number') {
       return split.shares[currentUser.id];
     }
+
+    // No shares configured at all — fall back to even split
+    if (!hasValidShares && split.participants.length > 0) {
+      return Math.round((billTotal / split.participants.length) * 100) / 100;
+    }
+
     return billTotal;
-  }, [split.participants, split.shares, useSplitShares, billTotal, currentSessionUserId]);
-
-  // Handle payment
-  const handlePayNow = useCallback(async () => {
-    setIsProcessingPayment(true);
-    // Simulate payment processing
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsProcessingPayment(false);
-    setPaymentModalOpen(true);
-  }, []);
-
-  // Handle payment modal close
-  const handlePaymentModalClose = useCallback(() => {
-    setPaymentModalOpen(false);
-  }, []);
-
-  // Handle end session
-  const handleEndSession = useCallback(async () => {
-    await endSession();
-    router.push('/');
-  }, [endSession, router]);
+  }, [split.participants, split.shares, hasValidShares, useSplitShares, billTotal, currentSessionUserId]);
 
   // Tip state — read from localStorage initially
   const [tipAmount, setTipAmount] = useState(() => getStoredTip().amount);
 
   // Total including tip
   const totalWithTip = Math.round((userAmount + tipAmount) * 100) / 100;
+
+  // Check if current user's split is paid
+  const isCurrentUserPaid = currentSessionUserId ? isParticipantPaid(currentSessionUserId) : false;
+  const allSplitsPaid = splitPaymentStatus != null && splitPaymentStatus.length > 0 && splitPaymentStatus.every(s => s.paid);
+
+  // Handle payment
+  const handlePayNow = useCallback(async () => {
+    setIsProcessingPayment(true);
+    try {
+      // Simulate payment processing
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      setIsProcessingPayment(false);
+      // Notify parent of payment result
+      onPaymentResult?.('success', totalWithTip, tipAmount);
+    } catch {
+      setIsProcessingPayment(false);
+      onPaymentResult?.('failure', totalWithTip, tipAmount);
+    }
+  }, [onPaymentResult, totalWithTip, tipAmount]);
 
   return (
     <>
@@ -272,13 +287,17 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
           <TipSelector
             subtotal={orderTotal}
             onTipChange={(tip) => setTipAmount(tip.amount)}
+            sessionId={sessionData?.session?.id}
+            sessionUserId={currentSessionUserId || undefined}
           />
         </div>
 
-        {/* 5. Split / Participants Card */}
-        <div className="mb-6">
-          <ParticipantsList totalOverride={billTotal} />
-        </div>
+        {/* 5. Split / Participants Card (hidden in area flow) */}
+        {flowType !== 'area' && (
+          <div className="mb-6">
+            <ParticipantsList totalOverride={billTotal} />
+          </div>
+        )}
 
         {/* 6. Bill Section */}
         <div className="mb-6">
@@ -357,7 +376,7 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
                 className="text-black text-[16px] font-medium"
                 style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
               >
-                {formatPrice((bill?.total ?? orderTotal) + tipAmount)}
+                {formatPrice(billTotalWithoutTip + tipAmount)}
               </span>
             </div>
           </div>
@@ -376,9 +395,13 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
         }}
       >
         <button
-          onClick={handlePayNow}
-          disabled={isProcessingPayment}
-          className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-[22px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={isCurrentUserPaid ? undefined : handlePayNow}
+          disabled={isProcessingPayment || isCurrentUserPaid}
+          className={`w-full max-w-2xl h-[70px] flex items-center justify-between px-[22px] transition-all disabled:cursor-not-allowed ${
+            isCurrentUserPaid
+              ? 'bg-green-600 text-white'
+              : 'bg-black text-white disabled:opacity-50'
+          }`}
           style={{
             fontFamily: 'Helvetica Neue, sans-serif',
             fontWeight: 700,
@@ -387,7 +410,7 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
           }}
         >
           <span className="flex-shrink-0">
-            {isProcessingPayment ? 'Processing...' : 'Pay Now'}
+            {isCurrentUserPaid ? 'Paid' : isProcessingPayment ? 'Processing...' : 'Pay Now'}
           </span>
           <span className="flex-shrink-0">
             {formatPrice(totalWithTip)}
@@ -395,16 +418,6 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
         </button>
       </div>
 
-      {/* Modals */}
-      {paymentModalOpen && (
-        <PaymentModal
-          isOpen={paymentModalOpen}
-          onClose={handlePaymentModalClose}
-          onStartNewOrder={onOrderMoreFood}
-          onPaymentComplete={handleEndSession}
-          amount={totalWithTip}
-        />
-      )}
     </>
   );
 }

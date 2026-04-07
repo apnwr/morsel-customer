@@ -14,6 +14,7 @@ import { isSplitApplicableForTotal } from "@/lib/split-utils";
 import { Footer } from "@/components/layout/Footer";
 import { useLocale } from "@/contexts/LocaleContext";
 import { ParticipantsList } from "@/components/session/ParticipantsList";
+import { useFlowType } from "@/hooks/useFlowType";
 
 /** Placeholder for Google Reviews; replace with API-driven URL when integrated. */
 const GOOGLE_REVIEWS_URL = "https://maps.app.goo.gl/cyKBZ3Yn5qnS5c947";
@@ -25,6 +26,7 @@ export default function MyTabPage() {
   useSessionValidation();
   const { sessionData } = useSession();
   const { split } = useSplit();
+  const flowType = useFlowType();
   const currentSessionUserId = getFromStorage<string>("morsel_session_user_id");
 
   const [billTotal, setBillTotal] = useState<number>(0);
@@ -55,9 +57,11 @@ export default function MyTabPage() {
 
   const useSplitShares = isSplitApplicableForTotal(split.splitForTotal, billTotal);
 
-  const payNowAmount = useSplitShares && typeof split.shares[currentSessionUserId ?? ""] === "number"
-    ? split.shares[currentSessionUserId!]
-    : evenShare;
+  const payNowAmount = flowType === 'area'
+    ? billTotal
+    : useSplitShares && typeof split.shares[currentSessionUserId ?? ""] === "number"
+      ? split.shares[currentSessionUserId!]
+      : evenShare;
 
   return (
     <div className="min-h-screen bg-[#F7F8F8] pb-[90px]">
@@ -97,8 +101,8 @@ export default function MyTabPage() {
           {tableLabel}
         </h1>
 
-        {/* Split / Participants Card */}
-        <ParticipantsList totalOverride={billTotal} />
+        {/* Split / Participants Card (hidden in area flow) */}
+        {flowType !== 'area' && <ParticipantsList totalOverride={billTotal} />}
 
         {/* Google Reviews — links to Maps; replace URL with API when integrated */}
         <a

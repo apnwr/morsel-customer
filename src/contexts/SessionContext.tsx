@@ -1,10 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
-import type { OrderingSessionData, Timestamp, SessionDetail, SessionOrder } from '@/types/api/session';
+import type { OrderingSessionData, Timestamp, SessionOrder } from '@/types/api/session';
+import type { SplitEntry, SplitConfig } from '@/types/api/split';
 import { sessionService } from '@/services/session.service';
-import { subscribeToSessionInfo, isFirebaseAvailable } from '@/lib/firebase/realtime.service';
-import { DEFAULT_TIMEZONE } from '@/lib/currencies';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { mapSessionOrderToAPIOrder } from '@/lib/order-mapping';
 import { useLocale } from '@/contexts/LocaleContext';
@@ -28,10 +27,16 @@ interface SessionState {
   setActiveOrderId: (orderId: string | null) => void;
   clearActiveOrder: () => void;
 
+  /** Split entries from the server — includes payment status per split */
+  splitPaymentStatus: SplitEntry[] | null;
+  /** Split configuration from the server — ensures all participants see the same mode */
+  serverSplitConfig: SplitConfig | null;
+
   isLoading: boolean;
   isSessionActive: () => boolean;
   isSessionExpired: () => boolean;
   isUserParticipant: () => boolean;
+  isParticipantPaid: (sessionUserId: string) => boolean;
   validateSession: () => { isValid: boolean; reason?: string };
   refreshSessionData: () => Promise<void>;
   endSession: (reason?: 'completed' | 'timeout' | 'left' | 'cancelled') => Promise<void>;
@@ -48,6 +53,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Active session: persistent state for joined session (after login)
   const [sessionData, setSessionDataState] = useState<OrderingSessionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Split payment status from the server (not persisted — always fresh from API)
+  const [splitPaymentStatus, setSplitPaymentStatus] = useState<SplitEntry[] | null>(null);
+  const [serverSplitConfig, setServerSplitConfig] = useState<SplitConfig | null>(null);
 
   // Active order ID: tracks which order tab is currently active
   const [activeOrderId, setActiveOrderIdState] = useState<string | null>(() => {
@@ -139,6 +148,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('morsel_customer_name');
       localStorage.removeItem('morsel_dining_type');
       localStorage.removeItem('morsel_auth_method');
+      // Clear flow-specific keys to prevent stale state across flows
+      localStorage.removeItem('morsel_flow_type');
+      localStorage.removeItem('morsel_area_id');
+      // Clear split data to prevent leakage between sessions/flows
+      localStorage.removeItem('morsel_split');
+      localStorage.removeItem('morsel_itemized_selections');
       // Also clear restaurant context since it's tied to the session
       localStorage.removeItem('morsel_restaurant_context');
       console.log('[SessionContext] 🗑️ Cleared restaurant context (must scan QR again)');
@@ -194,6 +209,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     );
   }, [sessionData]);
 
+  // Check if a participant's split has been marked as paid
+  const isParticipantPaid = useCallback((sessionUserId: string): boolean => {
+    if (!splitPaymentStatus) return false;
+    return splitPaymentStatus.some(
+      s => (s.sessionUserId === sessionUserId || s.paidBy === sessionUserId) && s.paid
+    );
+  }, [splitPaymentStatus]);
+
   // Validate session: combines status and expiry checks
   const validateSession = useCallback((): { isValid: boolean; reason?: string } => {
     // No session data
@@ -248,6 +271,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Update split payment status and config from API response
+      setSplitPaymentStatus(response.data.splits || null);
+      setServerSplitConfig(response.data.splitConfig || null);
+
       // Update session data with fresh data from API
       // Merge with existing business and space data
       const updatedSessionData: OrderingSessionData = {
@@ -269,6 +296,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         sessionId: response.data.id,
         ordersCount: response.data.orders.length,
         participantsCount: response.data.participants.length,
+        splitsCount: response.data.splits?.length || 0,
       });
     } catch (error) {
       console.error('[SessionContext] Failed to refresh session data:', error);
@@ -316,19 +344,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [sessionData, clearSession]);
 
-  // Firebase real-time sync for participants
-  // Refs for tracking subscriptions and intervals
-  const firebaseUnsubscribeRef = useRef<(() => void) | null>(null);
+  // Polling refs
+  // TODO: Add Firebase refs back when switching to realtime DB
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const isUsingFirebaseRef = useRef(false);
+  const sessionIdRef = useRef<string | null>(null);
 
-  // Polling function for fallback
+  // Keep sessionId ref in sync
+  useEffect(() => {
+    sessionIdRef.current = sessionData?.session?.id || null;
+  }, [sessionData?.session?.id]);
+
+  // Polling function — uses ref to avoid recreating on every sessionData change
   const pollParticipants = useCallback(async () => {
-    if (!sessionData?.session?.id) return;
+    const sid = sessionIdRef.current;
+    if (!sid) return;
 
     try {
-      const response = await sessionService.getSessionById(sessionData.session.id);
+      const response = await sessionService.getSessionById(sid);
       const latestParticipants = response.data.participants;
+
+      // Update split payment status and config from polling response
+      setSplitPaymentStatus(response.data.splits || null);
+      setServerSplitConfig(response.data.splitConfig || null);
+
+      // Apply branch currency / timezone
+      if (response.data.currency || response.data.timezone) {
+        setLocale({ currency: response.data.currency, timezone: response.data.timezone });
+      }
 
       // Update session data with latest participants
       setSessionDataState(prev => {
@@ -343,7 +385,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           participantsCount: latestParticipants.length,
         };
 
-        // Update localStorage
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         } catch (error) {
@@ -352,14 +393,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
         return updated;
       });
-
-      console.log('[SessionContext] 🔄 Polling update - participants:', latestParticipants.length);
     } catch (error) {
       console.error('[SessionContext] Polling error:', error);
     }
-  }, [sessionData]);
+  }, [setLocale]);
 
-  // Setup polling fallback
+  // Setup polling
   const setupPolling = useCallback(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -378,20 +417,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // Cleanup function
   const cleanup = useCallback(() => {
-    if (firebaseUnsubscribeRef.current) {
-      console.log('[SessionContext] 🔌 Unsubscribing from Firebase');
-      firebaseUnsubscribeRef.current();
-      firebaseUnsubscribeRef.current = null;
-    }
     if (pollingIntervalRef.current) {
       console.log('[SessionContext] 🔌 Stopping polling');
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
-    isUsingFirebaseRef.current = false;
   }, []);
 
-  // Effect: Real-time sync for participants (Firebase + polling fallback)
+  // Effect: Polling-only sync for session data (participants, splits, config).
+  // TODO: Switch to Firebase Realtime DB once it includes split data.
   useEffect(() => {
     const sessionId = sessionData?.session?.id;
     const spaceId = sessionData?.space?.id;
@@ -401,71 +435,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    console.log('[SessionContext] 🚀 Setting up real-time sync for participants', {
+    console.log('[SessionContext] 📡 Setting up polling sync', {
       sessionId: sessionId.substring(0, 8) + '...',
-      spaceId: spaceId.substring(0, 8) + '...'
     });
 
-    // Try Firebase first
-    if (isFirebaseAvailable()) {
-      console.log('[SessionContext] 🔥 Firebase available - setting up realtime listener');
-
-      const unsubscribe = subscribeToSessionInfo(
-        spaceId,
-        sessionId,
-        (sessionInfo: Partial<SessionDetail>) => {
-          const participants = sessionInfo.participants || [];
-          console.log('[SessionContext] 🔥 Firebase update received - participants:', participants.length, 'timezone:', sessionInfo.timezone || '(not set)');
-
-          // Apply timezone and currency from real-time data (fallback to defaults)
-          setLocale({
-            timezone: sessionInfo.timezone || DEFAULT_TIMEZONE,
-            currency: sessionInfo.currency || undefined,
-          });
-
-          // Update session data with latest participants
-          setSessionDataState(prev => {
-            if (!prev?.session) return prev;
-
-            const updated: OrderingSessionData = {
-              ...prev,
-              session: {
-                ...prev.session,
-                participants,
-              },
-              participantsCount: participants.length,
-            };
-
-            // Update localStorage
-            try {
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-            } catch (error) {
-              console.error('[SessionContext] Error saving to localStorage:', error);
-            }
-
-            return updated;
-          });
-        },
-        (error: Error) => {
-          console.error('[SessionContext] 🔥❌ Firebase error, falling back to polling:', error);
-          if (!pollingIntervalRef.current) {
-            setupPolling();
-          }
-        }
-      );
-
-      if (unsubscribe) {
-        firebaseUnsubscribeRef.current = unsubscribe;
-        isUsingFirebaseRef.current = true;
-        console.log('[SessionContext] ✅ Firebase subscription active');
-      } else {
-        console.log('[SessionContext] ⚠️ Firebase subscription failed, using polling');
-        setupPolling();
-      }
-    } else {
-      console.log('[SessionContext] 📡 Firebase not available, using polling');
-      setupPolling();
-    }
+    setupPolling();
 
     return cleanup;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -480,14 +454,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     activeOrderId,
     setActiveOrderId,
     clearActiveOrder,
+    splitPaymentStatus,
+    serverSplitConfig,
     isLoading,
     isSessionActive,
     isSessionExpired,
     isUserParticipant,
+    isParticipantPaid,
     validateSession,
     refreshSessionData,
     endSession,
-  }), [previewSession, setPreviewSession, sessionData, setSessionData, clearSession, activeOrderId, setActiveOrderId, clearActiveOrder, isLoading, isSessionActive, isSessionExpired, isUserParticipant, validateSession, refreshSessionData, endSession]);
+  }), [previewSession, setPreviewSession, sessionData, setSessionData, clearSession, activeOrderId, setActiveOrderId, clearActiveOrder, splitPaymentStatus, serverSplitConfig, isLoading, isSessionActive, isSessionExpired, isUserParticipant, isParticipantPaid, validateSession, refreshSessionData, endSession]);
 
   return (
     <SessionContext.Provider value={value}>

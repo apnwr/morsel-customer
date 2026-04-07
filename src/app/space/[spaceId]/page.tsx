@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { sessionService } from '@/services/session.service';
 import { useSession } from '@/contexts/SessionContext';
 import { useCart } from '@/contexts/CartContext';
+import { setInStorage } from '@/mocks/mockStorage';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { LoginModal } from '@/components/session/LoginModal';
 import type { OrderingSessionData } from '@/types/api/session';
@@ -29,28 +30,40 @@ export default function SpacePage() {
     const spaceId = params.spaceId as string;
 
     const init = async () => {
-      // Check if user already has an active session
+      // Check if user already has an active session for THIS space
       const existingUserId = localStorage.getItem('morsel_session_user_id');
       const existingSessionData = sessionData?.session;
 
-      if (existingUserId && existingSessionData?.status === 'active') {
-        if (existingSessionData.spaceId === spaceId) {
-          // Same space — back button case, resume existing session
-          console.log('[SpacePage] User already has active session for this space, redirecting to menu');
-          router.replace('/menu');
-          return;
-        }
+      if (existingUserId && existingSessionData?.status === 'active'
+        && existingSessionData.spaceId === spaceId) {
+        // Same space — back button case, resume existing session
+        console.log('[SpacePage] User already has active session for this space, redirecting to menu');
+        router.replace('/menu');
+        return;
+      }
 
-        // Different space — user scanned a new QR, clean up old session
-        console.log('[SpacePage] Different space detected, ending previous session');
+      // Any other case — different space, area flow, or stale session. Clean everything.
+      if (existingUserId && existingSessionData?.status === 'active') {
+        console.log('[SpacePage] Different session detected, ending previous session');
         try {
           await endSession('left');
-          clearCart();
         } catch (e) {
           console.error('[SpacePage] Failed to end previous session:', e);
-          // clearSession is already called in endSession's catch block
         }
       }
+
+      // Clear ALL stale data — ensures no area flow leakage
+      clearCart();
+      setInStorage('morsel_flow_type', 'space');
+      localStorage.removeItem('morsel_area_id');
+      localStorage.removeItem('morsel_session_data');
+      localStorage.removeItem('morsel_session_user_id');
+      localStorage.removeItem('morsel_active_order_id');
+      localStorage.removeItem('morsel_split');
+      localStorage.removeItem('morsel_itemized_selections');
+      localStorage.removeItem('morsel_kitchen_note');
+      localStorage.removeItem('morsel_tip');
+      localStorage.removeItem('morsel_restaurant_context');
 
       // Fetch new space data
       try {

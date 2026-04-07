@@ -36,7 +36,7 @@ export interface OrdersPageState {
 
 export function useOrdersPageState(): OrdersPageState {
   const router = useRouter();
-  const { sessionData, setActiveOrderId, refreshSessionData } = useSession();
+  const { sessionData, setActiveOrderId } = useSession();
   const { clearCart } = useCart();
 
   const [orderData, setOrderData] = useState<APIOrder | null>(null);
@@ -65,23 +65,16 @@ export function useOrdersPageState(): OrdersPageState {
     }
   }, [sessionData?.session?.id]);
 
-  // Refresh session on mount to get latest orders (including from other participants)
-  useEffect(() => {
-    if (sessionData?.session?.id) {
-      refreshSessionData();
-      fetchBill();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
-  }, [sessionData?.session?.id]);
-
-  // Poll for new orders from other participants
+  // Fetch bill on mount and poll for bill updates.
+  // Session data (participants, splits, orders) is already polled by SessionContext every 10s.
   useEffect(() => {
     if (!sessionData?.session?.id) return;
 
-    pollRef.current = setInterval(() => {
-      refreshSessionData();
-      fetchBill();
-    }, ORDERS_POLL_INTERVAL);
+    // Initial bill fetch
+    fetchBill();
+
+    // Poll bill only (session polling is handled by SessionContext)
+    pollRef.current = setInterval(fetchBill, ORDERS_POLL_INTERVAL);
 
     return () => {
       if (pollRef.current) {

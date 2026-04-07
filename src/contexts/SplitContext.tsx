@@ -5,6 +5,9 @@ import { SplitBill, Participant, Cart } from '@/types/cart';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { calculateEvenSplit, validateSplit, generateMockParticipant } from '@/mocks/mockSplit';
 import { sanitizeSplitAmount } from '@/lib/validation';
+import { splitService } from '@/services/split.service';
+import { useSession } from '@/contexts/SessionContext';
+import type { SplitCalculateRequest, SplitEntry } from '@/types/api/split';
 
 const STORAGE_KEY = 'morsel_split';
 /**
@@ -23,6 +26,10 @@ function calculateUserItemsTotal(cart: Cart | null, currentSessionUserId: string
 
 interface SplitState {
   split: SplitBill;
+  /** Server-side split entries (includes paid status) */
+  serverSplits: SplitEntry[] | null;
+  /** Itemized mode: maps participantId → array of itemIds they chose to pay for */
+  itemizedSelections: Record<string, string[]>;
   setSplitMode: (mode: 'even' | 'custom' | 'self' | 'all' | 'items') => void;
   setSplitForTotal: (total: number | null) => void;
   addParticipant: (participant: Participant) => void;
@@ -33,6 +40,12 @@ interface SplitState {
   validateSplitShares: (total: number) => boolean;
   clearSplit: () => void;
   addMockParticipant: () => void;
+  /** Set which items a participant chose to pay for (itemized mode) */
+  setItemizedSelection: (participantId: string, itemIds: string[]) => void;
+  /** Clear all itemized selections */
+  clearItemizedSelections: () => void;
+  /** Sync split to server (fire-and-forget). Pass mode and shares explicitly to avoid stale closures. */
+  syncSplitToServer: (sessionId: string, mode: SplitBill['mode'], shares: Record<string, number>, participants: Participant[]) => void;
 }
 
 const SplitContext = createContext<SplitState | undefined>(undefined);
@@ -47,22 +60,91 @@ function getEmptySplit(): SplitBill {
   };
 }
 
+/**
+ * Map server split config type to local split mode.
+ * Server uses: 'equal' | 'participant' | 'custom' | 'itemized'
+ * Client uses: 'even' | 'self' | 'custom' | 'all' | 'items'
+ */
+function serverTypeToLocalMode(serverType: string): SplitBill['mode'] {
+  switch (serverType) {
+    case 'equal': return 'even';
+    case 'participant': return 'self';
+    case 'custom': return 'custom';
+    case 'itemized': return 'items';
+    default: return 'even';
+  }
+}
+
 export function SplitProvider({ children }: { children: ReactNode }) {
+  const { serverSplitConfig, splitPaymentStatus, refreshSessionData } = useSession();
+
   const [split, setSplit] = useState<SplitBill>(() => {
     // Initialize from localStorage or use empty split
     const stored = getFromStorage<SplitBill>(STORAGE_KEY);
-    
+
     if (stored && Array.isArray(stored.participants)) {
       return stored;
     }
-    
+
     return getEmptySplit();
+  });
+
+  const [serverSplits, setServerSplits] = useState<SplitEntry[] | null>(null);
+  const [itemizedSelections, setItemizedSelectionsState] = useState<Record<string, string[]>>(() => {
+    return getFromStorage<Record<string, string[]>>('morsel_itemized_selections') || {};
   });
 
   // Save to localStorage whenever split changes
   useEffect(() => {
     setInStorage(STORAGE_KEY, split);
   }, [split]);
+
+  // Hydrate split mode AND shares from server.
+  // serverSplitConfig has the mode; splitPaymentStatus has the per-participant amounts.
+  // Server splits are ordered by index (0, 1, 2...) matching participant order.
+  // sessionUserId may be null, so we map by index to split.participants.
+  useEffect(() => {
+    if (!serverSplitConfig?.type) return;
+    if (!splitPaymentStatus || splitPaymentStatus.length === 0) return;
+
+    const serverMode = serverTypeToLocalMode(serverSplitConfig.type);
+
+    setSplit(prev => {
+      if (prev.participants.length === 0) return prev;
+
+      // Map server splits to participants by index order
+      const serverShares: Record<string, number> = {};
+      const sortedSplits = [...splitPaymentStatus].sort((a, b) => a.index - b.index);
+
+      for (let i = 0; i < sortedSplits.length && i < prev.participants.length; i++) {
+        const entry = sortedSplits[i];
+        const participant = prev.participants[i];
+        // Use sessionUserId if available, otherwise map by index
+        const id = entry.sessionUserId || participant.id;
+        serverShares[id] = entry.amount;
+      }
+
+      const serverTotal = sortedSplits.reduce((sum, e) => sum + e.amount, 0);
+
+      // Check if local state already matches server
+      const modeMatches = prev.mode === serverMode;
+      const sharesMatch = modeMatches && Object.keys(serverShares).length > 0
+        && Object.entries(serverShares).every(([id, amt]) =>
+          typeof prev.shares[id] === 'number' && Math.abs(prev.shares[id] - amt) < 0.01
+        );
+
+      if (modeMatches && sharesMatch) return prev;
+
+      console.log(`[SplitContext] Hydrating from server: mode ${prev.mode} → ${serverMode}, shares:`, serverShares);
+      return {
+        ...prev,
+        mode: serverMode,
+        shares: { ...prev.shares, ...serverShares },
+        splitForTotal: serverTotal > 0 ? serverTotal : prev.splitForTotal,
+        isValid: true,
+      };
+    });
+  }, [serverSplitConfig, splitPaymentStatus]);
 
   const setSplitMode = useCallback((mode: 'even' | 'custom' | 'self' | 'all' | 'items') => {
     setSplit((prev) => ({
@@ -215,25 +297,10 @@ export function SplitProvider({ children }: { children: ReactNode }) {
           break;
 
         case 'items': {
-          // "Pay for items" - Each participant pays for their own items
-          if (cart) {
-            prev.participants.forEach((p) => {
-              const participantTotal = cart.items
-                .filter(item => item.sessionUserId === p.id)
-                .reduce((sum, item) => sum + item.itemTotal, 0);
-              newShares[p.id] = Math.round(participantTotal * 100) / 100;
-            });
-            console.log('[SplitContext] 💰 Pay for items calculated:', {
-              shares: Object.entries(newShares).map(([id, amount]) => ({
-                id: id.substring(0, 8) + '...',
-                name: prev.participants.find(p => p.id === id)?.name || 'Unknown',
-                amount: `$${amount.toFixed(2)}`
-              }))
-            });
-          } else {
-            // No cart available, fallback to even split
-            newShares = calculateEvenSplit(total, prev.participants);
-          }
+          // "Pay for items" — shares are exclusively managed by ItemizedPickerSheet.
+          // Never overwrite them here. Return existing shares as-is.
+          newShares = prev.shares;
+          console.log('[SplitContext] 💰 Pay for items — shares managed by picker (preserved)');
           break;
         }
 
@@ -262,7 +329,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         splitForTotal: total,
       };
     });
-  }, []);
+  }, [itemizedSelections]);
 
   const setSplitForTotal = useCallback((total: number | null) => {
     setSplit((prev) => ({ ...prev, splitForTotal: total }));
@@ -275,6 +342,98 @@ export function SplitProvider({ children }: { children: ReactNode }) {
   const clearSplit = useCallback(() => {
     setSplit(getEmptySplit());
   }, []);
+
+  // Persist itemized selections to localStorage
+  useEffect(() => {
+    setInStorage('morsel_itemized_selections', itemizedSelections);
+  }, [itemizedSelections]);
+
+  const setItemizedSelection = useCallback((participantId: string, itemIds: string[]) => {
+    setItemizedSelectionsState((prev) => ({
+      ...prev,
+      [participantId]: itemIds,
+    }));
+  }, []);
+
+  const clearItemizedSelections = useCallback(() => {
+    setItemizedSelectionsState({});
+  }, []);
+
+  const syncSplitToServer = useCallback((
+    sessionId: string,
+    mode: SplitBill['mode'],
+    shares: Record<string, number>,
+    participants: Participant[]
+  ) => {
+    if (!sessionId || participants.length === 0) return;
+
+    // Always send numberOfSplits and amounts. itemIds only for 'itemized' (flat array).
+    const amounts = participants.map((p) => shares[p.id] || 0);
+
+    let payload: SplitCalculateRequest;
+
+    switch (mode) {
+      case 'even':
+        payload = {
+          type: 'equal',
+          numberOfSplits: participants.length,
+          amounts,
+        };
+        break;
+
+      case 'all':
+      case 'custom':
+        payload = {
+          type: 'custom',
+          numberOfSplits: participants.length,
+          amounts,
+        };
+        break;
+
+      case 'self':
+        payload = {
+          type: 'participant',
+          numberOfSplits: participants.length,
+          amounts,
+        };
+        break;
+
+      case 'items': {
+        // Flat array of all claimed item IDs across participants
+        const itemIds: string[] = [];
+        for (const p of participants) {
+          const pItems = itemizedSelections[p.id] || [];
+          itemIds.push(...pItems);
+        }
+        payload = {
+          type: 'itemized',
+          numberOfSplits: participants.length,
+          amounts,
+          itemIds,
+        };
+        break;
+      }
+
+      default:
+        payload = {
+          type: 'equal',
+          numberOfSplits: participants.length,
+          amounts,
+        };
+    }
+
+    splitService
+      .calculateSplit(sessionId, payload)
+      .then((response) => {
+        console.log('[SplitContext] Split synced to server:', response.data);
+        setServerSplits(response.data?.splits || null);
+        // Refresh session so splitPaymentStatus + serverSplitConfig update for all participants
+        refreshSessionData();
+      })
+      .catch((error) => {
+        console.error('[SplitContext] Failed to sync split to server:', error);
+      });
+  }, [itemizedSelections, refreshSessionData]);
 
   const addMockParticipant = useCallback(() => {
     setSplit((prev) => {
@@ -294,6 +453,8 @@ export function SplitProvider({ children }: { children: ReactNode }) {
 
   const value: SplitState = {
     split,
+    serverSplits,
+    itemizedSelections,
     setSplitMode,
     setSplitForTotal,
     addParticipant,
@@ -303,6 +464,9 @@ export function SplitProvider({ children }: { children: ReactNode }) {
     validateSplitShares,
     clearSplit,
     addMockParticipant,
+    setItemizedSelection,
+    clearItemizedSelections,
+    syncSplitToServer,
   };
 
   return (
