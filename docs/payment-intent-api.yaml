@@ -1,0 +1,336 @@
+openapi: 3.0.0
+info:
+  title: Morsel Payment-Intent API (proposed / alternate)
+  version: 0.1.0
+  description: |
+    Alternate payment architecture provided by the API team on 2026-04-18.
+
+    This spec describes a **decoupled** flow where a payment intent is created
+    first (returns a `transactionId`), then one of three settlement paths is
+    chosen:
+      1. Direct card charge via `/simple-purchase`
+      2. Hosted widget via `/embedded-checkout`
+      3. Externally-initiated gateway confirmation via `/confirm-payment`
+
+    **This is NOT the architecture currently wired into the client.**
+    The client today uses the single-step `/payments/peach-payments/embedded`
+    + `/payments/peach-payments/verify` pair documented in `api-docs.yaml`.
+
+    The paths below (`/payment-intents`, `/simple-purchase`, `/embedded-checkout`,
+    `/confirm-payment`) are **inferred from the schema names** — the source spec
+    defined the schemas without explicit `paths:` entries. Treat the paths as
+    placeholders pending backend confirmation.
+
+servers:
+  - url: https://us-central1-morsel-db7d8.cloudfunctions.net/app/api/v1
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Secrets
+    description: Business-level secret management (already documented in api-docs.yaml — included here for spec parity)
+  - name: Payments - Intent
+    description: Payment intent lifecycle — create, settle, confirm
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Totals:
+      type: object
+      properties:
+        subtotal:
+          type: number
+          format: float
+        taxes:
+          type: object
+          description: Tax breakdown (map of taxId → amount)
+        total:
+          type: number
+          format: float
+          description: Total amount (includes taxes)
+
+    PaymentIntentRequest:
+      type: object
+      required: [orderIds]
+      properties:
+        sessionId:
+          type: string
+        orderIds:
+          type: array
+          items:
+            type: string
+        currency:
+          type: string
+          default: INR
+        payerId:
+          type: string
+        splits:
+          type: array
+          items:
+            type: object
+            properties:
+              orderId: { type: string }
+              amount: { type: number }
+        totals:
+          $ref: '#/components/schemas/Totals'
+
+    PaymentIntentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Transaction ID used for downstream settlement calls
+        sessionId:
+          type: string
+        orderIds:
+          type: array
+          items: { type: string }
+        totals:
+          $ref: '#/components/schemas/Totals'
+        currency:
+          type: string
+
+    CardPayload:
+      type: object
+      required: [number, holder, expiryMonth, expiryYear, cvv]
+      properties:
+        number:       { type: string }
+        holder:       { type: string }
+        expiryMonth:  { type: string }
+        expiryYear:   { type: string }
+        cvv:          { type: string }
+        brand:        { type: string }
+
+    SimplePurchaseRequest:
+      type: object
+      required: [transactionId, card]
+      properties:
+        transactionId:
+          type: string
+        card:
+          $ref: '#/components/schemas/CardPayload'
+        clientId:
+          type: string
+          description: Optional client identifier to fetch per-client keys from KeyStore
+
+    EmbeddedCheckoutRequest:
+      type: object
+      required: [transactionId]
+      properties:
+        transactionId: { type: string }
+        returnUrl:     { type: string }
+        clientId:      { type: string }
+
+    EmbeddedCheckoutResponse:
+      type: object
+      properties:
+        checkout:
+          type: object
+          properties:
+            checkoutId:  { type: string }
+            checkoutUrl: { type: string }
+
+    ConfirmPaymentRequest:
+      type: object
+      required: [gatewayTransactionId]
+      properties:
+        gatewayTransactionId: { type: string }
+        clientId:             { type: string }
+
+    TransactionModel:
+      type: object
+      properties:
+        id:      { type: string }
+        status:  { type: string }
+        payments:
+          type: array
+          items:
+            type: object
+            properties:
+              amount:                { type: number }
+              currency:              { type: string }
+              method:                { type: string }
+              gatewayTransactionId:  { type: string }
+              status:                { type: string }
+              processedAt:
+                type: string
+                format: date-time
+        totals:
+          $ref: '#/components/schemas/Totals'
+
+    SecretPayload:
+      type: object
+      required: [name, ciphertext]
+      properties:
+        name:
+          type: string
+          description: Identifier for the secret (e.g., 'peach_creds')
+        ciphertext:
+          type: string
+          description: Base64/UTF-8 encoded ciphertext; server stores as-is
+        description:
+          type: string
+
+    SecretResponse:
+      type: object
+      properties:
+        secret:
+          type: object
+          properties:
+            name:         { type: string }
+            ciphertext:   { type: string }
+            description:  { type: string }
+
+paths:
+  # ==================== Secrets (already in api-docs.yaml) ====================
+  /business/secrets:
+    post:
+      tags: [Secrets]
+      summary: Store encrypted secret (ciphertext) for a business
+      description: |
+        Already documented in `api-docs.yaml`. Reproduced here for spec parity.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecretPayload'
+      responses:
+        '201': { description: Secret stored (ciphertext) successfully }
+        '400': { description: Invalid request - missing required fields }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+
+  /business/secrets/{name}:
+    get:
+      tags: [Secrets]
+      summary: Retrieve ciphertext for a business secret
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Ciphertext retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretResponse'
+        '404': { description: Secret not found }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+
+  # ==================== Payment Intent (proposed) ====================
+  /payment-intents:
+    post:
+      tags: [Payments - Intent]
+      summary: Create a payment intent for one or more orders
+      description: |
+        Placeholder path (inferred). Creates a transaction envelope tied to
+        `orderIds` / `sessionId` and returns a `transactionId` used by the
+        downstream settlement endpoints.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentIntentRequest'
+      responses:
+        '201':
+          description: Payment intent created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntentResponse'
+        '400': { description: Invalid request }
+        '401': { description: Unauthorized }
+
+  /simple-purchase:
+    post:
+      tags: [Payments - Intent]
+      summary: Direct card charge against a payment intent
+      description: |
+        Placeholder path (inferred). Charges the supplied card against an
+        existing `transactionId`. Likely restricted to PCI-compliant contexts.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimplePurchaseRequest'
+      responses:
+        '200':
+          description: Purchase processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionModel'
+        '400': { description: Invalid request or declined }
+        '401': { description: Unauthorized }
+
+  /embedded-checkout:
+    post:
+      tags: [Payments - Intent]
+      summary: Create an embedded checkout for an existing payment intent
+      description: |
+        Placeholder path (inferred). Returns a hosted checkout URL tied to the
+        provided `transactionId`. **Distinct from** the currently-wired
+        `/payments/peach-payments/embedded` endpoint, which takes `sessionId`
+        and creates the intent internally.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbeddedCheckoutRequest'
+      responses:
+        '200':
+          description: Checkout created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbeddedCheckoutResponse'
+        '400': { description: Invalid request }
+        '401': { description: Unauthorized }
+
+  /confirm-payment:
+    post:
+      tags: [Payments - Intent]
+      summary: Confirm a payment initiated through an external gateway flow
+      description: |
+        Placeholder path (inferred). Settles a transaction using the
+        `gatewayTransactionId` returned by the payment processor.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmPaymentRequest'
+      responses:
+        '200':
+          description: Confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionModel'
+        '400': { description: Invalid request }
+        '401': { description: Unauthorized }

@@ -231,7 +231,7 @@ Remaining distributed evenly among others
   ↓
 User clicks "Save" in SplitSettingsModal
   ↓
-syncSplitToServer sends { type: "itemized", itemIds: [...] }
+syncSplitToServer sends { type: "itemized", sessionUserId, itemIds: [...] }
 ```
 
 ### Participant Sync Flow

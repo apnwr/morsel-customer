@@ -190,3 +190,23 @@
 |--------|----------|-------------|------|
 | `POST` | `/discounts/sessions/{sessionId}/apply-discount-code` | Apply discount code to session (customer-facing) | Public |
 | `DELETE` | `/discounts/sessions/{sessionId}/discount` | Remove discount from session | Auth |
+
+## Payments - Peach
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `POST` | `/payments/peach-payments/embedded` | Create Peach embedded checkout session; returns `checkoutId`, `checkoutUrl`, `entityId`, `transactionId` | Auth |
+| `POST` | `/payments/peach-payments/verify` | Verify checkout and settle transaction; on success marks split paid, updates order status, sends receipt | Auth |
+
+**Prerequisite:** the business must have Peach credentials stored via `POST /business/secrets` with name `PEACH_PAYMENTS_KEYS`. Without it, `/embedded` fails with *"Peach credentials not found in Secret Manager"*.
+
+**Split/participant payments:** `/embedded` accepts optional `sessionUserId` and `splitIdentifier` (split ID or index) to scope the checkout to a specific participant or split.
+
+## Secrets
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `POST` | `/business/secrets` | Store encrypted ciphertext for a named business secret (e.g. `PEACH_PAYMENTS_KEYS`) | Auth |
+| `GET` | `/business/secrets/{name}` | Retrieve ciphertext for a business secret; client decrypts locally | Auth |
+
+**Peach onboarding payload:** store `PEACH_PAYMENTS_KEYS` with ciphertext encoding `{ entityId, clientId, clientSecret, merchantId, isSandbox }`. Server stores ciphertext as-is; encrypt client-side before sending.

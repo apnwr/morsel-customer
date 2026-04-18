@@ -219,7 +219,6 @@ Shows restaurant/space info on page background
        ↓
 Opens LoginModal (bottom sheet) with:
   - Name input field
-  - Dining type toggle (dine-in/takeaway)
   - "Continue as Guest" button
        ↓
 User enters name and clicks "Continue as Guest"
@@ -237,7 +236,6 @@ Saves to localStorage:
   - morsel_session_data
   - morsel_session_user_id (critical for cart sync)
   - morsel_customer_name
-  - morsel_dining_type
        ↓
 Sets RestaurantContext from API data
        ↓
@@ -1010,7 +1008,6 @@ User adds item     →    syncQueueWithAPI()    →   subscribeToOrderQueue()
 | `morsel_session_user_id` | string | Identify current user (UUID) |
 | `morsel_active_order_id` | string | Track active order tab |
 | `morsel_customer_name` | string | Remember guest name |
-| `morsel_dining_type` | 'dine-in' \| 'takeaway' | Order type preference |
 | `morsel_auth_method` | 'guest' \| 'google' \| 'apple' | Auth method used |
 | `morsel_restaurant_context` | RestaurantContext | Space/business info |
 | `morsel_cart` | Cart | Cart state persistence |

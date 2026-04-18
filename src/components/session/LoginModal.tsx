@@ -18,8 +18,6 @@ function hasValidLogo(logo: string | undefined | null): logo is string {
   return typeof logo === 'string' && logo.trim().length > 0;
 }
 
-type DiningType = 'dine-in' | 'takeaway';
-
 interface LoginModalProps {
   isOpen: boolean;
   previewSession: OrderingSessionData | null;
@@ -30,7 +28,6 @@ export function LoginModal({ isOpen, previewSession }: LoginModalProps) {
   const { setContext } = useRestaurant();
   const { setSessionData } = useSession();
   const [customerName, setCustomerName] = useState('');
-  const [diningType, setDiningType] = useState<DiningType>('dine-in');
   const [error, setError] = useState('');
   const [isStarting, setIsStarting] = useState(false);
 
@@ -98,7 +95,6 @@ export function LoginModal({ isOpen, previewSession }: LoginModalProps) {
       // Store customer information
       setInStorage('morsel_flow_type', 'space');
       setInStorage('morsel_customer_name', sanitizedName);
-      setInStorage('morsel_dining_type', diningType);
       setInStorage('morsel_auth_method', authMethod);
 
       // Store the API-provided sessionUserId (CRITICAL for cart sync)
@@ -229,30 +225,6 @@ export function LoginModal({ isOpen, previewSession }: LoginModalProps) {
                 {error && (
                   <p className="text-sm text-red-500 mt-2">{error}</p>
                 )}
-              </div>
-
-              {/* Dining Type Toggle */}
-              <div className="flex gap-2 mb-6">
-                <button
-                  onClick={() => setDiningType('dine-in')}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    diningType === 'dine-in'
-                      ? 'bg-black text-white'
-                      : 'bg-white text-gray-600 border border-gray-200'
-                  }`}
-                >
-                  Dine-in
-                </button>
-                <button
-                  onClick={() => setDiningType('takeaway')}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    diningType === 'takeaway'
-                      ? 'bg-black text-white'
-                      : 'bg-white text-gray-600 border border-gray-200'
-                  }`}
-                >
-                  Take-Away
-                </button>
               </div>
 
               {/* Authentication Button */}

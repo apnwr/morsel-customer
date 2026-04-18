@@ -32,7 +32,6 @@ FirebaseAuthProvider
 | `morsel_session_user_id` | LoginModal submit | `clearSession()` |
 | `morsel_active_order_id` | Order placed | `clearSession()` |
 | `morsel_customer_name` | LoginModal submit | `clearSession()` |
-| `morsel_dining_type` | LoginModal submit | `clearSession()` |
 | `morsel_auth_method` | LoginModal submit | `clearSession()` |
 | `morsel_restaurant_context` | LoginModal submit | `clearSession()` |
 
@@ -78,7 +77,7 @@ POST /ordering-session/start { spaceId, guestName }
 Save to localStorage:
   - morsel_session_user_id (from participants array)
   - morsel_session_data (full session object)
-  - morsel_customer_name, morsel_dining_type, morsel_auth_method
+  - morsel_customer_name, morsel_auth_method
   - morsel_restaurant_context (restaurant/branch/table)
   │
   ▼

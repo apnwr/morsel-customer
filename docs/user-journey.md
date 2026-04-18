@@ -18,7 +18,7 @@ Complete flow from QR scan to payment in the morsel-customer app.
 - Opens **LoginModal** bottom sheet
 
 ### LoginModal
-- Name input + dining type toggle (dine-in / takeaway)
+- Name input only
 - On "Continue as Guest":
   1. Calls `POST /ordering-session/start` with `{ spaceId, guestName }`
   2. Backend either creates a new session or joins existing active session for that space
@@ -27,7 +27,6 @@ Complete flow from QR scan to payment in the morsel-customer app.
      - `morsel_session_data` — full session object
      - `morsel_session_user_id` — current user's UUID
      - `morsel_customer_name` — guest name
-     - `morsel_dining_type` — dine-in or takeaway
   5. Sets RestaurantContext + SessionContext
   6. Navigates to `/menu` (replace, prevents back button issues)
 
@@ -207,7 +206,6 @@ FirebaseAuthProvider
 | `morsel_session_data` | Full session object | User joins session |
 | `morsel_session_user_id` | Current user's UUID | User joins session |
 | `morsel_customer_name` | Guest name | Login |
-| `morsel_dining_type` | dine-in / takeaway | Login |
 | `morsel_auth_method` | guest / google / apple | Login |
 | `morsel_restaurant_context` | Business, branch, space info | Login |
 | `morsel_cart` | Cart items array | Item added/removed |

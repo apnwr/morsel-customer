@@ -411,11 +411,13 @@ export function SplitProvider({ children }: { children: ReactNode }) {
           const [orderId, itemId] = key.split('_');
           return { itemId, orderId, quantity };
         });
+        const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
         payload = {
           type: 'itemized',
           numberOfSplits: participants.length,
           amounts,
           itemIds,
+          ...(currentSessionUserId ? { sessionUserId: currentSessionUserId } : {}),
         };
         break;
       }

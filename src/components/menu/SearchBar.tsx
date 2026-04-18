@@ -29,7 +29,7 @@ export function SearchBar({
       className="fixed left-0 right-0 bg-white border-t-[3px] border-[#F1F1F1] rounded-t-[30px] z-40 flex flex-col"
       style={{
         bottom: 0,
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
         // Force GPU acceleration to prevent iOS Safari fixed positioning issues
         transform: 'translateZ(0)',
         WebkitTransform: 'translateZ(0)',

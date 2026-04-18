@@ -416,9 +416,12 @@ body {
   height: 100dvh;
 }
 
-/* Safe area padding utilities */
+/* Safe area padding utilities.
+ * max(env(...), 16px) ensures a consistent bottom gap across platforms:
+ * iOS home-indicator devices keep their ~34px clearance; Android gesture-nav
+ * devices (where env() returns 0) still get a visible 16px cushion. */
 .pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
 }
 
 .pt-safe {
@@ -431,7 +434,7 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
 }
 
 /* iOS Safari fixed positioning fix - apply to fixed elements */

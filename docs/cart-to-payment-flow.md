@@ -450,7 +450,9 @@ PARTICIPANT A saves split
   |
   2. syncSplitToServer(sessionId, mode, shares, participants)
   |    POST /session/{id}/split
-  |    Payload: { type, numberOfSplits, amounts, itemIds }
+  |    Payload: { type, numberOfSplits, amounts, itemIds, sessionUserId? }
+  |    (sessionUserId is included only when type === 'itemized' — the
+  |     sessionUserId of the participant performing the split)
   |    → Server stores splitConfig + calculates splits[]
   |
   3. refreshSessionData() (on POST success)
@@ -512,7 +514,7 @@ Participant A opens ItemizedPickerSheet
   +-- Other participants WITHOUT claims → (total - claimed) / count
   |
   +-- setItemizedSelection(A.id, itemIds) → localStorage
-  +-- syncSplitToServer() → POST /split with flat itemIds + amounts
+  +-- syncSplitToServer() → POST /split with flat itemIds + amounts + sessionUserId (A's)
   |
   Participant B opens picker later
   |
@@ -639,7 +641,6 @@ morsel_session_data              OrderingSessionData  Join → End session
 morsel_session_user_id           string               Join → End session
 morsel_active_order_id           string | null         Order placed → New order
 morsel_customer_name             string               Login → End session
-morsel_dining_type               string               Login → End session
 morsel_auth_method               string               Login → End session
 morsel_flow_type                 'area' | 'space'     QR scan → End session
 morsel_area_id                   string               Area flow → End session
