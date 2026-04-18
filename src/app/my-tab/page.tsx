@@ -133,9 +133,10 @@ export default function MyTabPage() {
       {/* Pay Now bar — fixed bottom, Figma Frame layout_Q5T055 */}
       <button
         type="button"
-        className="fixed rounded-t-[30px] left-0 right-0 h-[70px] flex items-center justify-between px-[22px] bg-black text-white hover:bg-gray-900 active:opacity-95 transition-all z-20"
-        style={{ 
+        className="fixed rounded-t-[30px] left-0 right-0 h-[70px] box-content flex items-center justify-between px-[22px] bg-black text-white hover:bg-gray-900 active:opacity-95 transition-all z-20"
+        style={{
           bottom: 0,
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
           // iOS Safari fixed positioning fix
           transform: 'translateZ(0)',
           WebkitTransform: 'translateZ(0)',

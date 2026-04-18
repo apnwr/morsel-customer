@@ -360,8 +360,9 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
         <button
           onClick={onPlaceOrder}
           disabled={isPlacingOrder || myItems.length === 0}
-          className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-[22px] transition-colors disabled:bg-gray-500 disabled:opacity-100 disabled:cursor-not-allowed"
+          className="w-full max-w-2xl h-[70px] box-content bg-black text-white flex items-center justify-between px-[22px] transition-colors disabled:bg-gray-500 disabled:opacity-100 disabled:cursor-not-allowed"
           style={{
+            paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
             fontFamily: 'Helvetica Neue, sans-serif',
             fontWeight: 700,
             fontSize: '20px',

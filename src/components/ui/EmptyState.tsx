@@ -26,7 +26,7 @@ export function EmptyState({
       <div className="text-6xl mb-4" aria-hidden="true">{icon}</div>
       <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
       {description && (
-        <p className="text-sm text-gray-500 mb-6 max-w-[280px] px-4">{description}</p>
+        <p className="text-sm text-gray-500 mb-6 max-w-[280px] px-4 break-words">{description}</p>
       )}
       {actionLabel && onAction && (
         <button

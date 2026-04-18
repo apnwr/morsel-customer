@@ -13,6 +13,7 @@ import { config } from '@/lib/config';
 export default function DebugPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [displayTableNumber, setDisplayTableNumber] = useState('15');
+  const [isHidden, setIsHidden] = useState(false);
   const router = useRouter();
 
   const { context, switchRestaurant, switchBranch, changeTable } = useRestaurant();
@@ -20,25 +21,37 @@ export default function DebugPanel() {
   const { startTimer, expireTimer, resetOrder } = useOrder();
   const { addMockParticipant } = useSplit();
 
-  // Load display table number on mount
+  // Load display table number and hidden state on mount
   React.useEffect(() => {
-    const stored = localStorage.getItem('morsel_table_number');
-    if (stored) {
-      setDisplayTableNumber(stored);
+    const storedTable = localStorage.getItem('morsel_table_number');
+    if (storedTable) {
+      setDisplayTableNumber(storedTable);
     }
+    setIsHidden(localStorage.getItem('hideDebugPanel') === 'true');
   }, []);
 
-  // Check visibility based on environment and localStorage
+  // Check visibility based on environment, localStorage, and user-hidden flag
   const isVisible = (() => {
     if (typeof window === 'undefined') return false;
     const isDevelopment = process.env.NODE_ENV === 'development';
     const isEnabled = localStorage.getItem('enableDebugPanel') === 'true';
-    return isDevelopment || isEnabled;
+    return (isDevelopment || isEnabled) && !isHidden;
   })();
 
   if (!isVisible || !context) {
     return null;
   }
+
+  const handleHidePanel = () => {
+    const confirmHide = window.confirm(
+      'Hide Debug Panel?\n\nTo show it again, run this in the browser console and reload:\n\nlocalStorage.removeItem(\'hideDebugPanel\')'
+    );
+    if (confirmHide) {
+      localStorage.setItem('hideDebugPanel', 'true');
+      setIsHidden(true);
+      setIsOpen(false);
+    }
+  };
 
   const handleSwitchRestaurant = () => {
     if (!context) return;
@@ -282,6 +295,12 @@ export default function DebugPanel() {
                     className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 active:scale-95 transition-all text-sm font-medium"
                   >
                     Clear LocalStorage
+                  </button>
+                  <button
+                    onClick={handleHidePanel}
+                    className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 active:scale-95 transition-all text-sm font-medium"
+                  >
+                    Hide Debug Panel
                   </button>
                 </div>
               </div>

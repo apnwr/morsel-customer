@@ -356,8 +356,9 @@ export function PaymentResultView({
           <button
             onClick={handleGetReceipt}
             disabled={isReceiptLoading}
-            className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-[22px] transition-all disabled:opacity-70"
+            className="w-full max-w-2xl h-[70px] box-content bg-black text-white flex items-center justify-between px-[22px] transition-all disabled:opacity-70"
             style={{
+              paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
               fontFamily: 'Helvetica Neue, sans-serif',
               fontWeight: 700,
               fontSize: '20px',
@@ -376,8 +377,9 @@ export function PaymentResultView({
         ) : (
           <button
             onClick={onRetryPayment}
-            className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-[22px] transition-all"
+            className="w-full max-w-2xl h-[70px] box-content bg-black text-white flex items-center justify-between px-[22px] transition-all"
             style={{
+              paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
               fontFamily: 'Helvetica Neue, sans-serif',
               fontWeight: 700,
               fontSize: '20px',

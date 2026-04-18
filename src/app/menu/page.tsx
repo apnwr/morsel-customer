@@ -506,6 +506,10 @@ export default function MenuPage() {
     }
   }, []);
 
+  // Stable handlers for SearchBar — let its React.memo actually prevent re-renders.
+  const handleOpenMenuNav = React.useCallback(() => setShowMenuNav(true), []);
+  const handleGoToCart = React.useCallback(() => router.push('/cart'), [router]);
+
   // Helper function to filter items based on search query
   // Only matches items where name starts with the search query
   const filterItemsBySearch = React.useCallback(
@@ -569,7 +573,7 @@ export default function MenuPage() {
 
   return (
     <div
-      className={`min-h-dvh bg-[#F7F8F8] ${hasCartItems ? 'pb-[130px]' : 'pb-[80px]'}`}
+      className={`min-h-dvh bg-[#F7F8F8] ${hasCartItems ? 'pb-[170px]' : 'pb-[100px]'}`}
       style={{ minHeight: '100dvh' }} // Fallback for browsers without dvh support
     >
       <Header showCart />
@@ -666,10 +670,11 @@ export default function MenuPage() {
       <SearchBar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        onMenuClick={() => setShowMenuNav(true)}
+        onMenuClick={handleOpenMenuNav}
         showConfirmOrder={hasCartItems}
-        onConfirmOrder={() => router.push('/cart')}
+        onConfirmOrder={handleGoToCart}
         cartTotal={cart.subtotal}
+        cartItemCount={cart.items.length}
       />
 
       {/* Menu Navigation Popup */}

@@ -444,13 +444,21 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
 
             {/* Fixed Bottom CTA */}
             <div
-              className="fixed left-0 right-0 bottom-0 z-20 flex justify-center"
-              style={{ transform: 'translateZ(0)' }}
+              className="fixed left-0 right-0 z-20 flex justify-center"
+              style={{
+                bottom: 0,
+                transform: 'translateZ(0)',
+              }}
             >
               <button
                 onClick={handleConfirm}
-                className="w-full max-w-2xl h-[70px] bg-black text-white flex items-center justify-between px-[22px]"
-                style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700, fontSize: '20px' }}
+                className="w-full max-w-2xl h-[70px] box-content bg-black text-white flex items-center justify-between px-[22px]"
+                style={{
+                  paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
+                  fontFamily: 'Helvetica Neue, sans-serif',
+                  fontWeight: 700,
+                  fontSize: '20px',
+                }}
               >
                 <span>Pay Now</span>
                 <span>{formatPrice(selectedTotal)}</span>

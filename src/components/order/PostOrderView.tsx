@@ -410,12 +410,13 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood, onPay
         <button
           onClick={isCurrentUserPaid ? undefined : handlePayNow}
           disabled={isCurrentUserPaid}
-          className={`w-full max-w-2xl h-[70px] flex items-center justify-between px-[22px] transition-all disabled:cursor-not-allowed ${
+          className={`w-full max-w-2xl h-[70px] box-content flex items-center justify-between px-[22px] transition-all disabled:cursor-not-allowed ${
             isCurrentUserPaid
               ? 'bg-green-600 text-white'
               : 'bg-black text-white disabled:opacity-50'
           }`}
           style={{
+            paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
             fontFamily: 'Helvetica Neue, sans-serif',
             fontWeight: 700,
             fontSize: '20px',
