@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
 import { useOrdersPageState } from "@/hooks/useOrdersPageState";
@@ -16,13 +16,24 @@ export const dynamic = 'force-dynamic';
 
 function OrdersPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const restaurantContext = useRequireRestaurantContext();
   useSessionValidation();
   const { endSession } = useSession();
 
-  const [paymentResult, setPaymentResult] = useState<'success' | 'failure' | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState(0);
-  const [paymentTip, setPaymentTip] = useState(0);
+  // Hydrate payment result from query on first render; useSearchParams on /orders is read-only here
+  const [paymentResult, setPaymentResult] = useState<'success' | 'failure' | null>(() => {
+    const r = searchParams.get('paymentResult');
+    return r === 'success' || r === 'failure' ? r : null;
+  });
+  const [paymentAmount] = useState(() => {
+    const n = Number(searchParams.get('amount') || 0);
+    return Number.isFinite(n) ? n : 0;
+  });
+  const [paymentTip] = useState(() => {
+    const n = Number(searchParams.get('tip') || 0);
+    return Number.isFinite(n) ? n : 0;
+  });
 
   const {
     orderData,
@@ -33,11 +44,12 @@ function OrdersPageContent() {
     handleOrderMoreFood,
   } = useOrdersPageState();
 
-  const handlePaymentResult = useCallback((result: 'success' | 'failure', amount: number, tipAmount: number) => {
-    setPaymentResult(result);
-    setPaymentAmount(amount);
-    setPaymentTip(tipAmount);
-  }, []);
+  // Strip payment query params after hydration so a refresh doesn't replay the result screen
+  useEffect(() => {
+    if (searchParams.get('paymentResult')) {
+      router.replace('/orders');
+    }
+  }, [searchParams, router]);
 
   const handleBackToMenu = useCallback(async () => {
     await endSession('completed');
@@ -95,7 +107,6 @@ function OrdersPageContent() {
           orderData={orderData}
           bill={bill}
           onOrderMoreFood={handleOrderMoreFood}
-          onPaymentResult={handlePaymentResult}
         />
       ) : (
         <OrdersLoading />

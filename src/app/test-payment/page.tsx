@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { PeachCheckoutModal } from '@/components/payment/PeachCheckoutModal';
+import { PeachCheckoutView } from '@/components/payment/PeachCheckoutView';
 import { paymentService } from '@/services/payment.service';
 import { getFromStorage } from '@/mocks/mockStorage';
 import { prefetchSDK, resetSDKLoader } from '@/lib/peach-payments/sdk-loader';
@@ -286,15 +286,18 @@ export default function TestPaymentPage() {
         </div>
       </div>
 
-      <PeachCheckoutModal
-        key={modalKeyRef.current}
-        isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); log('Closed'); }}
-        onPaymentResult={(result, txnId) => { setIsModalOpen(false); log(`Result: ${result}${txnId ? ` (${txnId})` : ''}`); }}
-        sessionId={sessionId}
-        sessionUserId={sessionUserId || undefined}
-        amount={amount}
-      />
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+          <PeachCheckoutView
+            key={modalKeyRef.current}
+            onBack={() => { setIsModalOpen(false); log('Closed'); }}
+            onPaymentResult={(result, txnId) => { setIsModalOpen(false); log(`Result: ${result}${txnId ? ` (${txnId})` : ''}`); }}
+            sessionId={sessionId}
+            sessionUserId={sessionUserId || undefined}
+            amount={amount}
+          />
+        </div>
+      )}
     </div>
   );
 }

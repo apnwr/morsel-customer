@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ChevronLeft } from "lucide-react";
@@ -15,6 +15,8 @@ import { Footer } from "@/components/layout/Footer";
 import { useLocale } from "@/contexts/LocaleContext";
 import { ParticipantsList } from "@/components/session/ParticipantsList";
 import { useFlowType } from "@/hooks/useFlowType";
+import { getStoredTip } from "@/components/cart/TipSelector";
+import { prefetchSDK } from "@/lib/peach-payments/sdk-loader";
 
 /** Placeholder for Google Reviews; replace with API-driven URL when integrated. */
 const GOOGLE_REVIEWS_URL = "https://maps.app.goo.gl/cyKBZ3Yn5qnS5c947";
@@ -62,6 +64,23 @@ export default function MyTabPage() {
     : useSplitShares && typeof split.shares[currentSessionUserId ?? ""] === "number"
       ? split.shares[currentSessionUserId!]
       : evenShare;
+
+  // Prefetch SDK + route so /payment opens instantly
+  useEffect(() => {
+    prefetchSDK();
+    router.prefetch('/payment');
+  }, [router]);
+
+  const handlePayNow = useCallback(() => {
+    if (!sessionId || payNowAmount <= 0) return;
+    const tipAmount = getStoredTip().amount;
+    const totalWithTip = Math.round((payNowAmount + tipAmount) * 100) / 100;
+    const params = new URLSearchParams({
+      amount: String(totalWithTip),
+      tip: String(tipAmount),
+    });
+    router.push(`/payment?${params.toString()}`);
+  }, [router, sessionId, payNowAmount]);
 
   return (
     <div className="min-h-screen bg-[#F7F8F8] pb-[90px]">
@@ -133,7 +152,9 @@ export default function MyTabPage() {
       {/* Pay Now bar — fixed bottom, Figma Frame layout_Q5T055 */}
       <button
         type="button"
-        className="fixed rounded-t-[30px] left-0 right-0 h-[70px] box-content flex items-center justify-between px-[22px] bg-black text-white hover:bg-gray-900 active:opacity-95 transition-all z-20"
+        onClick={handlePayNow}
+        disabled={!sessionId || payNowAmount <= 0}
+        className="fixed rounded-t-[30px] left-0 right-0 h-[70px] box-content flex items-center justify-between px-[22px] bg-black text-white hover:bg-gray-900 active:opacity-95 transition-all z-20 disabled:opacity-50 disabled:cursor-not-allowed"
         style={{
           bottom: 0,
           paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',

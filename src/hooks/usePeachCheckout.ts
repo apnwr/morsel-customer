@@ -12,6 +12,10 @@ import { paymentService } from '@/services/payment.service';
 import type { PeachCheckoutState, PeachCheckoutStatus } from '@/types/api/payment';
 import type { PeachCheckoutInstance, PeachCompletedEventData } from '@/lib/peach-payments/types';
 
+// Peach's official success result-code pattern (per their docs).
+// https://docs.peachpayments.com/docs/result-codes
+const PEACH_SUCCESS_CODE = /^(000\.000\.|000\.100\.1|000\.[36]|000\.400\.[1][12]0)/;
+
 interface UsePeachCheckoutOptions {
   sessionId: string;
   sessionUserId?: string;
@@ -101,7 +105,20 @@ export function usePeachCheckout({
                 splitId,
               });
 
-              if (result.success && result.status === 'success') {
+              let verified = result.success && result.status === 'success';
+
+              if (!verified && config.peachPayments.trustClientResultCode) {
+                const peachCode = (result.verification as Record<string, unknown> | undefined)?.['result.code'];
+                if (typeof peachCode === 'string' && PEACH_SUCCESS_CODE.test(peachCode)) {
+                  console.warn(
+                    '[usePeachCheckout] NEXT_PUBLIC_PEACH_TRUST_CLIENT override: backend reported failure but Peach result.code %s is a valid success. Treating as success.',
+                    peachCode
+                  );
+                  verified = true;
+                }
+              }
+
+              if (verified) {
                 setState({
                   status: 'success',
                   checkoutId: data.checkoutId,
@@ -110,6 +127,7 @@ export function usePeachCheckout({
                 });
                 onSuccessRef.current?.(result.transactionId);
               } else {
+                console.error('[usePeachCheckout] Backend verify returned non-success:', result);
                 setStatus('failed', 'Payment verification failed');
                 onFailureRef.current?.('Payment verification failed');
               }

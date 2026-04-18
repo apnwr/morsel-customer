@@ -10,7 +10,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { useLocale } from '@/contexts/LocaleContext';
 import Image from 'next/image';
 import { useSession } from '@/contexts/SessionContext';
@@ -23,11 +23,6 @@ import { prefetchSDK } from '@/lib/peach-payments/sdk-loader';
 import { useFlowType } from '@/hooks/useFlowType';
 import type { Order as APIOrder, OrderItem } from '@/types/api/order';
 import type { SessionBill } from '@/types/api/bill';
-
-const PeachCheckoutModal = dynamic(
-  () => import('@/components/payment/PeachCheckoutModal').then(m => ({ default: m.PeachCheckoutModal })),
-  { ssr: false }
-);
 
 // Helper function to get dietary type from stored dietary data
 const getDietaryTypeFromStoredData = (storedDietary: { allergens?: string[]; dietary?: string[] } | undefined) => {
@@ -71,16 +66,14 @@ interface PostOrderViewProps {
   orderData: APIOrder;
   bill?: SessionBill | null;
   onOrderMoreFood: () => void;
-  onPaymentResult?: (result: 'success' | 'failure', amount: number, tipAmount: number) => void;
 }
 
-export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood, onPaymentResult }: PostOrderViewProps) {
+export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: PostOrderViewProps) {
+  const router = useRouter();
   const { formatPrice } = useLocale();
   const { sessionData, splitPaymentStatus, isParticipantPaid } = useSession();
   const { split } = useSplit();
   const flowType = useFlowType();
-
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   // Current user
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
@@ -178,26 +171,19 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood, onPay
   const isCurrentUserPaid = currentSessionUserId ? isParticipantPaid(currentSessionUserId) : false;
   const allSplitsPaid = splitPaymentStatus != null && splitPaymentStatus.length > 0 && splitPaymentStatus.every(s => s.paid);
 
-  // Derive current user's split identifier for the payment API
-  const currentUserSplitIdentifier = useMemo(() => {
-    if (!splitPaymentStatus || !currentSessionUserId) return undefined;
-    const entry = splitPaymentStatus.find(s => s.sessionUserId === currentSessionUserId);
-    return entry ? String(entry.index) : undefined;
-  }, [splitPaymentStatus, currentSessionUserId]);
+  // Prefetch SDK + route so /payment opens instantly
+  useEffect(() => {
+    prefetchSDK();
+    router.prefetch('/payment');
+  }, [router]);
 
-  // Prefetch Peach SDK on mount for fast checkout
-  useEffect(() => { prefetchSDK(); }, []);
-
-  // Handle payment — open checkout modal
   const handlePayNow = useCallback(() => {
-    setIsCheckoutOpen(true);
-  }, []);
-
-  // Handle checkout result from PeachCheckoutModal
-  const handleCheckoutResult = useCallback((result: 'success' | 'failure') => {
-    setIsCheckoutOpen(false);
-    onPaymentResult?.(result, totalWithTip, tipAmount);
-  }, [onPaymentResult, totalWithTip, tipAmount]);
+    const params = new URLSearchParams({
+      amount: String(totalWithTip),
+      tip: String(tipAmount),
+    });
+    router.push(`/payment?${params.toString()}`);
+  }, [router, totalWithTip, tipAmount]);
 
   return (
     <>
@@ -431,19 +417,6 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood, onPay
           </span>
         </button>
       </div>
-
-      {/* Peach Payments Checkout Modal */}
-      {sessionData?.session?.id && (
-        <PeachCheckoutModal
-          isOpen={isCheckoutOpen}
-          onClose={() => setIsCheckoutOpen(false)}
-          onPaymentResult={handleCheckoutResult}
-          sessionId={sessionData.session.id}
-          sessionUserId={currentSessionUserId || undefined}
-          splitIdentifier={currentUserSplitIdentifier}
-          amount={totalWithTip}
-        />
-      )}
     </>
   );
 }
