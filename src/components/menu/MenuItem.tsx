@@ -265,7 +265,9 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
           {renderControls('overlay')}
         </div>
       ) : (
-        <div className="shrink-0 self-center">
+        // Match the image column's 40% width so the standalone Add button's centerline
+        // aligns with the overlay Add button on rows that do have images.
+        <div className="w-[40%] shrink-0 flex items-center justify-center self-center">
           {renderControls('standalone')}
         </div>
       )}
