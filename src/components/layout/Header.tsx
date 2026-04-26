@@ -36,8 +36,12 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
   const pathname = usePathname();
   const isCartPage = pathname === '/cart';
   const isOrdersPage = pathname === '/orders';
-  const { cart, lastCartAction, clearLastCartAction } = useCart();
-  const [snackbar, setSnackbar] = useState<{ type: 'added' | 'removed'; count: number } | null>(null);
+  const { cart, lastCartAction, clearLastCartAction, cartSyncError, clearCartSyncError } = useCart();
+  const [snackbar, setSnackbar] = useState<
+    | { type: 'added' | 'removed'; count: number }
+    | { type: 'sync-error' }
+    | null
+  >(null);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { order } = useOrder();
   const { sessionData } = useSession();
@@ -90,6 +94,14 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
       queueMicrotask(() => setSnackbar({ type, count }));
     }
   }, [showCart, lastCartAction, snackbar, clearLastCartAction]);
+
+  // Cart-sync error takes precedence over the add/remove snackbar
+  useEffect(() => {
+    if (showCart && cartSyncError) {
+      clearCartSyncError();
+      queueMicrotask(() => setSnackbar({ type: 'sync-error' }));
+    }
+  }, [showCart, cartSyncError, clearCartSyncError]);
 
   // Auto-dismiss snackbar after SNACKBAR_DURATION_MS; cleanup on unmount
   useEffect(() => {
@@ -250,10 +262,12 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
                         className="absolute inset-0 flex items-center justify-center px-3"
                       >
                         <span
-                          className="text-sm font-bold text-black"
+                          className={`text-sm font-bold ${snackbar.type === 'sync-error' ? 'text-orange-600' : 'text-black'}`}
                           style={{ fontFamily: 'Lato, sans-serif', lineHeight: 1.2 }}
                         >
-                          {snackbar.count} item{snackbar.count === 1 ? '' : 's'} {snackbar.type === 'added' ? 'added' : 'removed'}
+                          {snackbar.type === 'sync-error'
+                            ? "Couldn't save — try again"
+                            : `${snackbar.count} item${snackbar.count === 1 ? '' : 's'} ${snackbar.type === 'added' ? 'added' : 'removed'}`}
                         </span>
                       </motion.div>
                     ) : (

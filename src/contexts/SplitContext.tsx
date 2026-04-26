@@ -44,8 +44,8 @@ interface SplitState {
   setItemizedSelection: (participantId: string, itemIds: string[]) => void;
   /** Clear all itemized selections */
   clearItemizedSelections: () => void;
-  /** Sync split to server (fire-and-forget). Pass mode and shares explicitly to avoid stale closures. */
-  syncSplitToServer: (sessionId: string, mode: SplitBill['mode'], shares: Record<string, number>, participants: Participant[]) => void;
+  /** Sync split to server. Rejects on POST failure so callers can surface the error. */
+  syncSplitToServer: (sessionId: string, mode: SplitBill['mode'], shares: Record<string, number>, participants: Participant[]) => Promise<void>;
 }
 
 const SplitContext = createContext<SplitState | undefined>(undefined);
@@ -76,7 +76,7 @@ function serverTypeToLocalMode(serverType: string): SplitBill['mode'] {
 }
 
 export function SplitProvider({ children }: { children: ReactNode }) {
-  const { serverSplitConfig, splitPaymentStatus, refreshSessionData } = useSession();
+  const { serverSplitType, splitPaymentStatus, refreshSessionData } = useSession();
 
   const [split, setSplit] = useState<SplitBill>(() => {
     // Initialize from localStorage or use empty split
@@ -100,14 +100,15 @@ export function SplitProvider({ children }: { children: ReactNode }) {
   }, [split]);
 
   // Hydrate split mode AND shares from server.
-  // serverSplitConfig has the mode; splitPaymentStatus has the per-participant amounts.
+  // serverSplitType is derived from splits[].type (preferred) or splitConfig.type (legacy).
+  // splitPaymentStatus has the per-participant amounts.
   // Server splits are ordered by index (0, 1, 2...) matching participant order.
   // sessionUserId may be null, so we map by index to split.participants.
   useEffect(() => {
-    if (!serverSplitConfig?.type) return;
+    if (!serverSplitType) return;
     if (!splitPaymentStatus || splitPaymentStatus.length === 0) return;
 
-    const serverMode = serverTypeToLocalMode(serverSplitConfig.type);
+    const serverMode = serverTypeToLocalMode(serverSplitType);
 
     setSplit(prev => {
       if (prev.participants.length === 0) return prev;
@@ -144,7 +145,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         isValid: true,
       };
     });
-  }, [serverSplitConfig, splitPaymentStatus]);
+  }, [serverSplitType, splitPaymentStatus]);
 
   const setSplitMode = useCallback((mode: 'even' | 'custom' | 'self' | 'all' | 'items') => {
     setSplit((prev) => ({
@@ -359,12 +360,12 @@ export function SplitProvider({ children }: { children: ReactNode }) {
     setItemizedSelectionsState({});
   }, []);
 
-  const syncSplitToServer = useCallback((
+  const syncSplitToServer = useCallback(async (
     sessionId: string,
     mode: SplitBill['mode'],
     shares: Record<string, number>,
     participants: Participant[]
-  ) => {
+  ): Promise<void> => {
     if (!sessionId || participants.length === 0) return;
 
     // Always send numberOfSplits and amounts. itemIds only for 'itemized' (flat array).
@@ -430,17 +431,17 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         };
     }
 
-    splitService
-      .calculateSplit(sessionId, payload)
-      .then((response) => {
-        console.log('[SplitContext] Split synced to server:', response.data);
-        setServerSplits(response.data?.splits || null);
-        // Refresh session so splitPaymentStatus + serverSplitConfig update for all participants
-        refreshSessionData();
-      })
-      .catch((error) => {
-        console.error('[SplitContext] Failed to sync split to server:', error);
-      });
+    try {
+      const response = await splitService.calculateSplit(sessionId, payload);
+      console.log('[SplitContext] Split synced to server:', response.data);
+      setServerSplits(response.data?.splits || null);
+      // Refresh session so splitPaymentStatus + serverSplitConfig update for all participants
+      refreshSessionData();
+    } catch (error) {
+      console.error('[SplitContext] Failed to sync split to server:', error);
+      // Rethrow so callers can surface the failure to the user instead of silently accepting it
+      throw error;
+    }
   }, [itemizedSelections, refreshSessionData]);
 
   const addMockParticipant = useCallback(() => {

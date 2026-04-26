@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { CheckCircle2, XCircle, Star, Settings, Download, Loader2 } from 'lucide-react';
 import { useLocale } from '@/contexts/LocaleContext';
 import { useSession } from '@/contexts/SessionContext';
-import { useSplit } from '@/contexts/SplitContext';
 import { useFlowType } from '@/hooks/useFlowType';
 import { Avatar } from '@/components/ui/Avatar';
 import { Footer } from '@/components/layout/Footer';
@@ -35,8 +34,7 @@ export function PaymentResultView({
 }: PaymentResultViewProps) {
   const router = useRouter();
   const { formatPrice } = useLocale();
-  const { sessionData, splitPaymentStatus, isParticipantPaid } = useSession();
-  const { split } = useSplit();
+  const { sessionData, splitPaymentStatus, serverSplitType, isParticipantPaid } = useSession();
   const flowType = useFlowType();
 
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
@@ -61,8 +59,21 @@ export function PaymentResultView({
     });
   }, [apiParticipants, currentSessionUserId]);
 
-  const hasValidShares = split.participants.length > 0
-    && Object.values(split.shares).some(v => typeof v === 'number' && v > 0);
+  // Server-first: resolve a participant's amount from splitPaymentStatus (cross-device truth).
+  // Fallback to even split across API participants; ignore local split.shares (per-device stale).
+  const getParticipantAmount = (sessionUserId: string): number => {
+    if (splitPaymentStatus && splitPaymentStatus.length > 0) {
+      const serverEntry = splitPaymentStatus.find((s) => s.sessionUserId === sessionUserId);
+      if (serverEntry && typeof serverEntry.amount === 'number') {
+        return serverEntry.amount;
+      }
+    }
+    const count = apiParticipants?.length ?? 0;
+    if (count > 1 && billTotalWithoutTip > 0) {
+      return Math.round((billTotalWithoutTip / count) * 100) / 100;
+    }
+    return 0;
+  };
 
   // Show participants card only in space flow with 2+ participants
   const showParticipantsCard = !isAreaFlow && sortedParticipants.length > 1;
@@ -104,14 +115,14 @@ export function PaymentResultView({
   };
 
   const getModeLabel = () => {
-    const effectiveMode = hasValidShares ? split.mode : 'even';
-    switch (effectiveMode) {
-      case 'even': return 'Split evenly';
+    // Server-first; when server has no type, always default to "Split evenly".
+    // Deliberately ignore local split.mode — can be stale per-device.
+    switch (serverSplitType) {
+      case 'equal': return 'Split evenly';
       case 'custom': return 'Custom split';
-      case 'all': return 'Pay for everyone';
-      case 'self': return 'Pay for self';
-      case 'items': return 'Pay for items';
-      default: return 'Split bill';
+      case 'participant': return 'Pay for self';
+      case 'itemized': return 'Pay for items';
+      default: return 'Split evenly';
     }
   };
 
@@ -197,7 +208,7 @@ export function PaymentResultView({
                 const paid = isParticipantPaid(participant.sessionUserId);
                 const isYou = participant.sessionUserId === currentSessionUserId;
                 const displayName = isYou ? 'You' : participant.guestName;
-                const shareAmount = split.shares[participant.sessionUserId] || 0;
+                const shareAmount = getParticipantAmount(participant.sessionUserId);
 
                 return (
                   <div key={participant.sessionUserId} className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0">

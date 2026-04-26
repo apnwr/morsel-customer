@@ -336,15 +336,6 @@ export default function DebugPanel() {
                   >
                     Cart
                   </button>
-                  <button
-                    onClick={() => {
-                      router.push('/order-summary');
-                      setIsOpen(false);
-                    }}
-                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 active:scale-95 transition-all text-sm font-medium"
-                  >
-                    Order Summary
-                  </button>
                 </div>
               </div>
             </div>

@@ -14,11 +14,9 @@ import { useRouter } from 'next/navigation';
 import { useLocale } from '@/contexts/LocaleContext';
 import Image from 'next/image';
 import { useSession } from '@/contexts/SessionContext';
-import { useSplit } from '@/contexts/SplitContext';
 import { getFromStorage } from '@/mocks/mockStorage';
 import { TipSelector, getStoredTip } from '@/components/cart/TipSelector';
 import { ParticipantsList } from '@/components/session/ParticipantsList';
-import { isSplitApplicableForTotal } from '@/lib/split-utils';
 import { prefetchSDK } from '@/lib/peach-payments/sdk-loader';
 import { useFlowType } from '@/hooks/useFlowType';
 import type { Order as APIOrder, OrderItem } from '@/types/api/order';
@@ -72,7 +70,6 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
   const router = useRouter();
   const { formatPrice } = useLocale();
   const { sessionData, splitPaymentStatus, isParticipantPaid } = useSession();
-  const { split } = useSplit();
   const flowType = useFlowType();
 
   // Current user
@@ -126,40 +123,25 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
   // Each participant adds their own tip separately via totalWithTip.
   const billTotalWithoutTip = bill ? (bill.total - (bill.totalTip || 0)) : orderTotal;
   const billTotal = billTotalWithoutTip;
-  const useSplitShares = isSplitApplicableForTotal(split.splitForTotal, billTotal);
-
-
-  // Calculate user amount.
-  // When valid shares exist (at least one participant has > 0), use them as-is.
-  // When NO shares are configured at all, fall back to even split.
-  const hasValidShares = useMemo(() =>
-    split.participants.length > 0
-    && Object.values(split.shares).some(v => typeof v === 'number' && v > 0),
-    [split.participants.length, split.shares]
-  );
 
   const userAmount = useMemo(() => {
-    if (!split.participants || split.participants.length === 0) {
-      return billTotal;
+    // Server-first: use the authoritative split share when it exists. This is what /payment charges.
+    if (splitPaymentStatus && currentSessionUserId) {
+      const serverEntry = splitPaymentStatus.find((s) => s.sessionUserId === currentSessionUserId);
+      if (serverEntry && typeof serverEntry.amount === 'number') {
+        return serverEntry.amount;
+      }
     }
 
-    const currentUser = split.participants.find((p) => p.id === currentSessionUserId);
-    if (!currentUser) {
-      return billTotal;
-    }
-
-    // Valid shares exist — use this user's share (even if it's 0)
-    if (hasValidShares && useSplitShares && typeof split.shares[currentUser.id] === 'number') {
-      return split.shares[currentUser.id];
-    }
-
-    // No shares configured at all — fall back to even split
-    if (!hasValidShares && split.participants.length > 0) {
-      return Math.round((billTotal / split.participants.length) * 100) / 100;
+    // No server split yet → default to even split across session participants.
+    // Deliberately ignore local SplitContext.shares, which can be stale per-device.
+    const apiParticipants = sessionData?.session?.participants ?? [];
+    if (apiParticipants.length > 1 && billTotal > 0) {
+      return Math.round((billTotal / apiParticipants.length) * 100) / 100;
     }
 
     return billTotal;
-  }, [split.participants, split.shares, hasValidShares, useSplitShares, billTotal, currentSessionUserId]);
+  }, [splitPaymentStatus, currentSessionUserId, sessionData?.session?.participants, billTotal]);
 
   // Tip state — read from localStorage initially
   const [tipAmount, setTipAmount] = useState(() => getStoredTip().amount);

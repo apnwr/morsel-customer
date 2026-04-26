@@ -16,9 +16,20 @@ interface ParticipantsListProps {
   totalOverride?: number;
 }
 
+/** Map server split type → local mode label key */
+function serverTypeToMode(type?: string): 'even' | 'custom' | 'all' | 'self' | 'items' | null {
+  switch (type) {
+    case 'equal': return 'even';
+    case 'custom': return 'custom';
+    case 'participant': return 'self';
+    case 'itemized': return 'items';
+    default: return null;
+  }
+}
+
 export function ParticipantsList({ totalOverride }: ParticipantsListProps = {}) {
   const { split, calculateSplit, addParticipant, removeParticipant } = useSplit();
-  const { sessionData, isParticipantPaid } = useSession();
+  const { sessionData, isParticipantPaid, serverSplitType, splitPaymentStatus } = useSession();
   const { formatPrice } = useLocale();
   const { cart } = useCart();
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -117,50 +128,43 @@ export function ParticipantsList({ totalOverride }: ParticipantsListProps = {}) 
   //   return participants.length || 0;
   // }, [participants.length]);
 
-  // Check if shares are valid (at least one participant has a non-zero share)
-  const hasValidShares = split.participants.length > 0
-    && Object.values(split.shares).some(v => typeof v === 'number' && v > 0);
-
-  // Map session participants to split participants for amount display.
-  // Falls back to even split ONLY when NO shares are configured at all.
+  // Server-first display: resolve from splitPaymentStatus if present, else default to even split
+  // across the session's API participants. We intentionally do NOT fall back to local
+  // SplitContext.shares here — that's per-device persisted state and can go stale across sessions.
   const getParticipantAmount = useCallback(
     (sessionUserId: string) => {
-      const splitParticipant = split.participants.find(
-        (p) => p.id === sessionUserId
-      );
-
-      // If valid shares exist, use them as-is (even if this participant's share is 0)
-      if (hasValidShares) {
-        return splitParticipant ? (split.shares[splitParticipant.id] || 0) : 0;
+      if (splitPaymentStatus && splitPaymentStatus.length > 0) {
+        const serverEntry = splitPaymentStatus.find((s) => s.sessionUserId === sessionUserId);
+        if (serverEntry && typeof serverEntry.amount === 'number') {
+          return serverEntry.amount;
+        }
       }
 
-      // No shares configured at all — fall back to even split
-      if (split.participants.length > 0 && splitTotal > 0) {
-        return Math.round((splitTotal / split.participants.length) * 100) / 100;
+      const participantCount = apiParticipants?.length ?? 0;
+      if (participantCount > 0 && splitTotal > 0) {
+        return Math.round((splitTotal / participantCount) * 100) / 100;
       }
 
       return 0;
     },
-    [split.participants, split.shares, splitTotal, hasValidShares]
+    [splitPaymentStatus, apiParticipants, splitTotal]
   );
 
-  // Show the effective mode — fall back to "Split evenly" when shares are empty/zero
+  // Server-first mode label: prefer serverSplitType (cross-device).
+  // When the server has no split type, always default to "Split evenly" — do not read
+  // local split.mode, which can be stale from a previous session.
   const getModeLabel = () => {
-    const effectiveMode = hasValidShares ? split.mode : 'even';
-    switch (effectiveMode) {
-      case 'even':
-        return 'Split evenly';
-      case 'custom':
-        return 'Custom split';
-      case 'all':
-        return 'Pay for everyone';
-      case 'self':
-        return 'Pay for self';
-      case 'items':
-        return 'Pay for items';
-      default:
-        return 'Split bill';
+    const serverMode = serverTypeToMode(serverSplitType ?? undefined);
+    if (serverMode) {
+      switch (serverMode) {
+        case 'even': return 'Split evenly';
+        case 'custom': return 'Custom split';
+        case 'all': return 'Pay for everyone';
+        case 'self': return 'Pay for self';
+        case 'items': return 'Pay for items';
+      }
     }
+    return 'Split evenly';
   };
 
   // const getModeDescription = () => {

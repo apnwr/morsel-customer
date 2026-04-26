@@ -23,10 +23,15 @@ interface SplitSettingsModalProps {
 export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModalProps) {
   const { split, setSplitMode, setSplitForTotal, removeParticipant, updateShare, syncSplitToServer, itemizedSelections } = useSplit();
   const { cart } = useCart();
-  const { sessionData } = useSession();
+  const { sessionData, serverSplitType, splitPaymentStatus } = useSession();
   const { formatPrice } = useLocale();
   const [showItemizedPicker, setShowItemizedPicker] = useState(false);
   const sessionId = sessionData?.session?.id;
+
+  // Once a server split is active, nobody can switch modes. Itemized stays interactive
+  // (to claim remaining items); other modes render read-only.
+  const serverModeLocked = !!serverSplitType;
+  const serverIsItemized = serverSplitType === 'itemized';
 
   const effectiveTotal = typeof total === 'number' ? total : cart.total;
 
@@ -40,19 +45,46 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
     .reduce((sum, item) => sum + item.itemTotal, 0);
   const userItemsTotal = Math.round(userItemsSubtotal * 100) / 100;
 
-  // Effective mode: when shares are all empty/zero, treat as "even" instead of stale mode
-  const hasValidShares = split.participants.length > 0
-    && Object.values(split.shares).some(v => typeof v === 'number' && v > 0);
-  const effectiveMode = hasValidShares ? split.mode : 'even';
+  // Server-first: map serverSplitType to local mode key; default to 'even' when no server type.
+  // Deliberately ignores local split.mode — that's per-device and can be stale.
+  const effectiveMode: 'even' | 'custom' | 'self' | 'all' | 'items' = (() => {
+    switch (serverSplitType) {
+      case 'equal': return 'even';
+      case 'custom': return 'custom';
+      case 'participant': return 'self';
+      case 'itemized': return 'items';
+      default: return 'even';
+    }
+  })();
 
-  // Initialize local shares from split.shares — fall back to even split when shares are empty
+  // Initialize local shares, server-first:
+  //   1. If the server has per-participant amounts, seed from those.
+  //   2. Otherwise default to even split of effectiveTotal across API participants.
+  //   3. If we have neither (no bill, no server split), shares are "0.00".
   const initializeLocalShares = () => {
     const shares: Record<string, string> = {};
-    const useEvenFallback = !hasValidShares && split.participants.length > 0 && effectiveTotal > 0;
-    const evenAmount = useEvenFallback ? effectiveTotal / split.participants.length : 0;
+
+    if (splitPaymentStatus && splitPaymentStatus.length > 0) {
+      split.participants.forEach((p) => {
+        const serverEntry = splitPaymentStatus.find((s) => s.sessionUserId === p.id);
+        const amount =
+          serverEntry && typeof serverEntry.amount === 'number' ? serverEntry.amount : 0;
+        shares[p.id] = amount.toFixed(2);
+      });
+      return shares;
+    }
+
+    const participantCount = split.participants.length;
+    if (participantCount > 0 && effectiveTotal > 0) {
+      const even = effectiveTotal / participantCount;
+      split.participants.forEach((p) => {
+        shares[p.id] = even.toFixed(2);
+      });
+      return shares;
+    }
+
     split.participants.forEach((p) => {
-      const amount = useEvenFallback ? evenAmount : (split.shares[p.id] || 0);
-      shares[p.id] = amount.toFixed(2);
+      shares[p.id] = '0.00';
     });
     return shares;
   };
@@ -60,6 +92,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const [localMode, setLocalMode] = useState<'even' | 'custom' | 'self' | 'all' | 'items'>(effectiveMode);
   const [localShares, setLocalShares] = useState<Record<string, string>>(initializeLocalShares);
   const [validationError, setValidationError] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Calculate current sum for real-time validation feedback from LOCAL state
   const getCurrentSum = () => {
@@ -158,22 +191,18 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (isSaving) return;
+
     // For custom mode, validate that shares sum to total
     if (localMode === 'custom') {
-      // Validate local shares (not context shares)
       const localSum = Object.values(localShares).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
       const isValid = Math.abs(effectiveTotal - localSum) < 0.01;
 
       if (!isValid) {
-        // If validation fails, automatically switch to even split mode
         console.log('[SplitSettingsModal] Custom split validation failed, switching to even split');
         setSplitMode('even');
-
-        // Show a brief message that we switched to even split
         setValidationError('Invalid custom split. Switched to even split.');
-
-        // Clear error and close after a longer delay to ensure state updates propagate
         setTimeout(() => {
           setValidationError('');
           onClose();
@@ -181,37 +210,42 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
         return;
       }
 
-      // If valid, update mode and all shares in context from local state
       console.log('[SplitSettingsModal] Custom split is valid, updating context');
       setSplitMode(localMode);
       Object.entries(localShares).forEach(([participantId, value]) => {
-        const numValue = parseFloat(value) || 0;
-        updateShare(participantId, numValue);
+        updateShare(participantId, parseFloat(value) || 0);
       });
     } else {
-      // For non-custom modes, update mode first, then shares
       console.log('[SplitSettingsModal] Saving mode:', localMode);
       setSplitMode(localMode);
-
-      // Update all shares from local state
       Object.entries(localShares).forEach(([participantId, value]) => {
-        const numValue = parseFloat(value) || 0;
-        updateShare(participantId, numValue);
+        updateShare(participantId, parseFloat(value) || 0);
       });
     }
 
     setSplitForTotal(effectiveTotal);
 
-    // Sync to server in background — pass values explicitly to avoid stale closures
-    if (sessionId) {
-      const sharesSnapshot: Record<string, number> = {};
-      Object.entries(localShares).forEach(([id, val]) => {
-        sharesSnapshot[id] = parseFloat(val) || 0;
-      });
-      syncSplitToServer(sessionId, localMode, sharesSnapshot, split.participants);
+    if (!sessionId) {
+      onClose();
+      return;
     }
 
-    onClose();
+    const sharesSnapshot: Record<string, number> = {};
+    Object.entries(localShares).forEach(([id, val]) => {
+      sharesSnapshot[id] = parseFloat(val) || 0;
+    });
+
+    setIsSaving(true);
+    setValidationError('');
+    try {
+      await syncSplitToServer(sessionId, localMode, sharesSnapshot, split.participants);
+      onClose();
+    } catch {
+      // Keep modal open so user can retry; local state already reflects their intent
+      setValidationError("Couldn't save split — check your connection and try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -246,12 +280,15 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
               <p className="text-2xl font-black">{formatPrice(effectiveTotal)}</p>
             </div>
             <Button
-              onClick={handleSave}
+              onClick={serverModeLocked && !serverIsItemized ? onClose : handleSave}
               variant="primary"
               size="md"
               className="rounded-[40px] px-10"
+              disabled={isSaving}
             >
-              Save
+              {serverModeLocked && !serverIsItemized
+                ? 'Close'
+                : isSaving ? 'Saving…' : 'Save'}
             </Button>
           </div>
         </div>
@@ -409,58 +446,75 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
             </div>
           )}
 
-          {/* Payment Mode Options - Show only the 3 options that are NOT currently selected */}
+          {/* Payment Mode Options */}
           <div>
-            {/* <h3 className="font-semibold mb-3">Payment Mode</h3> */}
-            <div className="space-y-2">
-              {localMode !== 'all' && (
-                <button
-                  onClick={() => handleModeChange('all')}
-                  className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
-                >
-                  <span className="font-medium">Pay for everyone</span>
-                </button>
-              )}
+            {serverModeLocked ? (
+              <div className="space-y-2">
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-[12px] text-gray-700">
+                  Your tablemate set the split to
+                  <span className="font-semibold"> {localMode === 'items' ? 'Pay for items' : localMode === 'even' ? 'Split evenly' : localMode === 'custom' ? 'Custom split' : localMode === 'all' ? 'Pay for everyone' : 'Pay for self'}</span>.
+                  {serverIsItemized ? ' You can claim any remaining items.' : ' Your share is shown above.'}
+                </div>
+                {serverIsItemized && (
+                  <button
+                    onClick={() => setShowItemizedPicker(true)}
+                    className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                  >
+                    <span className="font-medium">Pick items to pay for</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {localMode !== 'all' && (
+                  <button
+                    onClick={() => handleModeChange('all')}
+                    className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                  >
+                    <span className="font-medium">Pay for everyone</span>
+                  </button>
+                )}
 
-              {localMode !== 'even' && (
-                <button
-                  onClick={() => handleModeChange('even')}
-                  className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
-                >
-                  <span className="font-medium">Split evenly</span>
-                </button>
-              )}
+                {localMode !== 'even' && (
+                  <button
+                    onClick={() => handleModeChange('even')}
+                    className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                  >
+                    <span className="font-medium">Split evenly</span>
+                  </button>
+                )}
 
-              {localMode !== 'custom' && (
-                <button
-                  onClick={() => handleModeChange('custom')}
-                  className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
-                >
-                  <span className="font-medium">Custom split</span>
-                </button>
-              )}
+                {localMode !== 'custom' && (
+                  <button
+                    onClick={() => handleModeChange('custom')}
+                    className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                  >
+                    <span className="font-medium">Custom split</span>
+                  </button>
+                )}
 
-              {localMode !== 'self' && (
-                <button
-                  onClick={() => handleModeChange('self')}
-                  className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
-                >
-                  <span className="font-medium">Pay for self</span>
-                </button>
-              )}
+                {localMode !== 'self' && (
+                  <button
+                    onClick={() => handleModeChange('self')}
+                    className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                  >
+                    <span className="font-medium">Pay for self</span>
+                  </button>
+                )}
 
-              {localMode !== 'items' && (
-                <button
-                  onClick={() => {
-                    handleModeChange('items');
-                    setShowItemizedPicker(true);
-                  }}
-                  className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
-                >
-                  <span className="font-medium">Pay for items</span>
-                </button>
-              )}
-            </div>
+                {localMode !== 'items' && (
+                  <button
+                    onClick={() => {
+                      handleModeChange('items');
+                      setShowItemizedPicker(true);
+                    }}
+                    className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                  >
+                    <span className="font-medium">Pay for items</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Validation Error */}

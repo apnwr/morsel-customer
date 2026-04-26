@@ -148,16 +148,6 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
     }
   }, [cart.items, updateQuantity]);
 
-  // Generate initials from item name
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   // Check for vegetarian/non-vegetarian status from allergens or dietary arrays
   const getDietaryType = useMemo(() => {
     const allDietaryInfo = [
@@ -176,9 +166,77 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
 
   const hasImage = item.image && item.image.trim() !== '';
 
+  // Add button / quantity stepper. Same controls in two layouts:
+  //   - 'overlay'    → absolute-positioned over the image's bottom edge
+  //   - 'standalone' → inline in a right-side column when there is no image
+  const renderControls = (variant: 'overlay' | 'standalone') => {
+    const positionCls =
+      variant === 'overlay' ? 'absolute bottom-[-12px] left-1/2 -translate-x-1/2' : '';
+
+    if (totalQuantityInCart === 0) {
+      return (
+        <button
+          onClick={handleAddToCart}
+          className={`${positionCls} flex items-center justify-center gap-[6px] px-3 py-1.5 bg-white border border-black rounded-full text-xs font-bold text-black hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 min-w-[70px] h-[28px] shadow-sm`}
+          style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
+          aria-label={item.isCustomizable ? `Customize ${item.name}` : `Add ${item.name} to cart`}
+        >
+          <span>Add</span>
+          {item.isCustomizable && (
+            <Image
+              src="/icons/Plus.png"
+              alt=""
+              width={10}
+              height={10}
+              className="opacity-70"
+              aria-hidden="true"
+            />
+          )}
+        </button>
+      );
+    }
+
+    return (
+      <div
+        className={`${positionCls} flex items-center justify-center gap-2 px-2 py-1.5 bg-black text-white rounded-full min-w-[70px] h-[28px] shadow-md`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={handleDecrement}
+          className="w-5 h-5 flex items-center justify-center hover:bg-gray-800 rounded-full transition-colors shrink-0 active:scale-90"
+          aria-label={`Decrease quantity of ${item.name}`}
+        >
+          <Minus className="w-3 h-3" />
+        </button>
+        <span
+          className="text-xs font-semibold min-w-[18px] text-center flex-1 tabular-nums cursor-pointer"
+          onClick={handleAddToCart}
+          role="button"
+          aria-label={`${totalQuantityInCart} in cart, click to add more`}
+        >
+          {totalQuantityInCart}
+        </span>
+        <button
+          onClick={handleAddToCart}
+          className="w-5 h-5 flex items-center justify-center hover:bg-gray-800 rounded-full transition-colors shrink-0 active:scale-90"
+          aria-label={`Add more ${item.name}`}
+        >
+          <Image
+            src="/icons/Plus.png"
+            alt="Add more"
+            width={12}
+            height={12}
+            style={{ filter: 'invert(1)' }}
+            className="w-3 h-3"
+          />
+        </button>
+      </div>
+    );
+  };
+
   return (
     <article
-      className="flex items-start gap-3 w-full pb-4 cursor-pointer"
+      className="flex flex-row-reverse items-start gap-3 w-full pb-4 cursor-pointer"
       aria-label={`${item.name}, ${formatPrice(item.price)}`}
       onClick={handleAddToCart}
       role="button"
@@ -190,92 +248,27 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
         }
       }}
     >
-      {/* Food Image Container - 40% width with aspect ratio for responsive sizing */}
-      <div className="relative w-[40%] aspect-square shrink-0">
-        {hasImage ? (
-          <>
-            {imageLoading && (
-              <Skeleton className="absolute inset-0 rounded-2xl" />
-            )}
-            <Image
-              src={item.image}
-              alt={`${item.name} dish`}
-              fill
-              className="rounded-2xl object-cover border-2 border-white shadow-sm"
-              sizes="(max-width: 640px) 40vw, (max-width: 768px) 35vw, 30vw"
-              onLoad={() => setImageLoading(false)}
-              priority={false}
-            />
-          </>
-        ) : (
-          <div className="w-full h-full rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 border-2 border-white shadow-sm flex items-center justify-center">
-            <span className="text-2xl font-bold text-purple-600/80">
-              {getInitials(item.name)}
-            </span>
-          </div>
-        )}
-        
-        
-        {/* Add Button or Quantity Controls - Positioned at bottom of image */}
-        {totalQuantityInCart === 0 ? (
-          <button
-            onClick={handleAddToCart}
-            className="absolute bottom-[-12px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-[6px] px-3 py-1.5 bg-white border border-black rounded-full text-xs font-bold text-black hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 min-w-[70px] h-[28px] shadow-sm"
-            style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
-            aria-label={item.isCustomizable ? `Customize ${item.name}` : `Add ${item.name} to cart`}
-          >
-            <span>Add</span>
-            {/* Show + indicator for customizable items */}
-            {item.isCustomizable && (
-              <Image
-                src="/icons/Plus.png"
-                alt=""
-                width={10}
-                height={10}
-                className="opacity-70"
-                aria-hidden="true"
-              />
-            )}
-          </button>
-        ) : (
-          <div 
-            className="absolute bottom-[-12px] left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 px-2 py-1.5 bg-black text-white rounded-full min-w-[70px] h-[28px] shadow-md"
-            onClick={(e) => e.stopPropagation()} // Prevent card click when interacting with controls
-          >
-            <button
-              onClick={handleDecrement}
-              className="w-5 h-5 flex items-center justify-center hover:bg-gray-800 rounded-full transition-colors shrink-0 active:scale-90"
-              aria-label={`Decrease quantity of ${item.name}`}
-            >
-              <Minus className="w-3 h-3" />
-            </button>
-            <span 
-              className="text-xs font-semibold min-w-[18px] text-center flex-1 tabular-nums cursor-pointer"
-              onClick={handleAddToCart}
-              role="button"
-              aria-label={`${totalQuantityInCart} in cart, click to add more`}
-            >
-              {totalQuantityInCart}
-            </span>
-            <button
-              onClick={handleAddToCart}
-              className="w-5 h-5 flex items-center justify-center hover:bg-gray-800 rounded-full transition-colors shrink-0 active:scale-90"
-              aria-label={`Add more ${item.name}`}
-            >
-              <Image
-                src="/icons/Plus.png"
-                alt="Add more"
-                width={12}
-                height={12}
-                style={{
-                  filter: 'invert(1)',
-                }}
-                className="w-3 h-3"
-              />
-            </button>
-          </div>
-        )}
-      </div>
+      {hasImage ? (
+        <div className="relative w-[40%] aspect-square shrink-0">
+          {imageLoading && (
+            <Skeleton className="absolute inset-0 rounded-2xl" />
+          )}
+          <Image
+            src={item.image}
+            alt={`${item.name} dish`}
+            fill
+            className="rounded-2xl object-cover border-2 border-white shadow-sm"
+            sizes="(max-width: 640px) 40vw, (max-width: 768px) 35vw, 30vw"
+            onLoad={() => setImageLoading(false)}
+            priority={false}
+          />
+          {renderControls('overlay')}
+        </div>
+      ) : (
+        <div className="shrink-0 self-center">
+          {renderControls('standalone')}
+        </div>
+      )}
 
       {/* Item Details */}
       <div className="flex-1 min-w-0 pt-1 flex flex-col justify-between">

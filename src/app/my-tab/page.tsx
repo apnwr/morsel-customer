@@ -7,10 +7,8 @@ import { ChevronLeft } from "lucide-react";
 import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
 import { useSession } from "@/contexts/SessionContext";
-import { useSplit } from "@/contexts/SplitContext";
 import { getFromStorage } from "@/mocks/mockStorage";
 import { billService } from "@/services/bill.service";
-import { isSplitApplicableForTotal } from "@/lib/split-utils";
 import { Footer } from "@/components/layout/Footer";
 import { useLocale } from "@/contexts/LocaleContext";
 import { ParticipantsList } from "@/components/session/ParticipantsList";
@@ -26,8 +24,7 @@ export default function MyTabPage() {
   const { formatPrice } = useLocale();
   useRequireRestaurantContext();
   useSessionValidation();
-  const { sessionData } = useSession();
-  const { split } = useSplit();
+  const { sessionData, splitPaymentStatus } = useSession();
   const flowType = useFlowType();
   const currentSessionUserId = getFromStorage<string>("morsel_session_user_id");
 
@@ -57,12 +54,18 @@ export default function MyTabPage() {
 
   const tableLabel = sessionData?.space?.name ?? "Table";
 
-  const useSplitShares = isSplitApplicableForTotal(split.splitForTotal, billTotal);
+  // Server-first: prefer splitPaymentStatus[me].amount when available; else default to even share.
+  // Ignore local split.shares — it's per-device persisted state that can leak across sessions.
+  const serverAmount = useMemo(() => {
+    if (!splitPaymentStatus || !currentSessionUserId) return null;
+    const entry = splitPaymentStatus.find((s) => s.sessionUserId === currentSessionUserId);
+    return entry && typeof entry.amount === 'number' ? entry.amount : null;
+  }, [splitPaymentStatus, currentSessionUserId]);
 
   const payNowAmount = flowType === 'area'
     ? billTotal
-    : useSplitShares && typeof split.shares[currentSessionUserId ?? ""] === "number"
-      ? split.shares[currentSessionUserId!]
+    : serverAmount != null
+      ? serverAmount
       : evenShare;
 
   // Prefetch SDK + route so /payment opens instantly

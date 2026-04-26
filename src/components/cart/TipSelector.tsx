@@ -40,27 +40,30 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
   });
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customTipInput, setCustomTipInput] = useState('');
+  const [syncError, setSyncError] = useState(false);
 
   // Calculate the actual tip amount
   const tipAmount = selectedTip === -1
     ? parseFloat(getFromStorage<TipState>(STORAGE_KEY)?.amount?.toString() || '0') || 0
     : Math.round(subtotal * (selectedTip / 100) * 100) / 100;
 
-  // Sync tip to server (fire-and-forget, debounced)
+  // Sync tip to server (debounced). Surfaces a small inline error on failure
+  // so the user knows their tip wasn't saved.
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncTipToServer = useCallback((amount: number) => {
     if (!sessionId || !sessionUserId) return;
 
-    // Debounce: wait 500ms before sending to avoid rapid-fire API calls
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(() => {
-      if (amount > 0) {
-        tipService.addOrUpdateParticipantTip(sessionId, sessionUserId, amount)
-          .catch(err => console.error('[TipSelector] Failed to sync tip:', err));
-      } else {
-        tipService.removeParticipantTip(sessionId, sessionUserId)
-          .catch(err => console.error('[TipSelector] Failed to remove tip:', err));
-      }
+      const pending = amount > 0
+        ? tipService.addOrUpdateParticipantTip(sessionId, sessionUserId, amount)
+        : tipService.removeParticipantTip(sessionId, sessionUserId);
+      pending
+        .then(() => setSyncError(false))
+        .catch((err) => {
+          console.error('[TipSelector] Failed to sync tip:', err);
+          setSyncError(true);
+        });
     }, 500);
   }, [sessionId, sessionUserId]);
 
@@ -129,6 +132,11 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
         >
           Custom Tip
         </button>
+        {syncError && (
+          <p className="text-[11px] text-orange-600 text-center" style={{ fontFamily: 'Lato, sans-serif' }}>
+            Tip didn&apos;t save — tap a tip option again to retry.
+          </p>
+        )}
       </div>
 
       {/* Custom Tip Bottom Sheet */}

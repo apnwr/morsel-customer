@@ -4,13 +4,15 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocale } from '@/contexts/LocaleContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSplit } from '@/contexts/SplitContext';
-import { Minus, Plus, Loader2 } from 'lucide-react';
+import { useSession } from '@/contexts/SessionContext';
+import { Minus, Plus, Loader2, Check } from 'lucide-react';
 import { modalVariants, backdropVariants } from '@/lib/animations';
 import { getFromStorage } from '@/mocks/mockStorage';
 import { sessionService } from '@/services/session.service';
 import { billService } from '@/services/bill.service';
 import type { SessionOrder, SessionOrderItem, SessionDetail } from '@/types/api/session';
 import type { SessionBill } from '@/types/api/bill';
+import type { SplitEntry } from '@/types/api/split';
 
 interface ItemizedPickerSheetProps {
   isOpen: boolean;
@@ -33,8 +35,20 @@ interface SessionItem {
   orderedBy: string; // sessionUserId who placed the order
 }
 
+/** A claim (committed on the server) on one unit of an item */
+type ServerClaimEntry = {
+  sessionUserId: string;
+  name: string;
+  qty: number;
+  paid: boolean;
+};
+
+const itemKey = (orderId: string | undefined, itemId: string, variantIndex?: number | null) =>
+  `${orderId ?? ''}_${itemId}_${variantIndex ?? 0}`;
+
 export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, total }: ItemizedPickerSheetProps) {
   const { split, itemizedSelections, setItemizedSelection, updateShare } = useSplit();
+  const { splitPaymentStatus } = useSession();
   const { formatPrice } = useLocale();
 
   const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
@@ -44,6 +58,7 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
   const [bill, setBill] = useState<SessionBill | null>(null);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- fetch + loading indicator on sheet open */
   useEffect(() => {
     if (!isOpen || !sessionId) return;
 
@@ -68,6 +83,7 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
 
     return () => { cancelled = true; };
   }, [isOpen, sessionId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Flatten all session orders into a single item list
   const allItems: SessionItem[] = useMemo(() => {
@@ -95,42 +111,104 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
     return items;
   }, [sessionDetail?.orders]);
 
-  // Local selection state: key → quantity selected by current user
+  // Local selection state: key → quantity selected by current user (draft)
   const [selections, setSelections] = useState<Record<string, number>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [conflictNotice, setConflictNotice] = useState<string | null>(null);
 
-  // Initialize from existing itemizedSelections when sheet opens
+  // Participant name lookup by sessionUserId (authoritative: session participants)
+  const nameBySessionUserId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of sessionDetail?.participants ?? []) {
+      if (p.sessionUserId) map[p.sessionUserId] = p.guestName || 'Guest';
+    }
+    return map;
+  }, [sessionDetail?.participants]);
+
+  // Current user's server-committed split entry (if any)
+  const myServerSplit: SplitEntry | null = useMemo(() => {
+    if (!splitPaymentStatus || !currentSessionUserId) return null;
+    return splitPaymentStatus.find((s) => s.sessionUserId === currentSessionUserId) ?? null;
+  }, [splitPaymentStatus, currentSessionUserId]);
+
+  // Server truth: claims per item key across ALL participants
+  const serverClaimsByKey: Record<string, ServerClaimEntry[]> = useMemo(() => {
+    const map: Record<string, ServerClaimEntry[]> = {};
+    if (!splitPaymentStatus) return map;
+    for (const s of splitPaymentStatus) {
+      if (!s.items || !s.sessionUserId) continue;
+      for (const it of s.items) {
+        if (!it.orderId) continue;
+        const key = itemKey(it.orderId, it.itemId, it.variantIndex);
+        if (!map[key]) map[key] = [];
+        map[key].push({
+          sessionUserId: s.sessionUserId,
+          name: nameBySessionUserId[s.sessionUserId] || 'Guest',
+          qty: it.quantity || 0,
+          paid: !!s.paid,
+        });
+      }
+    }
+    return map;
+  }, [splitPaymentStatus, nameBySessionUserId]);
+
+  /** Qty of this key claimed on the server by everyone except the current user */
+  const othersQty = useCallback((key: string) => {
+    const entries = serverClaimsByKey[key];
+    if (!entries) return 0;
+    return entries
+      .filter((e) => e.sessionUserId !== currentSessionUserId)
+      .reduce((sum, e) => sum + e.qty, 0);
+  }, [serverClaimsByKey, currentSessionUserId]);
+
+  /** First "other" claimant for this key (for display attribution) */
+  const firstOtherClaim = useCallback((key: string): ServerClaimEntry | null => {
+    const entries = serverClaimsByKey[key];
+    if (!entries) return null;
+    return entries.find((e) => e.sessionUserId !== currentSessionUserId) ?? null;
+  }, [serverClaimsByKey, currentSessionUserId]);
+
+  /** True if any "other" claim on this key is marked paid */
+  const isPaidByOthers = useCallback((key: string): boolean => {
+    const entries = serverClaimsByKey[key];
+    if (!entries) return false;
+    return entries.some((e) => e.sessionUserId !== currentSessionUserId && e.paid);
+  }, [serverClaimsByKey, currentSessionUserId]);
+
+  /** Qty of this key that the current user has saved on the server */
+  const mineServerQty = useCallback((key: string): number => {
+    const entries = serverClaimsByKey[key];
+    if (!entries) return 0;
+    return entries
+      .filter((e) => e.sessionUserId === currentSessionUserId)
+      .reduce((sum, e) => sum + e.qty, 0);
+  }, [serverClaimsByKey, currentSessionUserId]);
+
+  // Initialize draft when sheet opens: prefer user's own server split, then localStorage draft.
+  /* eslint-disable react-hooks/set-state-in-effect -- initialization from async-fetched session data */
   useEffect(() => {
     if (!isOpen || !currentSessionUserId) return;
 
-    const existingItemIds = itemizedSelections[currentSessionUserId] || [];
     const initial: Record<string, number> = {};
 
-    // Map itemIds back to keys — count occurrences
-    for (const item of allItems) {
-      const count = existingItemIds.filter((id) => id === item.key).length;
-      if (count > 0) {
-        initial[item.key] = Math.min(count, item.quantity);
+    if (myServerSplit?.items && myServerSplit.items.length > 0) {
+      for (const it of myServerSplit.items) {
+        if (!it.orderId) continue;
+        const key = itemKey(it.orderId, it.itemId, it.variantIndex);
+        initial[key] = (initial[key] || 0) + (it.quantity || 0);
+      }
+    } else {
+      const existingItemIds = itemizedSelections[currentSessionUserId] || [];
+      for (const item of allItems) {
+        const count = existingItemIds.filter((id) => id === item.key).length;
+        if (count > 0) initial[item.key] = Math.min(count, item.quantity);
       }
     }
-    setSelections(initial);
-  }, [isOpen, currentSessionUserId, allItems, itemizedSelections]);
 
-  // Build set of items claimed by other participants
-  const claimedByOthers: Record<string, { name: string; qty: number }> = useMemo(() => {
-    const claimed: Record<string, { name: string; qty: number }> = {};
-    for (const [participantId, itemIds] of Object.entries(itemizedSelections)) {
-      if (participantId === currentSessionUserId) continue;
-      const participant = split.participants.find((p) => p.id === participantId);
-      const name = participant?.name || 'Someone';
-      for (const id of itemIds) {
-        if (!claimed[id]) {
-          claimed[id] = { name, qty: 0 };
-        }
-        claimed[id].qty += 1;
-      }
-    }
-    return claimed;
-  }, [itemizedSelections, currentSessionUserId, split.participants]);
+    setSelections(initial);
+    setConflictNotice(null);
+  }, [isOpen, currentSessionUserId, allItems, itemizedSelections, myServerSplit]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Calculate current user's selected subtotal (items only, before tax/charges)
   const selectedSubtotal = useMemo(() => {
@@ -195,35 +273,74 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
     });
   }, []);
 
-  const handleConfirm = () => {
-    if (!currentSessionUserId) return;
+  const handleConfirm = async () => {
+    if (!currentSessionUserId || isSaving) return;
+    setIsSaving(true);
+    setConflictNotice(null);
 
-    // Build itemIds array: repeat key by selected quantity
+    // Refetch session for freshest server claims before committing
+    let freshDetail: SessionDetail | null = null;
+    try {
+      const res = await sessionService.getSessionById(sessionId);
+      freshDetail = res.data;
+    } catch (err) {
+      console.warn('[ItemizedPickerSheet] Conflict pre-check fetch failed:', err);
+      // Soft-fail: fall through to commit with current state
+    }
+
+    // Build fresh othersQty map keyed by itemKey
+    const freshOthersByKey: Record<string, number> = {};
+    for (const s of freshDetail?.splits ?? []) {
+      if (!s.items || !s.sessionUserId) continue;
+      if (s.sessionUserId === currentSessionUserId) continue;
+      for (const it of s.items) {
+        if (!it.orderId) continue;
+        const k = itemKey(it.orderId, it.itemId, it.variantIndex);
+        freshOthersByKey[k] = (freshOthersByKey[k] || 0) + (it.quantity || 0);
+      }
+    }
+
+    // Cap selections against fresh availability
+    let hadConflict = false;
+    const adjusted: Record<string, number> = {};
+    for (const item of allItems) {
+      const draft = selections[item.key] || 0;
+      if (draft === 0) continue;
+      const maxAllowed = Math.max(0, item.quantity - (freshOthersByKey[item.key] || 0));
+      if (draft > maxAllowed) {
+        hadConflict = true;
+        if (maxAllowed > 0) adjusted[item.key] = maxAllowed;
+      } else {
+        adjusted[item.key] = draft;
+      }
+    }
+
+    if (hadConflict) {
+      setSelections(adjusted);
+      if (freshDetail) setSessionDetail(freshDetail);
+      setConflictNotice('Someone else claimed some of your items. Your selection has been updated — please review and confirm.');
+      setIsSaving(false);
+      return;
+    }
+
+    // No conflict — commit local draft + propagate up
     const itemIds: string[] = [];
     for (const [key, qty] of Object.entries(selections)) {
-      for (let i = 0; i < qty; i++) {
-        itemIds.push(key);
-      }
+      for (let i = 0; i < qty; i++) itemIds.push(key);
     }
 
     setItemizedSelection(currentSessionUserId, itemIds);
 
-    // Build shares map respecting existing claims from other participants
     const newShares: Record<string, number> = {};
-
-    // Current user pays for selected items (with pro-rata tax/charges)
     newShares[currentSessionUserId] = selectedTotal;
     updateShare(currentSessionUserId, selectedTotal);
 
-    // Determine which other participants already have claims vs unclaimed
     let totalClaimed = selectedTotal;
     const unclaimedParticipants: string[] = [];
-
     for (const p of split.participants) {
       if (p.id === currentSessionUserId) continue;
       const theirItems = itemizedSelections[p.id] || [];
       if (theirItems.length > 0) {
-        // Already claimed items — keep their existing share
         const existingShare = split.shares[p.id] || 0;
         newShares[p.id] = existingShare;
         updateShare(p.id, existingShare);
@@ -233,7 +350,6 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
       }
     }
 
-    // Remaining goes to unclaimed participants evenly
     const remaining = Math.max(0, total - totalClaimed);
     if (unclaimedParticipants.length > 0) {
       const perUnclaimed = Math.round((remaining / unclaimedParticipants.length) * 100) / 100;
@@ -243,14 +359,13 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
       }
     }
 
-    // Pass computed shares to parent so it can update localShares immediately
+    setIsSaving(false);
     onConfirm(newShares);
   };
 
-  // Available quantity for an item (total qty minus what others claimed)
+  // Available quantity for an item (total qty minus what other participants already claimed on server)
   const getAvailableQty = (item: SessionItem): number => {
-    const othersClaimed = claimedByOthers[item.key]?.qty || 0;
-    return Math.max(0, item.quantity - othersClaimed);
+    return Math.max(0, item.quantity - othersQty(item.key));
   };
 
   return (
@@ -317,19 +432,47 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
                   allItems.map((item) => {
                     const availableQty = getAvailableQty(item);
                     const selectedQty = selections[item.key] || 0;
-                    const otherClaim = claimedByOthers[item.key];
-                    const isFullyClaimed = availableQty === 0 && selectedQty === 0;
+                    const otherClaim = firstOtherClaim(item.key);
+                    const paidByOther = isPaidByOthers(item.key);
+                    const savedByMe = mineServerQty(item.key);
+                    const isFullyClaimed = availableQty === 0;
                     const lineTotal = selectedQty * item.unitPrice;
+
+                    // Decide the primary badge for this row
+                    let badgeText: string | null = null;
+                    let badgeTone: 'paid' | 'claimed' | 'mine' | null = null;
+                    if (paidByOther && otherClaim) {
+                      badgeText = `Paid by ${otherClaim.name}`;
+                      badgeTone = 'paid';
+                    } else if (otherClaim) {
+                      badgeText = `Claimed by ${otherClaim.name}`;
+                      badgeTone = 'claimed';
+                    } else if (savedByMe > 0) {
+                      badgeText = 'Your saved selection';
+                      badgeTone = 'mine';
+                    }
+
+                    const badgeClass =
+                      badgeTone === 'paid'
+                        ? 'text-green-700'
+                        : badgeTone === 'claimed'
+                          ? 'text-orange-500'
+                          : 'text-blue-600';
 
                     return (
                       <div
                         key={item.key}
-                        className={`flex items-center justify-between h-[67px] ${isFullyClaimed ? 'opacity-70' : ''}`}
+                        className={`flex items-center justify-between h-[67px] ${isFullyClaimed ? 'opacity-60' : ''}`}
                       >
                         {/* Left: Item Info */}
                         <div className="flex gap-[5px] items-center w-[178px]">
-                          <div className="w-[47px] h-[47px] rounded-[12px] bg-[#F8F8F8] shrink-0 flex items-center justify-center text-xl">
-                            &#x1F37D;&#xFE0F;
+                          <div className="w-[47px] h-[47px] rounded-[12px] bg-[#F8F8F8] shrink-0 flex items-center justify-center text-xl relative">
+                            <span>&#x1F37D;&#xFE0F;</span>
+                            {badgeTone === 'paid' && (
+                              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-green-600 flex items-center justify-center">
+                                <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                              </span>
+                            )}
                           </div>
                           <div className="flex flex-col gap-[4px] min-w-0">
                             <p
@@ -344,15 +487,13 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
                             >
                               {formatPrice(item.unitPrice)}
                             </p>
-                            {isFullyClaimed && otherClaim && (
-                              <p className="text-[10px] text-orange-500">
-                                Claimed by {otherClaim.name}
-                              </p>
+                            {badgeText && (
+                              <p className={`text-[10px] ${badgeClass}`}>{badgeText}</p>
                             )}
                           </div>
                         </div>
 
-                        {/* Right: Quantity Stepper + Line Total */}
+                        {/* Right: Quantity Stepper + Line Total (hidden when fully claimed by others) */}
                         {!isFullyClaimed && (
                           <div className="flex flex-col gap-[8px] items-end justify-center w-[106px]">
                             <div className="w-full bg-white border-2 border-black rounded-[12px] flex items-center justify-between px-[10px] py-[8px]">
@@ -442,6 +583,15 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
               </div>
             </div>
 
+            {/* Conflict notice */}
+            {conflictNotice && (
+              <div className="fixed left-0 right-0 z-20 flex justify-center" style={{ bottom: 86 }}>
+                <div className="w-full max-w-2xl mx-4 px-4 py-3 rounded-xl bg-orange-50 border border-orange-200 text-[12px] text-orange-800">
+                  {conflictNotice}
+                </div>
+              </div>
+            )}
+
             {/* Fixed Bottom CTA */}
             <div
               className="fixed left-0 right-0 z-20 flex justify-center"
@@ -452,7 +602,8 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
             >
               <button
                 onClick={handleConfirm}
-                className="w-full max-w-2xl h-[70px] box-content bg-black text-white flex items-center justify-between px-[22px]"
+                disabled={isSaving || selectedTotal <= 0}
+                className="w-full max-w-2xl h-[70px] box-content bg-black text-white flex items-center justify-between px-[22px] disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
                   fontFamily: 'Helvetica Neue, sans-serif',
@@ -460,7 +611,10 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
                   fontSize: '20px',
                 }}
               >
-                <span>Pay Now</span>
+                <span className="flex items-center gap-2">
+                  {isSaving && <Loader2 className="w-5 h-5 animate-spin" />}
+                  {isSaving ? 'Checking…' : 'Confirm Selection'}
+                </span>
                 <span>{formatPrice(selectedTotal)}</span>
               </button>
             </div>

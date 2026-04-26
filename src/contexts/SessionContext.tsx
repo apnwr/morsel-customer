@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import type { OrderingSessionData, Timestamp, SessionOrder } from '@/types/api/session';
-import type { SplitEntry, SplitConfig } from '@/types/api/split';
+import type { SplitEntry, SplitConfig, SplitType } from '@/types/api/split';
 import { sessionService } from '@/services/session.service';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { mapSessionOrderToAPIOrder } from '@/lib/order-mapping';
@@ -29,8 +29,14 @@ interface SessionState {
 
   /** Split entries from the server — includes payment status per split */
   splitPaymentStatus: SplitEntry[] | null;
-  /** Split configuration from the server — ensures all participants see the same mode */
+  /** Split configuration from the server — legacy GET-only shape, may be null when only POST /split has run */
   serverSplitConfig: SplitConfig | null;
+  /**
+   * Effective split mode as reported by the server.
+   * Prefers splits[0].type (newer responses carry it per-split); falls back to splitConfig.type.
+   * Null when no participant has saved a split yet.
+   */
+  serverSplitType: SplitType | null;
 
   isLoading: boolean;
   isSessionActive: () => boolean;
@@ -57,6 +63,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Split payment status from the server (not persisted — always fresh from API)
   const [splitPaymentStatus, setSplitPaymentStatus] = useState<SplitEntry[] | null>(null);
   const [serverSplitConfig, setServerSplitConfig] = useState<SplitConfig | null>(null);
+
+  // Effective server-side split type. Newer POST /split responses no longer include splitConfig
+  // but every entry in splits[] carries its own `type`. We pick the first one (all entries share
+  // a type per session) and fall back to splitConfig.type for older GET shapes.
+  const serverSplitType: SplitType | null = useMemo(() => {
+    const fromSplits = splitPaymentStatus?.find((s) => !!s.type)?.type;
+    return fromSplits ?? serverSplitConfig?.type ?? null;
+  }, [splitPaymentStatus, serverSplitConfig]);
 
   // Active order ID: tracks which order tab is currently active
   const [activeOrderId, setActiveOrderIdState] = useState<string | null>(() => {
@@ -154,6 +168,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Clear split data to prevent leakage between sessions/flows
       localStorage.removeItem('morsel_split');
       localStorage.removeItem('morsel_itemized_selections');
+      // Clear per-order ephemeral state so it doesn't leak into the next session
+      localStorage.removeItem('morsel_cart');
+      localStorage.removeItem('morsel_kitchen_note');
+      localStorage.removeItem('morsel_tip');
+      localStorage.removeItem('morsel_menu_items_cache');
       // Also clear restaurant context since it's tied to the session
       localStorage.removeItem('morsel_restaurant_context');
       console.log('[SessionContext] 🗑️ Cleared restaurant context (must scan QR again)');
@@ -456,6 +475,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     clearActiveOrder,
     splitPaymentStatus,
     serverSplitConfig,
+    serverSplitType,
     isLoading,
     isSessionActive,
     isSessionExpired,
@@ -464,7 +484,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     validateSession,
     refreshSessionData,
     endSession,
-  }), [previewSession, setPreviewSession, sessionData, setSessionData, clearSession, activeOrderId, setActiveOrderId, clearActiveOrder, splitPaymentStatus, serverSplitConfig, isLoading, isSessionActive, isSessionExpired, isUserParticipant, isParticipantPaid, validateSession, refreshSessionData, endSession]);
+  }), [previewSession, setPreviewSession, sessionData, setSessionData, clearSession, activeOrderId, setActiveOrderId, clearActiveOrder, splitPaymentStatus, serverSplitConfig, serverSplitType, isLoading, isSessionActive, isSessionExpired, isUserParticipant, isParticipantPaid, validateSession, refreshSessionData, endSession]);
 
   return (
     <SessionContext.Provider value={value}>

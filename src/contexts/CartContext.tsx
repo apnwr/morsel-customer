@@ -29,6 +29,9 @@ interface CartState {
   /** Set when user adds or removes via addItem/removeItem (not from sync). Consumed by Header to show "X item(s) added/removed" snackbar once. */
   lastCartAction: { type: 'added' | 'removed'; count: number } | null;
   clearLastCartAction: () => void;
+  /** Set when the last cart sync to the server failed; the local cart has been rolled back to the previous state. */
+  cartSyncError: boolean;
+  clearCartSyncError: () => void;
 }
 
 const CartContext = createContext<CartState | undefined>(undefined);
@@ -139,7 +142,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
   /** Cached sessionUserId – read once, updated only on session change. Avoids repeated synchronous localStorage reads in every cart operation. */
   const sessionUserIdRef = useRef<string | null>(getFromStorage<string>('morsel_session_user_id'));
   const [lastCartAction, setLastCartAction] = useState<{ type: 'added' | 'removed'; count: number } | null>(null);
+  const [cartSyncError, setCartSyncError] = useState(false);
   const clearLastCartAction = useCallback(() => setLastCartAction(null), []);
+  const clearCartSyncError = useCallback(() => setCartSyncError(false), []);
+  // Monotonic ID for cart mutations. Each add/remove/update/clear bumps this; the
+  // sync callback only rolls back to its captured snapshot when no newer mutation
+  // has been issued in the meantime. Otherwise a stale failure would clobber a
+  // later in-flight (and probably successful) mutation that already supersedes it.
+  const cartMutationIdRef = useRef(0);
   /** Timestamp of our last addItem/removeItem; used to skip setting lastCartAction in processOrderQueueData when the update is our own sync echo. */
   const lastLocalCartActionAtRef = useRef<number | null>(null);
   const LOCAL_ECHO_MS = 2500;
@@ -162,14 +172,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
    * IMPORTANT: Only syncs the CURRENT USER's items, not other participants' items
    * This prevents overwriting other users' queues
    */
-  const syncQueueWithAPI = async (cartItems: CartItem[]) => {
+  const syncQueueWithAPI = async (cartItems: CartItem[]): Promise<boolean> => {
     console.log('[CartContext] 🔄 syncQueueWithAPI called with', cartItems.length, 'items');
 
     // Only sync if we have an active session
     if (!sessionData?.session?.id) {
       console.warn('[CartContext] ⚠️ Active session not available, skipping queue sync');
       console.log('[CartContext] Session data:', sessionData);
-      return;
+      // No session to sync to — treat as noop success so caller doesn't roll back
+      return true;
     }
 
     console.log('[CartContext] ✅ Session available:', sessionData.session.id);
@@ -178,7 +189,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const currentSessionUserId = sessionUserIdRef.current;
     if (!currentSessionUserId) {
       console.warn('[CartContext] ⚠️ No sessionUserId found, skipping queue sync');
-      return;
+      return true;
     }
 
     // CRITICAL FIX: Filter to only include THIS user's items
@@ -285,6 +296,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const response = await orderService.updateQueue(sessionData.session.id, payload);
 
       console.log('[CartContext] ✅ Queue synced successfully:', response);
+      return true;
     } catch (error) {
       console.error('[CartContext] ❌ Failed to sync queue with API:', error);
       if (error instanceof Error) {
@@ -293,7 +305,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           stack: error.stack
         });
       }
-      // Continue working offline - don't block cart operations
+      return false;
     }
   };
 
@@ -490,12 +502,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
       ...totals,
     };
 
+    const previousCart = cart;
+    const myMutationId = ++cartMutationIdRef.current;
     setCart(newCart);
     lastLocalCartActionAtRef.current = Date.now();
     setLastCartAction({ type: 'added', count: validQuantity });
 
-    // Sync with queue API
-    syncQueueWithAPI(newItems);
+    // Sync with queue API; roll back local state only if this is still the most
+    // recent mutation. A newer mutation in flight has already redefined the
+    // intended state — rolling back to a stale snapshot would clobber it.
+    syncQueueWithAPI(newItems).then((ok) => {
+      if (ok) return;
+      setCartSyncError(true);
+      if (myMutationId === cartMutationIdRef.current) setCart(previousCart);
+    });
   };
 
   const removeItem = (cartItemId: string) => {
@@ -517,14 +537,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
       ...totals,
     };
 
+    const previousCart = cart;
+    const myMutationId = ++cartMutationIdRef.current;
     setCart(newCart);
     if (removedCount > 0) {
       lastLocalCartActionAtRef.current = Date.now();
       setLastCartAction({ type: 'removed', count: removedCount });
     }
 
-    // Sync with queue API
-    syncQueueWithAPI(newItems);
+    // Sync with queue API; roll back local state only if this is still the most
+    // recent mutation (see addItem for the rationale).
+    syncQueueWithAPI(newItems).then((ok) => {
+      if (ok) return;
+      setCartSyncError(true);
+      if (myMutationId === cartMutationIdRef.current) setCart(previousCart);
+    });
   };
 
   const updateQuantity = (cartItemId: string, quantity: number) => {
@@ -559,17 +586,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
       ...totals,
     };
 
+    const previousCart = cart;
+    const myMutationId = ++cartMutationIdRef.current;
     setCart(newCart);
 
-    // Sync with queue API
-    syncQueueWithAPI(newItems);
+    // Sync with queue API; roll back local state only if this is still the most
+    // recent mutation (see addItem for the rationale).
+    syncQueueWithAPI(newItems).then((ok) => {
+      if (ok) return;
+      setCartSyncError(true);
+      if (myMutationId === cartMutationIdRef.current) setCart(previousCart);
+    });
   };
 
   const clearCart = () => {
+    const previousCart = cart;
+    const myMutationId = ++cartMutationIdRef.current;
     setCart(getEmptyCart());
 
-    // Sync with queue API (empty cart)
-    syncQueueWithAPI([]);
+    // Sync with queue API (empty cart); roll back local state only if this is
+    // still the most recent mutation (see addItem for the rationale).
+    syncQueueWithAPI([]).then((ok) => {
+      if (ok) return;
+      setCartSyncError(true);
+      if (myMutationId === cartMutationIdRef.current) setCart(previousCart);
+    });
   };
 
   const getItemCount = (): number => {
@@ -892,6 +933,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     syncCartFromQueue,
     lastCartAction,
     clearLastCartAction,
+    cartSyncError,
+    clearCartSyncError,
   };
 
   return (
