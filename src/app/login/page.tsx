@@ -3,7 +3,8 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/contexts/SessionContext';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 /**
  * Login page - now acts as a redirect guard.
@@ -22,7 +23,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     // Check if user already has an active session
-    const existingUserId = localStorage.getItem('morsel_session_user_id');
+    const existingUserId = localStorage.getItem(STORAGE_KEYS.SESSION_USER_ID);
 
     if (existingUserId && sessionData?.session?.status === 'active') {
       // User has active session, redirect to menu
@@ -45,12 +46,5 @@ export default function LoginPage() {
   }, [router, sessionData, previewSession]);
 
   // Show loading while redirecting
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center flex flex-col items-center">
-        <LoadingSpinner size="lg" />
-        <p className="mt-4 text-gray-600">Redirecting...</p>
-      </div>
-    </div>
-  );
+  return <LoadingScreen message="Redirecting" />;
 }

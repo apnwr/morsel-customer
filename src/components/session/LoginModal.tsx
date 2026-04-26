@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { modalVariants, backdropVariants } from '@/lib/animations';
 import { setInStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { validateCustomerName, sanitizeCustomerName } from '@/lib/validation';
 import { sessionService } from '@/services/session.service';
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -93,12 +94,12 @@ export function LoginModal({ isOpen, previewSession }: LoginModalProps) {
       console.log('[LoginModal] Saving session data to localStorage...');
 
       // Store customer information
-      setInStorage('morsel_flow_type', 'space');
-      setInStorage('morsel_customer_name', sanitizedName);
-      setInStorage('morsel_auth_method', authMethod);
+      setInStorage(STORAGE_KEYS.FLOW_TYPE, 'space');
+      setInStorage(STORAGE_KEYS.CUSTOMER_NAME, sanitizedName);
+      setInStorage(STORAGE_KEYS.AUTH_METHOD, authMethod);
 
       // Store the API-provided sessionUserId (CRITICAL for cart sync)
-      setInStorage('morsel_session_user_id', currentUser.sessionUserId);
+      setInStorage(STORAGE_KEYS.SESSION_USER_ID, currentUser.sessionUserId);
 
       // Update active session in context (this also saves to localStorage)
       setSessionData({

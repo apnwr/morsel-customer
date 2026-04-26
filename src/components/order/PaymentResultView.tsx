@@ -10,6 +10,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import { getFromStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { receiptService } from '@/services/receipt.service';
 import type { SessionBill } from '@/types/api/bill';
 
@@ -37,7 +38,7 @@ export function PaymentResultView({
   const { sessionData, splitPaymentStatus, serverSplitType, isParticipantPaid } = useSession();
   const flowType = useFlowType();
 
-  const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
   const isSuccess = result === 'success';
   const isAreaFlow = flowType === 'area';
 

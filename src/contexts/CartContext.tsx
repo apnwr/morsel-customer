@@ -11,9 +11,10 @@ import { sessionService } from '@/services/session.service';
 import type { QueueItem, OrderItemAddon } from '@/types/api/order';
 import type { SessionQueueItem, SessionOrderQueue } from '@/types/api/session';
 import { subscribeToOrderQueue, isFirebaseAvailable } from '@/lib/firebase';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
-const STORAGE_KEY = 'morsel_cart';
-const MENU_ITEMS_CACHE_KEY = 'morsel_menu_items_cache'; // Cache for full menu items with customOptions
+const STORAGE_KEY = STORAGE_KEYS.CART;
+const MENU_ITEMS_CACHE_KEY = STORAGE_KEYS.MENU_ITEMS_CACHE; // Cache for full menu items with customOptions
 const TAX_RATE = 0; // Tax disabled - set to 0 (taxes shown separately as $0.00)
 const QUEUE_SYNC_INTERVAL = 15000; // Sync queue every 15 seconds (fallback)
 
@@ -140,7 +141,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const firebaseUnsubscribeRef = useRef<(() => void) | null>(null);
   const isUsingFirebaseRef = useRef<boolean>(false);
   /** Cached sessionUserId – read once, updated only on session change. Avoids repeated synchronous localStorage reads in every cart operation. */
-  const sessionUserIdRef = useRef<string | null>(getFromStorage<string>('morsel_session_user_id'));
+  const sessionUserIdRef = useRef<string | null>(getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID));
   const [lastCartAction, setLastCartAction] = useState<{ type: 'added' | 'removed'; count: number } | null>(null);
   const [cartSyncError, setCartSyncError] = useState(false);
   const clearLastCartAction = useCallback(() => setLastCartAction(null), []);
@@ -150,6 +151,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // has been issued in the meantime. Otherwise a stale failure would clobber a
   // later in-flight (and probably successful) mutation that already supersedes it.
   const cartMutationIdRef = useRef(0);
+  // Debounce machinery for cart sync. Rapid +/- taps coalesce into a single
+  // POST after the user pauses; the API takes the full filtered cart so the
+  // last call subsumes earlier ones. Backend behavior is unchanged.
+  const cartSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Cart state at the START of the current debounce window. Captured on the
+  // first mutation in the window, preserved through subsequent mutations in
+  // the same window, cleared when the POST fires. On POST failure, this is
+  // the rollback target — reverts the entire batch of edits, not just one.
+  const cartSyncRollbackRef = useRef<Cart | null>(null);
   /** Timestamp of our last addItem/removeItem; used to skip setting lastCartAction in processOrderQueueData when the update is our own sync echo. */
   const lastLocalCartActionAtRef = useRef<number | null>(null);
   const LOCAL_ECHO_MS = 2500;
@@ -161,7 +171,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Keep sessionUserId ref in sync when session changes
   useEffect(() => {
-    sessionUserIdRef.current = getFromStorage<string>('morsel_session_user_id');
+    sessionUserIdRef.current = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
   }, [sessionData?.session?.id]);
 
   /**
@@ -309,10 +319,95 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Save to localStorage whenever cart changes
+  // Throttle cart→localStorage writes (200ms debounce). On rapid +/- taps the
+  // full cart was JSON.stringified+written every change; this coalesces bursts
+  // into a single write while still feeling immediate. The pagehide flush
+  // (registered in the next effect) guarantees the latest state survives a
+  // tab close even if a debounce window is mid-flight.
+  const cartWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    setInStorage(STORAGE_KEY, cart);
+    if (cartWriteTimerRef.current) clearTimeout(cartWriteTimerRef.current);
+    cartWriteTimerRef.current = setTimeout(() => {
+      setInStorage(STORAGE_KEY, cartRef.current);
+      cartWriteTimerRef.current = null;
+    }, 200);
   }, [cart]);
+
+  // Flush the pending cart write on tab close / unmount so a force-kill or
+  // navigation doesn't lose the last edit. Registered once on mount.
+  useEffect(() => {
+    const flush = () => {
+      if (cartWriteTimerRef.current) {
+        clearTimeout(cartWriteTimerRef.current);
+        cartWriteTimerRef.current = null;
+      }
+      setInStorage(STORAGE_KEY, cartRef.current);
+    };
+    window.addEventListener('pagehide', flush);
+    return () => {
+      flush();
+      window.removeEventListener('pagehide', flush);
+    };
+  }, []);
+
+  // syncQueueWithAPI closes over `sessionData`. The debounced timer fires
+  // after a delay, so we keep a ref to the freshest function reference and
+  // call through it — guarantees the closure isn't stale at fire-time.
+  const syncFnRef = useRef(syncQueueWithAPI);
+  syncFnRef.current = syncQueueWithAPI;
+
+  // Schedule a debounced cart sync. Coalesces rapid mutations into a single
+  // POST after the user pauses. Captures the rollback target only on the
+  // first mutation in a window so a failed POST reverts the whole batch.
+  const scheduleCartSync = useCallback((items: CartItem[], previousCart: Cart) => {
+    if (cartSyncRollbackRef.current === null) {
+      cartSyncRollbackRef.current = previousCart;
+    }
+    if (cartSyncTimerRef.current) clearTimeout(cartSyncTimerRef.current);
+    cartSyncTimerRef.current = setTimeout(() => {
+      cartSyncTimerRef.current = null;
+      const rollback = cartSyncRollbackRef.current;
+      cartSyncRollbackRef.current = null;
+      const mutationIdAtPostStart = cartMutationIdRef.current;
+      syncFnRef.current(items).then((ok) => {
+        if (ok) {
+          // Recovered from any prior failure — clear the snackbar trigger.
+          setCartSyncError(false);
+          return;
+        }
+        setCartSyncError(true);
+        // Roll back only if no newer mutation has been issued since the POST
+        // started. A newer mutation has its own pending sync which will
+        // overwrite the server state anyway.
+        if (mutationIdAtPostStart === cartMutationIdRef.current && rollback !== null) {
+          setCart(rollback);
+        }
+      });
+    }, 250);
+  }, []);
+
+  // Force-flush the pending sync on tab close / unmount. Best-effort: if the
+  // browser kills the request mid-navigation, the local cart is still in
+  // localStorage (via 1.5) so the user sees their intent on next mount —
+  // only the server-side sync of the very last edit may be missed.
+  useEffect(() => {
+    const flush = () => {
+      if (cartSyncTimerRef.current) {
+        clearTimeout(cartSyncTimerRef.current);
+        cartSyncTimerRef.current = null;
+      }
+      if (cartSyncRollbackRef.current === null) return; // nothing pending
+      cartSyncRollbackRef.current = null;
+      // Fire the sync; do not await. catch() prevents unhandled rejection
+      // warnings if the page is unloading.
+      syncFnRef.current(cartRef.current.items).catch(() => {});
+    };
+    window.addEventListener('pagehide', flush);
+    return () => {
+      flush();
+      window.removeEventListener('pagehide', flush);
+    };
+  }, []);
 
   // Hybrid Firebase + Polling sync for cart
   // Uses Firebase Realtime DB if available, falls back to polling
@@ -503,19 +598,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
 
     const previousCart = cart;
-    const myMutationId = ++cartMutationIdRef.current;
+    cartMutationIdRef.current++;
     setCart(newCart);
     lastLocalCartActionAtRef.current = Date.now();
     setLastCartAction({ type: 'added', count: validQuantity });
 
-    // Sync with queue API; roll back local state only if this is still the most
-    // recent mutation. A newer mutation in flight has already redefined the
-    // intended state — rolling back to a stale snapshot would clobber it.
-    syncQueueWithAPI(newItems).then((ok) => {
-      if (ok) return;
-      setCartSyncError(true);
-      if (myMutationId === cartMutationIdRef.current) setCart(previousCart);
-    });
+    // Defer the POST via a 250ms debounce window. Rapid +/- taps coalesce
+    // into one request; the rollback target is the cart state at the start
+    // of the window, so a failed POST reverts the whole batch.
+    scheduleCartSync(newItems, previousCart);
   };
 
   const removeItem = (cartItemId: string) => {
@@ -538,20 +629,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
 
     const previousCart = cart;
-    const myMutationId = ++cartMutationIdRef.current;
+    cartMutationIdRef.current++;
     setCart(newCart);
     if (removedCount > 0) {
       lastLocalCartActionAtRef.current = Date.now();
       setLastCartAction({ type: 'removed', count: removedCount });
     }
 
-    // Sync with queue API; roll back local state only if this is still the most
-    // recent mutation (see addItem for the rationale).
-    syncQueueWithAPI(newItems).then((ok) => {
-      if (ok) return;
-      setCartSyncError(true);
-      if (myMutationId === cartMutationIdRef.current) setCart(previousCart);
-    });
+    // Defer the POST via a 250ms debounce window (see addItem).
+    scheduleCartSync(newItems, previousCart);
   };
 
   const updateQuantity = (cartItemId: string, quantity: number) => {
@@ -587,16 +673,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
 
     const previousCart = cart;
-    const myMutationId = ++cartMutationIdRef.current;
+    cartMutationIdRef.current++;
     setCart(newCart);
 
-    // Sync with queue API; roll back local state only if this is still the most
-    // recent mutation (see addItem for the rationale).
-    syncQueueWithAPI(newItems).then((ok) => {
-      if (ok) return;
-      setCartSyncError(true);
-      if (myMutationId === cartMutationIdRef.current) setCart(previousCart);
-    });
+    // Defer the POST via a 250ms debounce window (see addItem).
+    scheduleCartSync(newItems, previousCart);
   };
 
   const clearCart = () => {
@@ -604,12 +685,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const myMutationId = ++cartMutationIdRef.current;
     setCart(getEmptyCart());
 
-    // Sync with queue API (empty cart); roll back local state only if this is
-    // still the most recent mutation (see addItem for the rationale).
-    syncQueueWithAPI([]).then((ok) => {
-      if (ok) return;
+    // Destructive intent — cancel any pending debounced sync and force-send
+    // the empty cart immediately. Rollback target falls back to the
+    // pre-clear state when no debounce window was active.
+    if (cartSyncTimerRef.current) {
+      clearTimeout(cartSyncTimerRef.current);
+      cartSyncTimerRef.current = null;
+    }
+    const rollback = cartSyncRollbackRef.current ?? previousCart;
+    cartSyncRollbackRef.current = null;
+
+    syncFnRef.current([]).then((ok) => {
+      if (ok) {
+        setCartSyncError(false);
+        return;
+      }
       setCartSyncError(true);
-      if (myMutationId === cartMutationIdRef.current) setCart(previousCart);
+      if (myMutationId === cartMutationIdRef.current) setCart(rollback);
     });
   };
 
@@ -898,7 +990,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      const kitchenNote = getFromStorage<string>('morsel_kitchen_note') || '';
+      const kitchenNote = getFromStorage<string>(STORAGE_KEYS.KITCHEN_NOTE) || '';
       const orderWithTimestamp = {
         ...response.data,
         _placedAt: Date.now(), // Store when order was placed for timer calculation

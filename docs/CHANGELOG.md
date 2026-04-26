@@ -8,6 +8,30 @@ Format: `[TYPE] description` where TYPE is ADD, CHANGE, FIX, or REMOVE.
 
 ## Unreleased
 
+### Performance — Tranche 1 (from `docs/client-improvement-plan.md`)
+
+- [ADD] `src/lib/storage-keys.ts` — single source of truth for `morsel_*` localStorage keys with `STORAGE_KEYS` map and `SESSION_SCOPED_KEYS` list (1.6)
+- [CHANGE] `SessionContext.clearSession` iterates `SESSION_SCOPED_KEYS` instead of listing keys inline — adding a new session-scoped key only requires adding it to the registry, no risk of forgetting the cleanup (1.6)
+- [CHANGE] All `morsel_*` string literals across 26 files migrated to `STORAGE_KEYS.*` constants (1.6)
+- [CHANGE] `MenuItem` — dropped per-row `imageLoading` `useState` and `onLoad` handler; static `bg-gray-100` on the image container is the placeholder while the image loads. One fewer hook per item × N items per menu (1.4)
+- [REMOVE] `Skeleton` import from `MenuItem` (no longer needed after 1.4)
+- [CHANGE] `CartContext` cart→localStorage write throttled to 200ms via timer ref; `pagehide` listener (registered once) flushes before tab close (1.5)
+- [CHANGE] `SessionContext` polling now pauses when `document.hidden` and resumes with an immediate fetch on `visibilitychange → visible`. Consolidated `setupPolling` + `cleanup` + `pollingIntervalRef` into a single effect (1.1)
+- [CHANGE] `CartContext.syncQueueWithAPI` now debounced (250ms) — rapid +/- taps coalesce into one POST. Rollback target captured at start-of-debounce-window so a failed POST reverts the whole batch. `clearCart` force-flushes immediately. `pagehide` listener flushes pending sync best-effort (1.2)
+- [REMOVE] Per-mutation immediate POST in `addItem`/`removeItem`/`updateQuantity` — superseded by the debounced scheduler (1.2)
+- [ADD] `src/lib/bill-cache.ts` — module-level Map keyed by `(sessionId, ordersFingerprint)`. Promise de-dupes concurrent fetches; resolved values served until orders change. Subscribable via `subscribeToBillCache` for `useSyncExternalStore` (1.3)
+- [ADD] `src/hooks/useSessionBill.ts` — shared hook backed by the bill cache; uses `useSyncExternalStore` so consumers re-render when the cache updates (no setState-in-effect) (1.3)
+- [CHANGE] `MyTab` and `ItemizedPickerSheet` now consume `useSessionBill()` instead of fetching `billService.getSessionBill` directly (1.3)
+- [CHANGE] `useOrdersPageState` polling publishes its fetched bill to the shared cache via `setCachedBill`, so all consumers (my-tab, picker, etc.) see fresh data without firing their own GET (1.3)
+
+### UI — Loading states
+
+- [ADD] `src/components/ui/LoadingScreen.tsx` — branded full-screen loader using `public/icons/morsel_logo.png` with a gentle breath animation and three-dot pulsing caption. CSS-only animations (no framer-motion, no JS animation loop). Image rendered with `priority` so the screen paints fast on cold starts. `aria-live="polite"` + `sr-only` caption for screen readers
+- [ADD] `globals.css` keyframes `morsel-breath` (transform + opacity, GPU compositor) and `morsel-loading-dot` (staggered opacity pulse). Both auto-disabled by the existing global `prefers-reduced-motion` rule
+- [CHANGE] Page-level loading on `/login`, `/menu`, `/area/[areaId]`, `/space/[spaceId]` migrated from `LoadingSpinner` to `LoadingScreen` for brand consistency
+- [CHANGE] `app/cart/loading.tsx` and `app/orders/loading.tsx` (Next.js convention) replaced their generic shimmer skeletons with `<LoadingScreen />` — single visual language across all page-level loading. The `OrdersLoading` default export is preserved so existing consumers (`payment/page.tsx`, `orders/page.tsx`) continue to work unchanged
+- [REMOVE] Per-loading-state `animate-pulse` skeleton placeholders in cart and orders loading files (smaller DOM, less paint work)
+
 ### Payment flow & split
 
 - [ADD] Dedicated `/payment` route replacing modal-based checkout

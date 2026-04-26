@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from '@/contexts/SessionContext';
 import { useCart } from '@/contexts/CartContext';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { sessionService } from '@/services/session.service';
 import { mapSessionOrderToAPIOrder } from '@/lib/order-mapping';
 import { mergeOrders } from '@/lib/order-merging';
@@ -17,6 +18,7 @@ import type { Order as APIOrder } from '@/types/api/order';
 import type { SessionOrder } from '@/types/api/session';
 import type { SessionBill } from '@/types/api/bill';
 import { billService } from '@/services/bill.service';
+import { deriveBillCacheKey, setCachedBill } from '@/lib/bill-cache';
 
 const ORDERS_POLL_INTERVAL = 30000; // 30s — catch other participants' orders
 
@@ -51,7 +53,10 @@ export function useOrdersPageState(): OrdersPageState {
     ) || [];
   }, [sessionData]);
 
-  // Fetch bill from API
+  // Fetch bill from API. We bypass the shared cache here (this is the
+  // polling consumer; we always want fresh server state) but PUBLISH the
+  // result to the cache so other consumers via useSessionBill() see fresh
+  // data without firing their own GET.
   const fetchBill = useCallback(async () => {
     const sessionId = sessionData?.session?.id;
     if (!sessionId) return;
@@ -59,11 +64,13 @@ export function useOrdersPageState(): OrdersPageState {
     try {
       const billData = await billService.getSessionBill(sessionId);
       setBill(billData);
+      const cacheKey = deriveBillCacheKey(sessionData?.session?.orders);
+      setCachedBill(sessionId, cacheKey, billData);
     } catch (error) {
       console.error('[useOrdersPageState] Failed to fetch bill:', error);
       // Keep existing bill data on error
     }
-  }, [sessionData?.session?.id]);
+  }, [sessionData?.session?.id, sessionData?.session?.orders]);
 
   // Fetch bill on mount and poll for bill updates.
   // Session data (participants, splits, orders) is already polled by SessionContext every 10s.
@@ -189,8 +196,8 @@ export function useOrdersPageState(): OrdersPageState {
     setActiveOrderId(null);
     clearCart();
     // Clear tip and kitchen note so they don't leak into the next order
-    setInStorage('morsel_kitchen_note', '');
-    setInStorage('morsel_tip', { percentage: 10, amount: 0 });
+    setInStorage(STORAGE_KEYS.KITCHEN_NOTE, '');
+    setInStorage(STORAGE_KEYS.TIP, { percentage: 10, amount: 0 });
     router.push('/menu');
   }, [setActiveOrderId, clearCart, router]);
 

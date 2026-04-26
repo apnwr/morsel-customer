@@ -12,6 +12,7 @@ import { useCart } from '@/contexts/CartContext';
 import { useOrder } from '@/contexts/OrderContext';
 import { useSplit } from '@/contexts/SplitContext';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { useFlowType } from '@/hooks/useFlowType';
 import { orderService } from '@/services/order.service';
 import type { RestaurantContext } from '@/types/restaurant';
@@ -39,7 +40,7 @@ export function useCartPageState(): CartPageState {
 
   const [isConfirming, setIsConfirming] = useState(false);
 
-  const restaurantContext = getFromStorage<RestaurantContext>('morsel_restaurant_context');
+  const restaurantContext = getFromStorage<RestaurantContext>(STORAGE_KEYS.RESTAURANT_CONTEXT);
 
   // All placed order IDs from session
   const allOrderIds = useMemo(() => {
@@ -60,8 +61,8 @@ export function useCartPageState(): CartPageState {
 
       if (flowType === 'area') {
         // Area flow: use area-single-order API with items
-        const areaId = getFromStorage<string>('morsel_area_id');
-        const guestName = getFromStorage<string>('morsel_customer_name') || 'Guest';
+        const areaId = getFromStorage<string>(STORAGE_KEYS.AREA_ID);
+        const guestName = getFromStorage<string>(STORAGE_KEYS.CUSTOMER_NAME) || 'Guest';
         const sessionId = sessionData?.session?.id;
 
         if (!areaId) throw new Error('Area ID not found. Please scan the QR code again.');
@@ -121,8 +122,8 @@ export function useCartPageState(): CartPageState {
 
         // Update legacy OrderContext for backward compatibility
         if (restaurantContext) {
-          const customerName = getFromStorage<string>('morsel_customer_name') || 'Guest';
-          const diningType = getFromStorage<'dine-in' | 'takeaway' | 'delivery'>('morsel_dining_type') || 'dine-in';
+          const customerName = getFromStorage<string>(STORAGE_KEYS.CUSTOMER_NAME) || 'Guest';
+          const diningType = getFromStorage<'dine-in' | 'takeaway' | 'delivery'>(STORAGE_KEYS.DINING_TYPE) || 'dine-in';
           placeOrderLegacy(restaurantContext, customerName, diningType, cart, split);
         }
       }
@@ -135,8 +136,8 @@ export function useCartPageState(): CartPageState {
 
       // Clear cart and ephemeral order state after navigation is initiated
       clearCart();
-      setInStorage('morsel_kitchen_note', '');
-      setInStorage('morsel_tip', { percentage: 10, amount: 0 });
+      setInStorage(STORAGE_KEYS.KITCHEN_NOTE, '');
+      setInStorage(STORAGE_KEYS.TIP, { percentage: 10, amount: 0 });
 
       setIsConfirming(false);
     } catch (error) {

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { modalVariants, backdropVariants } from '@/lib/animations';
 import { setInStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { validateCustomerName, sanitizeCustomerName } from '@/lib/validation';
 import { sessionService } from '@/services/session.service';
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -70,11 +71,11 @@ export function AreaLoginModal({ isOpen, areaId, previewSession }: AreaLoginModa
       }
 
       // Save flow type as area
-      setInStorage('morsel_flow_type', 'area');
-      setInStorage('morsel_area_id', areaId);
-      setInStorage('morsel_customer_name', sanitizedName);
-      setInStorage('morsel_auth_method', 'guest');
-      setInStorage('morsel_session_user_id', currentUser.sessionUserId);
+      setInStorage(STORAGE_KEYS.FLOW_TYPE, 'area');
+      setInStorage(STORAGE_KEYS.AREA_ID, areaId);
+      setInStorage(STORAGE_KEYS.CUSTOMER_NAME, sanitizedName);
+      setInStorage(STORAGE_KEYS.AUTH_METHOD, 'guest');
+      setInStorage(STORAGE_KEYS.SESSION_USER_ID, currentUser.sessionUserId);
 
       // Update active session in context — map area response to session shape
       setSessionData({

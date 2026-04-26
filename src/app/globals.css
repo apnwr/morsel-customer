@@ -677,6 +677,30 @@ body.modal-open {
   animation-delay: 0.5s;
 }
 
+/* Branded loading screen — gentle breath on the Morsel logo + staggered
+ * three-dot pulse. CSS-only; no JS animation loop. The global
+ * prefers-reduced-motion rule below disables both for users who opt out. */
+@keyframes morsel-breath {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50%      { transform: scale(1.06); opacity: 1; }
+}
+.animate-morsel-breath {
+  animation: morsel-breath 1.6s ease-in-out infinite;
+  /* GPU compositing — transform-only animation, no layout/paint work */
+  will-change: transform, opacity;
+}
+
+@keyframes morsel-loading-dot {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 1; }
+}
+.morsel-loading-dots > span {
+  display: inline-block;
+  animation: morsel-loading-dot 1.4s ease-in-out infinite;
+}
+.morsel-loading-dots > span:nth-child(2) { animation-delay: 0.2s; }
+.morsel-loading-dots > span:nth-child(3) { animation-delay: 0.4s; }
+
 /* Respect user's motion preferences */
 @media (prefers-reduced-motion: reduce) {
   *,

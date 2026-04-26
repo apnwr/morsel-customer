@@ -13,8 +13,9 @@ import {
   isTimerExpired,
   getRemainingTime,
 } from '@/mocks/mockOrders';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
-const STORAGE_KEY = 'morsel_order';
+const STORAGE_KEY = STORAGE_KEYS.ORDER;
 
 interface OrderState {
   order: Order | null;

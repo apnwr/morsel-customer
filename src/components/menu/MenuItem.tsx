@@ -4,7 +4,6 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useLocale } from '@/contexts/LocaleContext';
 import { MenuItem as MenuItemType } from '@/types/menu';
 import { useCart } from '@/contexts/CartContext';
-import { Skeleton } from '@/components/ui/Skeleton';
 import { Minus, Plus } from 'lucide-react';
 import Image from 'next/image';
 import { VariationSelectionModal } from './VariationSelectionModal';
@@ -17,7 +16,6 @@ interface MenuItemProps {
 }
 
 export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemProps) {
-  const [imageLoading, setImageLoading] = useState(true);
   const { formatPrice } = useLocale();
   const [showVariationModal, setShowVariationModal] = useState(false);
   const [showRepeatSheet, setShowRepeatSheet] = useState(false);
@@ -232,17 +230,17 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
       }}
     >
       {hasImage ? (
-        <div className="relative w-[40%] aspect-square shrink-0">
-          {imageLoading && (
-            <Skeleton className="absolute inset-0 rounded-2xl" />
-          )}
+        // Static gray background acts as the image placeholder while loading —
+        // replaces a per-row useState + onLoad handler. Image with `fill` +
+        // object-cover covers it once decoded; no animation runs underneath
+        // a loaded image, so we don't pay for hidden shimmer.
+        <div className="relative w-[40%] aspect-square shrink-0 bg-gray-100 rounded-2xl">
           <Image
             src={item.image}
             alt={`${item.name} dish`}
             fill
             className="rounded-2xl object-cover border-2 border-white shadow-sm"
             sizes="(max-width: 640px) 40vw, (max-width: 768px) 35vw, 30vw"
-            onLoad={() => setImageLoading(false)}
             priority={false}
           />
           {renderControls('overlay')}

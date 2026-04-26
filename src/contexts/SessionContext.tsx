@@ -7,10 +7,11 @@ import { sessionService } from '@/services/session.service';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { mapSessionOrderToAPIOrder } from '@/lib/order-mapping';
 import { useLocale } from '@/contexts/LocaleContext';
+import { STORAGE_KEYS, SESSION_SCOPED_KEYS } from '@/lib/storage-keys';
 
-const STORAGE_KEY = 'morsel_session_data';
-const STORAGE_KEY_USER_ID = 'morsel_session_user_id';
-const STORAGE_KEY_ACTIVE_ORDER = 'morsel_active_order_id';
+const STORAGE_KEY = STORAGE_KEYS.SESSION_DATA;
+const STORAGE_KEY_USER_ID = STORAGE_KEYS.SESSION_USER_ID;
+const STORAGE_KEY_ACTIVE_ORDER = STORAGE_KEYS.ACTIVE_ORDER_ID;
 
 interface SessionState {
   // Preview session - ephemeral, not persisted (for QR scan preview before login)
@@ -156,26 +157,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setSessionDataState(null);
       setPreviewSessionState(null);
       setActiveOrderIdState(null);
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(STORAGE_KEY_USER_ID);
-      localStorage.removeItem(STORAGE_KEY_ACTIVE_ORDER);
-      localStorage.removeItem('morsel_customer_name');
-      localStorage.removeItem('morsel_dining_type');
-      localStorage.removeItem('morsel_auth_method');
-      // Clear flow-specific keys to prevent stale state across flows
-      localStorage.removeItem('morsel_flow_type');
-      localStorage.removeItem('morsel_area_id');
-      // Clear split data to prevent leakage between sessions/flows
-      localStorage.removeItem('morsel_split');
-      localStorage.removeItem('morsel_itemized_selections');
-      // Clear per-order ephemeral state so it doesn't leak into the next session
-      localStorage.removeItem('morsel_cart');
-      localStorage.removeItem('morsel_kitchen_note');
-      localStorage.removeItem('morsel_tip');
-      localStorage.removeItem('morsel_menu_items_cache');
-      // Also clear restaurant context since it's tied to the session
-      localStorage.removeItem('morsel_restaurant_context');
-      console.log('[SessionContext] 🗑️ Cleared restaurant context (must scan QR again)');
+      // Iterate the registry so newly-added session-scoped keys are cleared
+      // automatically. Persistent keys (e.g. ORDER, TABLE_NUMBER) are excluded
+      // by SESSION_SCOPED_KEYS in src/lib/storage-keys.ts.
+      for (const key of SESSION_SCOPED_KEYS) {
+        localStorage.removeItem(key);
+      }
     } catch (error) {
       console.error('[SessionContext] Error clearing session data:', error);
     }
@@ -332,7 +319,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
 
     // Get sessionUserId from localStorage
-    const sessionUserId = localStorage.getItem('morsel_session_user_id');
+    const sessionUserId = localStorage.getItem(STORAGE_KEYS.SESSION_USER_ID);
     if (!sessionUserId) {
       console.warn('[SessionContext] Cannot end session: no sessionUserId found');
       // Still clear local data even if we can't call API
@@ -365,7 +352,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // Polling refs
   // TODO: Add Firebase refs back when switching to realtime DB
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const sessionIdRef = useRef<string | null>(null);
 
   // Keep sessionId ref in sync
@@ -417,50 +403,60 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [setLocale]);
 
-  // Setup polling
-  const setupPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
-
-    console.log('[SessionContext] 📡 Setting up polling fallback (every 10s)');
-
-    // Initial fetch
-    pollParticipants();
-
-    // Set up interval
-    pollingIntervalRef.current = setInterval(() => {
-      pollParticipants();
-    }, 10000); // Poll every 10 seconds
-  }, [pollParticipants]);
-
-  // Cleanup function
-  const cleanup = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      console.log('[SessionContext] 🔌 Stopping polling');
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-  }, []);
-
-  // Effect: Polling-only sync for session data (participants, splits, config).
+  // Effect: Polling-only sync for session data (participants, splits, config),
+  // with Page Visibility API integration. We pause the interval when the tab
+  // is hidden (phone locked, app backgrounded, user on another tab) and
+  // resume with an immediate fetch on `visibilitychange → visible`. This cuts
+  // a meaningful chunk of GETs on every dining session — most realistic
+  // sessions have long stretches where the tab is in the background.
   // TODO: Switch to Firebase Realtime DB once it includes split data.
   useEffect(() => {
     const sessionId = sessionData?.session?.id;
     const spaceId = sessionData?.space?.id;
 
-    if (!sessionId || !spaceId) {
-      cleanup();
-      return;
-    }
+    if (!sessionId || !spaceId) return;
 
     console.log('[SessionContext] 📡 Setting up polling sync', {
       sessionId: sessionId.substring(0, 8) + '...',
     });
 
-    setupPolling();
+    let intervalId: NodeJS.Timeout | null = null;
 
-    return cleanup;
+    const startInterval = () => {
+      if (intervalId) return; // already running, don't double-start
+      pollParticipants(); // immediate fetch
+      intervalId = setInterval(pollParticipants, 10000);
+    };
+
+    const stopInterval = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    // Start only if currently visible (covers SSR + tab opened-then-hidden)
+    if (typeof document === 'undefined' || !document.hidden) {
+      startInterval();
+    }
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        console.log('[SessionContext] 🛌 Tab hidden — pausing polling');
+        stopInterval();
+      } else {
+        console.log('[SessionContext] 👀 Tab visible — resuming polling');
+        startInterval();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      console.log('[SessionContext] 🔌 Stopping polling');
+      stopInterval();
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionData?.session?.id, sessionData?.space?.id]);
 

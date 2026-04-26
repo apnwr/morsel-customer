@@ -4,8 +4,9 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { RestaurantContext as RestaurantContextType } from '@/types/restaurant';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { validateTableNumber } from '@/lib/validation';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
-const STORAGE_KEY = 'morsel_restaurant_context';
+const STORAGE_KEY = STORAGE_KEYS.RESTAURANT_CONTEXT;
 
 interface RestaurantState {
   context: RestaurantContextType | null;

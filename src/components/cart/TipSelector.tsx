@@ -5,8 +5,9 @@ import { useLocale } from '@/contexts/LocaleContext';
 import { Modal } from '@/components/ui/Modal';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { tipService } from '@/services/tip.service';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
-const STORAGE_KEY = 'morsel_tip';
+const STORAGE_KEY = STORAGE_KEYS.TIP;
 
 export interface TipState {
   /** Selected percentage (10, 5, 0) or -1 for custom */

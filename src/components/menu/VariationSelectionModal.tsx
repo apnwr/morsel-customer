@@ -7,6 +7,7 @@ import { CartItem } from '@/types/cart';
 import { Minus, Plus } from 'lucide-react';
 import { useSession } from '@/contexts/SessionContext';
 import { getFromStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 // Helper function to get dietary type
 const getDietaryTypeFromItem = (menuItem: CartItem['menuItem']) => {
@@ -83,7 +84,7 @@ export function VariationSelectionModal({
   
   // Get current user's sessionUserId
   const currentSessionUserId = useMemo(() => {
-    return getFromStorage<string>('morsel_session_user_id') || '';
+    return getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID) || '';
   }, []);
 
   // Get participant name by sessionUserId

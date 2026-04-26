@@ -8,8 +8,10 @@ import { sanitizeSplitAmount } from '@/lib/validation';
 import { splitService } from '@/services/split.service';
 import { useSession } from '@/contexts/SessionContext';
 import type { SplitCalculateRequest, SplitEntry } from '@/types/api/split';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
-const STORAGE_KEY = 'morsel_split';
+const STORAGE_KEY = STORAGE_KEYS.SPLIT;
+const ITEMIZED_SELECTIONS_KEY = STORAGE_KEYS.ITEMIZED_SELECTIONS;
 /**
  * Calculate the total amount for items added by the current user
  * No tax included - total is just the item prices
@@ -91,7 +93,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
 
   const [serverSplits, setServerSplits] = useState<SplitEntry[] | null>(null);
   const [itemizedSelections, setItemizedSelectionsState] = useState<Record<string, string[]>>(() => {
-    return getFromStorage<Record<string, string[]>>('morsel_itemized_selections') || {};
+    return getFromStorage<Record<string, string[]>>(ITEMIZED_SELECTIONS_KEY) || {};
   });
 
   // Save to localStorage whenever split changes
@@ -212,7 +214,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       }
 
       // Get current user's sessionUserId to correctly identify them
-      const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+      const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
       // Debug logging to understand ID matching
       console.log('[SplitContext] ✓ calculateSplit called:', {
@@ -346,7 +348,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
 
   // Persist itemized selections to localStorage
   useEffect(() => {
-    setInStorage('morsel_itemized_selections', itemizedSelections);
+    setInStorage(ITEMIZED_SELECTIONS_KEY, itemizedSelections);
   }, [itemizedSelections]);
 
   const setItemizedSelection = useCallback((participantId: string, itemIds: string[]) => {
@@ -412,7 +414,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
           const [orderId, itemId] = key.split('_');
           return { itemId, orderId, quantity };
         });
-        const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+        const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
         payload = {
           type: 'itemized',
           numberOfSplits: participants.length,

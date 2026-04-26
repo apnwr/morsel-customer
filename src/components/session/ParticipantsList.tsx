@@ -9,6 +9,7 @@ import { useSession } from '@/contexts/SessionContext';
 import { useCart } from '@/contexts/CartContext';
 import { SplitSettingsModal } from '@/components/order/SplitSettingsModal';
 import { getFromStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import type { Participant } from '@/types/cart';
 
 interface ParticipantsListProps {
@@ -35,7 +36,7 @@ export function ParticipantsList({ totalOverride }: ParticipantsListProps = {}) 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   const sessionId = sessionData?.session?.id;
-  const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
   // The effective total for split — bill total (with taxes/charges) takes priority over cart total
   const splitTotal = typeof totalOverride === 'number' ? totalOverride : cart.total;

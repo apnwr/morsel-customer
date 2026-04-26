@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { restaurants } from '@/mocks/restaurants';
 import { getMenuForRestaurant } from '@/mocks/menuData';
 import { config } from '@/lib/config';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 export default function DebugPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -23,7 +24,7 @@ export default function DebugPanel() {
 
   // Load display table number and hidden state on mount
   React.useEffect(() => {
-    const storedTable = localStorage.getItem('morsel_table_number');
+    const storedTable = localStorage.getItem(STORAGE_KEYS.TABLE_NUMBER);
     if (storedTable) {
       setDisplayTableNumber(storedTable);
     }
@@ -210,7 +211,7 @@ export default function DebugPanel() {
                       onChange={(e) => {
                         const value = e.target.value;
                         setDisplayTableNumber(value);
-                        localStorage.setItem('morsel_table_number', value);
+                        localStorage.setItem(STORAGE_KEYS.TABLE_NUMBER, value);
                         window.dispatchEvent(new Event('storage'));
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

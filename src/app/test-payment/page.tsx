@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { PeachCheckoutView } from '@/components/payment/PeachCheckoutView';
 import { paymentService } from '@/services/payment.service';
 import { getFromStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { prefetchSDK, resetSDKLoader } from '@/lib/peach-payments/sdk-loader';
 import type { CreateEmbeddedCheckoutResponse, VerifyPaymentResponse } from '@/types/api/payment';
 import type { PeachCheckoutInitOptions } from '@/lib/peach-payments/types';
@@ -159,9 +160,9 @@ export default function TestPaymentPage() {
   const modalKeyRef = useRef(0);
 
   useEffect(() => {
-    const stored = getFromStorage<{ session?: { id?: string } }>('morsel_session_data');
+    const stored = getFromStorage<{ session?: { id?: string } }>(STORAGE_KEYS.SESSION_DATA);
     if (stored?.session?.id) setSessionId(stored.session.id);
-    const userId = getFromStorage<string>('morsel_session_user_id');
+    const userId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
     if (userId) setSessionUserId(userId);
     prefetchSDK();
   }, []);

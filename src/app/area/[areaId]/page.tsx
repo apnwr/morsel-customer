@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from '@/contexts/SessionContext';
 import { useCart } from '@/contexts/CartContext';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { AreaLoginModal } from '@/components/session/AreaLoginModal';
 import { getFromStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import type { OrderingSessionData } from '@/types/api/session';
 
 export default function AreaPage() {
@@ -23,9 +24,9 @@ export default function AreaPage() {
   useEffect(() => {
     const init = async () => {
       // Check if user already has an active area session for THIS area
-      const existingUserId = getFromStorage<string>('morsel_session_user_id');
-      const existingFlowType = getFromStorage<string>('morsel_flow_type');
-      const existingAreaId = getFromStorage<string>('morsel_area_id');
+      const existingUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
+      const existingFlowType = getFromStorage<string>(STORAGE_KEYS.FLOW_TYPE);
+      const existingAreaId = getFromStorage<string>(STORAGE_KEYS.AREA_ID);
       const existingSession = sessionData?.session;
 
       if (existingUserId && existingSession?.status === 'active'
@@ -46,18 +47,19 @@ export default function AreaPage() {
         }
       }
 
-      // Clear ALL stale data — ensures no space flow leakage
+      // Clear ALL stale data — ensures no space flow leakage.
+      // Reuses the central registry: see src/lib/storage-keys.ts.
       clearCart();
-      localStorage.removeItem('morsel_session_data');
-      localStorage.removeItem('morsel_session_user_id');
-      localStorage.removeItem('morsel_active_order_id');
-      localStorage.removeItem('morsel_split');
-      localStorage.removeItem('morsel_itemized_selections');
-      localStorage.removeItem('morsel_kitchen_note');
-      localStorage.removeItem('morsel_tip');
-      localStorage.removeItem('morsel_flow_type');
-      localStorage.removeItem('morsel_area_id');
-      localStorage.removeItem('morsel_restaurant_context');
+      localStorage.removeItem(STORAGE_KEYS.SESSION_DATA);
+      localStorage.removeItem(STORAGE_KEYS.SESSION_USER_ID);
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_ORDER_ID);
+      localStorage.removeItem(STORAGE_KEYS.SPLIT);
+      localStorage.removeItem(STORAGE_KEYS.ITEMIZED_SELECTIONS);
+      localStorage.removeItem(STORAGE_KEYS.KITCHEN_NOTE);
+      localStorage.removeItem(STORAGE_KEYS.TIP);
+      localStorage.removeItem(STORAGE_KEYS.FLOW_TYPE);
+      localStorage.removeItem(STORAGE_KEYS.AREA_ID);
+      localStorage.removeItem(STORAGE_KEYS.RESTAURANT_CONTEXT);
 
       if (!areaId) {
         setError('Invalid area ID');
@@ -92,14 +94,7 @@ export default function AreaPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center flex flex-col items-center">
-          <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (

@@ -8,10 +8,10 @@ import { useSession } from '@/contexts/SessionContext';
 import { Minus, Plus, Loader2, Check } from 'lucide-react';
 import { modalVariants, backdropVariants } from '@/lib/animations';
 import { getFromStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { sessionService } from '@/services/session.service';
-import { billService } from '@/services/bill.service';
+import { useSessionBill } from '@/hooks/useSessionBill';
 import type { SessionOrder, SessionOrderItem, SessionDetail } from '@/types/api/session';
-import type { SessionBill } from '@/types/api/bill';
 import type { SplitEntry } from '@/types/api/split';
 
 interface ItemizedPickerSheetProps {
@@ -51,11 +51,16 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
   const { splitPaymentStatus } = useSession();
   const { formatPrice } = useLocale();
 
-  const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
-  // Fetch full session detail (with order items) and bill when sheet opens
+  // Bill comes from the shared cache (useSessionBill); no per-mount fetch.
+  // Sessions on this page are already polled, so the cache is usually warm
+  // by the time the picker opens.
+  const { bill } = useSessionBill();
+
+  // Session detail (orders + items) is still fetched explicitly when the
+  // sheet opens, so we get the freshest items list at the moment of save.
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
-  const [bill, setBill] = useState<SessionBill | null>(null);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect -- fetch + loading indicator on sheet open */
@@ -65,17 +70,14 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
     let cancelled = false;
     setIsLoadingItems(true);
 
-    Promise.all([
-      sessionService.getSessionById(sessionId),
-      billService.getSessionBill(sessionId).catch(() => null),
-    ])
-      .then(([sessionRes, billRes]) => {
+    sessionService
+      .getSessionById(sessionId)
+      .then((sessionRes) => {
         if (cancelled) return;
         setSessionDetail(sessionRes.data);
-        if (billRes) setBill(billRes);
       })
       .catch((err) => {
-        console.error('[ItemizedPickerSheet] Failed to fetch data:', err);
+        console.error('[ItemizedPickerSheet] Failed to fetch session detail:', err);
       })
       .finally(() => {
         if (!cancelled) setIsLoadingItems(false);

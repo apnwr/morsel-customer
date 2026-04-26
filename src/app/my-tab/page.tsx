@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ChevronLeft } from "lucide-react";
@@ -8,7 +8,8 @@ import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
 import { useSession } from "@/contexts/SessionContext";
 import { getFromStorage } from "@/mocks/mockStorage";
-import { billService } from "@/services/bill.service";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
+import { useSessionBill } from "@/hooks/useSessionBill";
 import { Footer } from "@/components/layout/Footer";
 import { useLocale } from "@/contexts/LocaleContext";
 import { ParticipantsList } from "@/components/session/ParticipantsList";
@@ -26,9 +27,7 @@ export default function MyTabPage() {
   useSessionValidation();
   const { sessionData, splitPaymentStatus } = useSession();
   const flowType = useFlowType();
-  const currentSessionUserId = getFromStorage<string>("morsel_session_user_id");
-
-  const [billTotal, setBillTotal] = useState<number>(0);
+  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
   const sessionId = sessionData?.session?.id;
   const apiParticipants = useMemo(
@@ -36,18 +35,9 @@ export default function MyTabPage() {
     [sessionData?.session?.participants]
   );
 
-  useEffect(() => {
-    if (!sessionId) {
-      queueMicrotask(() => setBillTotal(0));
-      return;
-    }
-    billService
-      .getSessionBill(sessionId)
-      .then((bill) => {
-        setBillTotal(bill.total ?? 0);
-      })
-      .catch(() => setBillTotal(0));
-  }, [sessionId]);
+  // Bill comes via the shared cache; concurrent consumers de-dupe to one fetch.
+  const { bill } = useSessionBill();
+  const billTotal = bill?.total ?? 0;
 
   const n = Math.max(1, apiParticipants.length);
   const evenShare = billTotal / n;

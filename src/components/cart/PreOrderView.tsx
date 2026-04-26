@@ -21,6 +21,7 @@ import { CartItem as CartItemType, Customization } from '@/types/cart';
 import { BillSection } from '@/components/cart/BillSection';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 // Lazy load CustomizationModal
 const CustomizationModal = dynamic(
@@ -31,7 +32,7 @@ const CustomizationModal = dynamic(
   { ssr: false }
 );
 
-const KITCHEN_NOTE_KEY = 'morsel_kitchen_note';
+const KITCHEN_NOTE_KEY = STORAGE_KEYS.KITCHEN_NOTE;
 
 interface PreOrderViewProps {
   onPlaceOrder: () => Promise<void>;
@@ -51,7 +52,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
   const [itemToCustomize, setItemToCustomize] = useState<CartItemType | null>(null);
 
   // Current user's session ID
-  const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
   // My items vs others' items
   const myItems = useMemo(

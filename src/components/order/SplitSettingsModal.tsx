@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Plus, AlertCircle, X } from 'lucide-react';
 import { modalVariants, backdropVariants } from '@/lib/animations';
 import { getFromStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { ItemizedPickerSheet } from '@/components/order/ItemizedPickerSheet';
 
 interface SplitSettingsModalProps {
@@ -40,7 +41,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const effectiveTotal = typeof total === 'number' ? total : cart.total;
 
   // Get current user's sessionUserId to show "You" instead of name
-  const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
   // Calculate user's own items total for "Pay for self" mode
   // No tax included - total is just the item prices

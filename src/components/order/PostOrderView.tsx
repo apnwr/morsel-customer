@@ -15,6 +15,7 @@ import { useLocale } from '@/contexts/LocaleContext';
 import Image from 'next/image';
 import { useSession } from '@/contexts/SessionContext';
 import { getFromStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { TipSelector, getStoredTip } from '@/components/cart/TipSelector';
 import { ParticipantsList } from '@/components/session/ParticipantsList';
 import { prefetchSDK } from '@/lib/peach-payments/sdk-loader';
@@ -73,7 +74,7 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
   const flowType = useFlowType();
 
   // Current user
-  const currentSessionUserId = getFromStorage<string>('morsel_session_user_id');
+  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
   // Load item images, dietary info, and kitchen note from stored order data
   const { itemImages, itemDietary, kitchenNote } = useMemo(() => {

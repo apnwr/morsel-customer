@@ -4,7 +4,7 @@ import React, { useMemo, useState, useRef, useEffect, useDeferredValue } from "r
 import dynamic from "next/dynamic";
 import { Header } from "@/components/layout/Header";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { MenuAccordion } from "@/components/menu/MenuAccordion";
 import { MenuItem } from "@/components/menu/MenuItem";
 import { MenuNavPopup } from "@/components/menu/MenuNavPopup";
@@ -566,14 +566,7 @@ export default function MenuPage() {
 
   // Show loading state
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#F7F8F8]">
-        <Header showCart />
-        <div className="flex items-center justify-center p-8">
-          <LoadingSpinner size="lg" />
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (

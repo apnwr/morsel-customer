@@ -8,6 +8,7 @@ import { useSessionValidation } from '@/hooks/useSessionValidation';
 import { useSession } from '@/contexts/SessionContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { getFromStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { PeachCheckoutView } from '@/components/payment/PeachCheckoutView';
 import OrdersLoading from '../orders/loading';
 
@@ -22,7 +23,7 @@ function PaymentPageContent() {
   const { formatPrice } = useLocale();
 
   const sessionId = sessionData?.session?.id;
-  const currentSessionUserId = getFromStorage<string>('morsel_session_user_id') || undefined;
+  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID) || undefined;
 
   const amount = useMemo(() => {
     const raw = searchParams.get('amount');

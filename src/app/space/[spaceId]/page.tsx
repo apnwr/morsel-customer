@@ -7,7 +7,8 @@ import { sessionService } from '@/services/session.service';
 import { useSession } from '@/contexts/SessionContext';
 import { useCart } from '@/contexts/CartContext';
 import { setInStorage } from '@/mocks/mockStorage';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { LoginModal } from '@/components/session/LoginModal';
 import type { OrderingSessionData } from '@/types/api/session';
 
@@ -31,7 +32,7 @@ export default function SpacePage() {
 
     const init = async () => {
       // Check if user already has an active session for THIS space
-      const existingUserId = localStorage.getItem('morsel_session_user_id');
+      const existingUserId = localStorage.getItem(STORAGE_KEYS.SESSION_USER_ID);
       const existingSessionData = sessionData?.session;
 
       if (existingUserId && existingSessionData?.status === 'active'
@@ -52,18 +53,19 @@ export default function SpacePage() {
         }
       }
 
-      // Clear ALL stale data — ensures no area flow leakage
+      // Clear ALL stale data — ensures no area flow leakage.
+      // Reuses the central registry: see src/lib/storage-keys.ts.
       clearCart();
-      setInStorage('morsel_flow_type', 'space');
-      localStorage.removeItem('morsel_area_id');
-      localStorage.removeItem('morsel_session_data');
-      localStorage.removeItem('morsel_session_user_id');
-      localStorage.removeItem('morsel_active_order_id');
-      localStorage.removeItem('morsel_split');
-      localStorage.removeItem('morsel_itemized_selections');
-      localStorage.removeItem('morsel_kitchen_note');
-      localStorage.removeItem('morsel_tip');
-      localStorage.removeItem('morsel_restaurant_context');
+      setInStorage(STORAGE_KEYS.FLOW_TYPE, 'space');
+      localStorage.removeItem(STORAGE_KEYS.AREA_ID);
+      localStorage.removeItem(STORAGE_KEYS.SESSION_DATA);
+      localStorage.removeItem(STORAGE_KEYS.SESSION_USER_ID);
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_ORDER_ID);
+      localStorage.removeItem(STORAGE_KEYS.SPLIT);
+      localStorage.removeItem(STORAGE_KEYS.ITEMIZED_SELECTIONS);
+      localStorage.removeItem(STORAGE_KEYS.KITCHEN_NOTE);
+      localStorage.removeItem(STORAGE_KEYS.TIP);
+      localStorage.removeItem(STORAGE_KEYS.RESTAURANT_CONTEXT);
 
       // Fetch new space data
       try {
@@ -155,14 +157,7 @@ export default function SpacePage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center flex flex-col items-center">
-          <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600">Loading your session...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Loading your session" />;
   }
 
   // Show space info with login modal

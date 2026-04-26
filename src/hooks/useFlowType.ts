@@ -1,4 +1,5 @@
 import { getFromStorage } from '@/mocks/mockStorage';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 export type FlowType = 'space' | 'area';
 
@@ -8,5 +9,5 @@ export type FlowType = 'space' | 'area';
  * 'space' for the default table/space flow.
  */
 export function useFlowType(): FlowType {
-  return getFromStorage<string>('morsel_flow_type') === 'area' ? 'area' : 'space';
+  return getFromStorage<string>(STORAGE_KEYS.FLOW_TYPE) === 'area' ? 'area' : 'space';
 }
