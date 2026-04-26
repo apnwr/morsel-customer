@@ -5,7 +5,7 @@ import { useLocale } from '@/contexts/LocaleContext';
 import { MenuItem as MenuItemType } from '@/types/menu';
 import { useCart } from '@/contexts/CartContext';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Minus } from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 import Image from 'next/image';
 import { VariationSelectionModal } from './VariationSelectionModal';
 import { RepeatCustomizationSheet } from './RepeatCustomizationSheet';
@@ -177,21 +177,11 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
       return (
         <button
           onClick={handleAddToCart}
-          className={`${positionCls} flex items-center justify-center gap-[6px] px-3 py-1.5 bg-white border border-black rounded-full text-xs font-bold text-black hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 min-w-[70px] h-[28px] shadow-sm`}
+          className={`${positionCls} flex items-center justify-center px-3 py-1.5 bg-white border border-black rounded-full text-xs font-bold text-black hover:bg-gray-50 active:scale-95 transition-all whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 min-w-[70px] h-[28px] shadow-sm`}
           style={{ fontFamily: 'Lato, sans-serif', letterSpacing: '0.02em' }}
           aria-label={item.isCustomizable ? `Customize ${item.name}` : `Add ${item.name} to cart`}
         >
           <span>Add</span>
-          {item.isCustomizable && (
-            <Image
-              src="/icons/Plus.png"
-              alt=""
-              width={10}
-              height={10}
-              className="opacity-70"
-              aria-hidden="true"
-            />
-          )}
         </button>
       );
     }
@@ -221,14 +211,7 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
           className="w-5 h-5 flex items-center justify-center hover:bg-gray-800 rounded-full transition-colors shrink-0 active:scale-90"
           aria-label={`Add more ${item.name}`}
         >
-          <Image
-            src="/icons/Plus.png"
-            alt="Add more"
-            width={12}
-            height={12}
-            style={{ filter: 'invert(1)' }}
-            className="w-3 h-3"
-          />
+          <Plus className="w-3 h-3" strokeWidth={2.5} />
         </button>
       </div>
     );
@@ -236,7 +219,7 @@ export const MenuItem = React.memo(function MenuItem({ item, onAdd }: MenuItemPr
 
   return (
     <article
-      className="flex flex-row-reverse items-start gap-3 w-full pb-4 cursor-pointer"
+      className={`flex flex-row-reverse items-start gap-3 w-full cursor-pointer pt-4 ${hasImage ? 'pb-7' : 'pb-4'}`}
       aria-label={`${item.name}, ${formatPrice(item.price)}`}
       onClick={handleAddToCart}
       role="button"

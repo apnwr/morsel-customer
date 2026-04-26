@@ -188,10 +188,12 @@ const MenuRenderer = React.memo(
       return (
         <MenuWithRef ref={(el) => setCategoryRef(category.id, el)}>
           <div className="mb-5 pb-3 border-b border-gray-200 last:border-b-0">
-            {/* Menu Name Header - only show if visibility is active */}
+            {/* Menu Name Header — full-bleed black band, top level of the
+                three-tier hierarchy (black menu ▸ pink category ▸ inset items).
+                Viewport-anchored width matches the category band's pattern. */}
             {menu.visibility === 'active' && (
-              <div className="mb-4 pb-2 border-b-1 border-gray-300">
-                <h2 className={`font-bold text-xl ${menuUnavailable ? 'text-gray-400' : 'text-gray-900'}`}>{category.name}</h2>
+              <div className="w-screen mx-[calc(50%-50vw)] mb-7 px-4 py-4 bg-black">
+                <h2 className={`font-bold text-xl ${menuUnavailable ? 'text-white/40' : 'text-white'}`}>{category.name}</h2>
               </div>
             )}
 
@@ -233,10 +235,12 @@ const MenuRenderer = React.memo(
       return (
         <MenuWithRef ref={(el) => setCategoryRef(category.id, el)}>
           <div className="mb-5 pb-3 border-b border-gray-200 last:border-b-0">
-            {/* Menu Name Header - only show if visibility is active */}
+            {/* Menu Name Header — full-bleed black band, top level of the
+                three-tier hierarchy (black menu ▸ pink category ▸ inset items).
+                Viewport-anchored width matches the category band's pattern. */}
             {menu.visibility === 'active' && (
-              <div className="mb-4 pb-2 border-b-2 border-gray-400">
-                <h2 className={`font-bold text-xl ${menuUnavailable ? 'text-gray-400' : 'text-gray-900'}`}>{category.name}</h2>
+              <div className="w-screen mx-[calc(50%-50vw)] mb-7 px-4 py-4 bg-black">
+                <h2 className={`font-bold text-xl ${menuUnavailable ? 'text-white/40' : 'text-white'}`}>{category.name}</h2>
               </div>
             )}
 
@@ -247,8 +251,9 @@ const MenuRenderer = React.memo(
               </div>
             )}
 
-            {/* Items */}
-            <div className={`space-y-3 ${menuUnavailable ? 'opacity-50 pointer-events-none' : ''}`}>
+            {/* Items — divide-y hairline + symmetric py-4 keeps spacing
+                consistent with the sections-flow items wrapper in MenuAccordion. */}
+            <div className={`divide-y divide-gray-200 ${menuUnavailable ? 'opacity-50 pointer-events-none' : ''}`}>
               {filteredItems.map((item) => (
                 <MenuItem key={item.id} item={item} onAdd={handleAddItem} />
               ))}
@@ -573,7 +578,7 @@ export default function MenuPage() {
 
   return (
     <div
-      className={`min-h-dvh bg-[#F7F8F8] ${hasCartItems ? 'pb-[170px]' : 'pb-[100px]'}`}
+      className={`min-h-dvh bg-[#F7F8F8] overflow-x-hidden ${hasCartItems ? 'pb-[170px]' : 'pb-[100px]'}`}
       style={{ minHeight: '100dvh' }} // Fallback for browsers without dvh support
     >
       <Header showCart />

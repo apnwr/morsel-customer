@@ -58,16 +58,17 @@ export function MenuNavPopup({ isOpen, categories, menusWithSections, onSelectCa
         {/* Content */}
         <div className="space-y-3 max-h-[60vh] overflow-y-auto scrollbar-hide">
           {menusWithSections ? (
-            // Grouped by menu
+            // Grouped by menu — black menu name band + pink section pills,
+            // mirroring the menu page hierarchy at modal-appropriate scale.
             menusWithSections.map((menu) => (
               <div key={menu.menuId} className="space-y-2">
-                {/* Menu Header */}
-                <div className="px-4 py-3">
-                  <span className="font-bold text-base text-gray-900">{menu.menuName}</span>
+                {/* Menu name — scoped black band */}
+                <div className="px-3 py-2 rounded-md bg-black">
+                  <span className="font-bold text-sm text-white">{menu.menuName}</span>
                 </div>
 
                 {/* Sections under menu */}
-                <div className="space-y-2 pl-2">
+                <div className="space-y-2">
                   {menu.sections.map((section, sectionIndex) => (
                     <motion.button
                       key={section.id}
@@ -75,19 +76,19 @@ export function MenuNavPopup({ isOpen, categories, menusWithSections, onSelectCa
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: sectionIndex * 0.03 }}
                       onClick={() => handleCategoryClick(section.id)}
-                      className="w-full group flex items-center justify-between px-4 py-3 bg-gray-100 rounded-[12px] hover:from-black hover:to-gray-900 transition-all duration-300 hover:shadow-md hover:scale-[1.01] active:scale-[0.98]"
+                      className="w-full flex items-center justify-between px-4 py-3 bg-[#FFE7EC] rounded-[12px] active:bg-[#FFD0DA] active:scale-[0.98] transition-colors"
                     >
-                      <span className="font-medium text-sm text-gray-900 group-hover:text-white transition-colors text-left">
+                      <span className="font-medium text-sm text-black text-left">
                         {section.name}
                       </span>
-                      <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                      <ChevronRight className="w-4 h-4 text-[#FF2F55]" strokeWidth={2.5} />
                     </motion.button>
                   ))}
                 </div>
               </div>
             ))
           ) : (
-            // Fallback: Flat categories list
+            // Fallback: flat categories list — same pink-pill treatment.
             categories?.map((category, index) => (
               <motion.button
                 key={category.id}
@@ -95,12 +96,12 @@ export function MenuNavPopup({ isOpen, categories, menusWithSections, onSelectCa
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.05 }}
                 onClick={() => handleCategoryClick(category.id)}
-                className="w-full group flex items-center justify-between px-5 py-4 bg-gradient-to-r from-gray-50 to-gray-50/50 rounded-[12px] hover:from-black hover:to-gray-900 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                className="w-full flex items-center justify-between px-5 py-4 bg-[#FFE7EC] rounded-[12px] active:bg-[#FFD0DA] active:scale-[0.98] transition-colors"
               >
-                <span className="font-medium text-gray-900 group-hover:text-white transition-colors">
+                <span className="font-medium text-black text-left">
                   {category.name}
                 </span>
-                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                <ChevronRight className="w-5 h-5 text-[#FF2F55]" strokeWidth={2.5} />
               </motion.button>
             ))
           )}
