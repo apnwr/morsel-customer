@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useLocale } from '@/contexts/LocaleContext';
+import { getCurrencySymbol } from '@/lib/currencies';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSplit } from '@/contexts/SplitContext';
 import { useCart } from '@/contexts/CartContext';
@@ -24,7 +25,10 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const { split, setSplitMode, setSplitForTotal, removeParticipant, updateShare, syncSplitToServer, itemizedSelections } = useSplit();
   const { cart } = useCart();
   const { sessionData, serverSplitType, splitPaymentStatus } = useSession();
-  const { formatPrice } = useLocale();
+  const { formatPrice, currency } = useLocale();
+  // Currency symbol for the active locale, used by the custom-split editable input
+  // (display, strip-on-edit, and the invisible width-spacer below).
+  const currencySymbol = getCurrencySymbol(currency);
   const [showItemizedPicker, setShowItemizedPicker] = useState(false);
   const sessionId = sessionData?.session?.id;
 
@@ -354,9 +358,12 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
                               <input
                                 type="text"
                                 inputMode="decimal"
-                                value={`$${localAmount}`}
+                                value={`${currencySymbol} ${localAmount}`}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/^\$/, '');
+                                  // Strip the symbol-and-space prefix produced above.
+                                  // Robust against multi-char symbols ("Rs", "KSh") and
+                                  // symbols containing dots ("د.إ", "د.م.").
+                                  const val = e.target.value.replace(/^.*\s/, '');
                                   handleShareChange(participant.id, val);
                                 }}
                                 onBlur={() => handleShareBlur(participant.id)}
@@ -387,7 +394,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
                       Add
                     </span>
                     <span className="text-lg font-black text-center text-transparent leading-tight select-none">
-                      $0.00
+                      {formatPrice(0)}
                     </span>
                   </button>
                 </>
