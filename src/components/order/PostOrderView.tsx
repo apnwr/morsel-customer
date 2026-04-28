@@ -272,8 +272,11 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
           />
         </div>
 
-        {/* 5. Split / Participants Card (hidden in area flow) */}
-        {flowType !== 'area' && (
+        {/* 5. Split / Participants Card — hidden in area flow, and also when
+            there's only the current user at the table (nothing to split). The
+            wrapper is gated alongside the inner null-return to avoid an empty
+            mb-6 div leaving a phantom gap above the bill. */}
+        {flowType !== 'area' && (sessionData?.session?.participants?.length ?? 0) > 1 && (
           <div className="mb-6">
             <ParticipantsList totalOverride={billTotal} />
           </div>

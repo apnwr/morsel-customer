@@ -188,6 +188,13 @@ export function ParticipantsList({ totalOverride }: ParticipantsListProps = {}) 
     setShowSettingsModal(true);
   };
 
+  // The split UI only makes sense with 2+ people at the table. With a solo
+  // participant (or none — transient loading state) there's nothing to split,
+  // so suppress the entire card. Placed after every hook so hook order stays stable.
+  if (participants.length <= 1) {
+    return null;
+  }
+
   return (
     <>
       <div
