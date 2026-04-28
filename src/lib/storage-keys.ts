@@ -9,6 +9,12 @@
  *   getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
  */
 
+/**
+ * Prefix for per-session split-initiator keys. Exposed so clearSession can
+ * sweep every entry on session end without enumerating sessionIds.
+ */
+export const SPLIT_INITIATOR_PREFIX = 'morsel_split_initiator_';
+
 export const STORAGE_KEYS = {
   // Session lifecycle (cleared on session end)
   SESSION_DATA: 'morsel_session_data',
@@ -28,6 +34,7 @@ export const STORAGE_KEYS = {
   SPLIT: 'morsel_split',
   ITEMIZED_SELECTIONS: 'morsel_itemized_selections',
   MENU_ITEMS_CACHE: 'morsel_menu_items_cache',
+  SPLIT_INITIATOR: (sessionId: string) => `${SPLIT_INITIATOR_PREFIX}${sessionId}`,
 
   // Persistent across sessions
   ORDER: 'morsel_order',

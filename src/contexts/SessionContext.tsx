@@ -7,7 +7,7 @@ import { sessionService } from '@/services/session.service';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { mapSessionOrderToAPIOrder } from '@/lib/order-mapping';
 import { useLocale } from '@/contexts/LocaleContext';
-import { STORAGE_KEYS, SESSION_SCOPED_KEYS } from '@/lib/storage-keys';
+import { STORAGE_KEYS, SESSION_SCOPED_KEYS, SPLIT_INITIATOR_PREFIX } from '@/lib/storage-keys';
 
 const STORAGE_KEY = STORAGE_KEYS.SESSION_DATA;
 const STORAGE_KEY_USER_ID = STORAGE_KEYS.SESSION_USER_ID;
@@ -162,6 +162,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // by SESSION_SCOPED_KEYS in src/lib/storage-keys.ts.
       for (const key of SESSION_SCOPED_KEYS) {
         localStorage.removeItem(key);
+      }
+      // Per-session keys (e.g. split initiator markers) live under a shared
+      // prefix; sweep them all so device storage doesn't carry markers from
+      // older sessions into a fresh one.
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(SPLIT_INITIATOR_PREFIX)) {
+          localStorage.removeItem(key);
+        }
       }
     } catch (error) {
       console.error('[SessionContext] Error clearing session data:', error);

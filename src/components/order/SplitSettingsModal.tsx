@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocale } from '@/contexts/LocaleContext';
 import { getCurrencySymbol } from '@/lib/currencies';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -33,15 +33,37 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const [showItemizedPicker, setShowItemizedPicker] = useState(false);
   const sessionId = sessionData?.session?.id;
 
-  // Once a server split is active, nobody can switch modes. Itemized stays interactive
-  // (to claim remaining items); other modes render read-only.
-  const serverModeLocked = !!serverSplitType;
+  // Get current user's sessionUserId to show "You" instead of name
+  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
+
+  // Initiator detection — split by mode because the server only reliably
+  // identifies the initiator in itemized splits via splits[0].sessionUserId
+  // (claim-order is preserved across multi-claim flows). For other modes,
+  // every participant gets a splits[] entry tagged with their own id, so we
+  // fall back to a per-session localStorage marker written on first save.
+  const sortedSplits = useMemo(
+    () => [...(splitPaymentStatus ?? [])].sort((a, b) => a.index - b.index),
+    [splitPaymentStatus]
+  );
+  const initiatorId = useMemo(() => {
+    if (serverSplitType === 'itemized') {
+      return sortedSplits[0]?.sessionUserId ?? null;
+    }
+    return sessionId
+      ? getFromStorage<string>(STORAGE_KEYS.SPLIT_INITIATOR(sessionId)) ?? null
+      : null;
+  }, [serverSplitType, sortedSplits, sessionId]);
+  const isInitiator = !!initiatorId && initiatorId === currentSessionUserId;
+  const anyonePaid = sortedSplits.some((s) => s.paid);
+
+  // Lock the mode picker once a server split exists, EXCEPT for the initiator
+  // before any payment lands — they can still flip the mode (e.g. items → even).
+  // After any payment, freeze for everyone (initiator included) so we don't
+  // invalidate already-paid amounts.
+  const serverModeLocked = !!serverSplitType && (!isInitiator || anyonePaid);
   const serverIsItemized = serverSplitType === 'itemized';
 
   const effectiveTotal = typeof total === 'number' ? total : cart.total;
-
-  // Get current user's sessionUserId to show "You" instead of name
-  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
   // Calculate user's own items total for "Pay for self" mode
   // No tax included - total is just the item prices
@@ -459,9 +481,15 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
             {serverModeLocked ? (
               <div className="space-y-2">
                 <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-[12px] text-gray-700">
-                  Your tablemate set the split to
-                  <span className="font-semibold"> {localMode === 'items' ? 'Pay for items' : localMode === 'even' ? 'Split evenly' : localMode === 'custom' ? 'Custom split' : localMode === 'all' ? 'Pay for everyone' : 'Pay for self'}</span>.
-                  {serverIsItemized ? ' You can claim any remaining items.' : ' Your share is shown above.'}
+                  {anyonePaid ? (
+                    <>A payment has started — the split can no longer be changed.</>
+                  ) : (
+                    <>
+                      Your tablemate set the split to
+                      <span className="font-semibold"> {localMode === 'items' ? 'Pay for items' : localMode === 'even' ? 'Split evenly' : localMode === 'custom' ? 'Custom split' : localMode === 'all' ? 'Pay for everyone' : 'Pay for self'}</span>.
+                      {serverIsItemized ? ' You can claim any remaining items.' : ' Your share is shown above.'}
+                    </>
+                  )}
                 </div>
                 {serverIsItemized && (
                   <button
