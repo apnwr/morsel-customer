@@ -41,7 +41,6 @@ function OrdersPageContent() {
     orderDisplayLabel,
     allOrderIds,
     isLoading,
-    handleOrderMoreFood,
   } = useOrdersPageState();
 
   // Strip payment query params after hydration so a refresh doesn't replay the result screen
@@ -106,7 +105,6 @@ function OrdersPageContent() {
           orderId={orderData.id}
           orderData={orderData}
           bill={bill}
-          onOrderMoreFood={handleOrderMoreFood}
         />
       ) : (
         <OrdersLoading />

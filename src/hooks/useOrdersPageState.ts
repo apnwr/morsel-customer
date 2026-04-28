@@ -6,11 +6,8 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { useSession } from '@/contexts/SessionContext';
-import { useCart } from '@/contexts/CartContext';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
-import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { sessionService } from '@/services/session.service';
 import { mapSessionOrderToAPIOrder } from '@/lib/order-mapping';
 import { mergeOrders } from '@/lib/order-merging';
@@ -32,14 +29,10 @@ export interface OrdersPageState {
   /** All placed order IDs in this session */
   allOrderIds: string[];
   isLoading: boolean;
-  /** Navigate to /menu and clear active order */
-  handleOrderMoreFood: () => void;
 }
 
 export function useOrdersPageState(): OrdersPageState {
-  const router = useRouter();
-  const { sessionData, setActiveOrderId } = useSession();
-  const { clearCart } = useCart();
+  const { sessionData } = useSession();
 
   const [orderData, setOrderData] = useState<APIOrder | null>(null);
   const [bill, setBill] = useState<SessionBill | null>(null);
@@ -191,22 +184,11 @@ export function useOrdersPageState(): OrdersPageState {
     return `Orders (${allOrderIds.length})`;
   }, [allOrderIds]);
 
-  // Navigate to menu — clear ephemeral order state
-  const handleOrderMoreFood = useCallback(() => {
-    setActiveOrderId(null);
-    clearCart();
-    // Clear tip and kitchen note so they don't leak into the next order
-    setInStorage(STORAGE_KEYS.KITCHEN_NOTE, '');
-    setInStorage(STORAGE_KEYS.TIP, { percentage: 10, amount: 0 });
-    router.push('/menu');
-  }, [setActiveOrderId, clearCart, router]);
-
   return {
     orderData,
     bill,
     orderDisplayLabel,
     allOrderIds,
     isLoading,
-    handleOrderMoreFood,
   };
 }

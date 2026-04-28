@@ -64,10 +64,9 @@ interface PostOrderViewProps {
   orderId: string;
   orderData: APIOrder;
   bill?: SessionBill | null;
-  onOrderMoreFood: () => void;
 }
 
-export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: PostOrderViewProps) {
+export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) {
   const router = useRouter();
   const { formatPrice } = useLocale();
   const { sessionData, splitPaymentStatus, isParticipantPaid } = useSession();
@@ -152,7 +151,6 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
 
   // Check if current user's split is paid
   const isCurrentUserPaid = currentSessionUserId ? isParticipantPaid(currentSessionUserId) : false;
-  const allSplitsPaid = splitPaymentStatus != null && splitPaymentStatus.length > 0 && splitPaymentStatus.every(s => s.paid);
 
   // Prefetch SDK + route so /payment opens instantly
   useEffect(() => {
@@ -300,29 +298,33 @@ export function PostOrderView({ orderId, orderData, bill, onOrderMoreFood }: Pos
               </span>
             </div>
 
-            {/* Individual tax lines */}
-            {bill?.taxes && Object.entries(bill.taxes).map(([taxId, tax]) => (
-              <div key={taxId} className="flex items-center justify-between w-full">
-                <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                  {tax.name} ({tax.percentage}%)
-                </span>
-                <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                  {formatPrice(tax.amount)}
-                </span>
-              </div>
-            ))}
+            {/* Individual tax lines — skip zero-amount entries; a 0.00 row carries no info. */}
+            {bill?.taxes && Object.entries(bill.taxes)
+              .filter(([, tax]) => tax.amount > 0)
+              .map(([taxId, tax]) => (
+                <div key={taxId} className="flex items-center justify-between w-full">
+                  <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                    {tax.name} ({tax.percentage}%)
+                  </span>
+                  <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                    {formatPrice(tax.amount)}
+                  </span>
+                </div>
+              ))}
 
-            {/* Individual charge lines */}
-            {bill?.charges && Object.entries(bill.charges).map(([chargeId, charge]) => (
-              <div key={chargeId} className="flex items-center justify-between w-full">
-                <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                  {charge.name}
-                </span>
-                <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                  {formatPrice(charge.amount)}
-                </span>
-              </div>
-            ))}
+            {/* Individual charge lines — same zero-amount filter. */}
+            {bill?.charges && Object.entries(bill.charges)
+              .filter(([, charge]) => charge.amount > 0)
+              .map(([chargeId, charge]) => (
+                <div key={chargeId} className="flex items-center justify-between w-full">
+                  <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                    {charge.name}
+                  </span>
+                  <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                    {formatPrice(charge.amount)}
+                  </span>
+                </div>
+              ))}
 
             {/* Discount — only when > 0 */}
             {(bill?.totalDiscount ?? 0) > 0 && (
