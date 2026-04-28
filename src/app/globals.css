@@ -712,3 +712,23 @@ body.modal-open {
     scroll-behavior: auto !important;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Peach Payments embedded checkout                                     */
+/* ------------------------------------------------------------------ */
+/* The SDK injects [data-testid="checkout-root"] with inline styles:    */
+/*   height: 360px; width: 100%; height: inherit; min-height: 360px;   */
+/* `height: inherit` resolves against the parent's `height` *value*,    */
+/* not its computed size. Our container chain uses flex-1 (no explicit  */
+/* height), so inherit resolves to auto and the widget collapses to the */
+/* 360px min-height floor — leaving dead space in the viewport and      */
+/* clipping the widget's own header text. Force the SDK root to fill    */
+/* the container; `!important` is required to beat the inline styles.   */
+#peach-checkout-container {
+  height: 100%;
+}
+
+#peach-checkout-container [data-testid="checkout-root"] {
+  height: 100% !important;
+  min-height: 100% !important;
+}

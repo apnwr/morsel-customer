@@ -116,7 +116,11 @@ export function PeachCheckoutView({
   };
 
   return (
-    <div className="min-h-dvh bg-white flex flex-col">
+    // h-dvh (not min-h-dvh) so the height chain is *definite* — the embedded
+    // Peach widget's `height: inherit` / `height: 100%` rely on every ancestor
+    // resolving to a real pixel height. With min-h-dvh, percentage heights
+    // collapse and the widget defaults to its 360px min-height floor.
+    <div className="h-dvh bg-white flex flex-col">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
