@@ -370,6 +370,12 @@ export function SplitProvider({ children }: { children: ReactNode }) {
   ): Promise<void> => {
     if (!sessionId || participants.length === 0) return;
 
+    // Snapshot before the POST: was there already a server-side split type? If
+    // not, this call is the first commit for the session — the local user is
+    // the initiator. Captured before the await so the post-success write
+    // doesn't race with refreshSessionData() flipping serverSplitType.
+    const isFirstCommit = !serverSplitType;
+
     // Always send numberOfSplits and amounts. itemIds only for 'itemized' (flat array).
     const amounts = participants.map((p) => shares[p.id] || 0);
 
@@ -437,6 +443,19 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       const response = await splitService.calculateSplit(sessionId, payload);
       console.log('[SplitContext] Split synced to server:', response.data);
       setServerSplits(response.data?.splits || null);
+
+      // First-commit-wins: stamp the local user as initiator only on the very
+      // first save for this session and only if no marker exists yet. Prevents
+      // a later "claim items" save (in itemized mode) from flipping ownership.
+      if (isFirstCommit) {
+        const initiatorKey = STORAGE_KEYS.SPLIT_INITIATOR(sessionId);
+        const existing = getFromStorage<string>(initiatorKey);
+        const me = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
+        if (!existing && me) {
+          setInStorage(initiatorKey, me);
+        }
+      }
+
       // Refresh session so splitPaymentStatus + serverSplitConfig update for all participants
       refreshSessionData();
     } catch (error) {
@@ -444,7 +463,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       // Rethrow so callers can surface the failure to the user instead of silently accepting it
       throw error;
     }
-  }, [itemizedSelections, refreshSessionData]);
+  }, [itemizedSelections, refreshSessionData, serverSplitType]);
 
   const addMockParticipant = useCallback(() => {
     setSplit((prev) => {
