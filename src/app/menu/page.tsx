@@ -21,6 +21,7 @@ import { useSessionValidation } from "@/hooks/useSessionValidation";
 import { Footer } from "@/components/layout/Footer";
 import type { MenuWithItems } from "@/types/api/menu";
 import { useMenuAvailability } from "@/hooks/useMenuAvailability";
+import { matchesQuery } from "@/lib/menu-search";
 
 // Lazy load CustomizationModal since it's only shown on demand
 const CustomizationModal = dynamic(
@@ -124,7 +125,7 @@ const MenuRenderer = React.memo(
     handleAddItem: (item: MenuItemType) => void;
     setCategoryRef: (id: string, el: HTMLDivElement | null) => void;
     setSectionRef?: (id: string, el: HTMLDivElement | null) => void;
-    filterItemsBySearch: (items: MenuItemType[], query: string) => MenuItemType[];
+    filterItemsBySearch: (items: MenuItemType[], query: string, categoryName?: string) => MenuItemType[];
     searchQuery: string;
     isAvailable?: boolean;
     unavailableMessage?: string | null;
@@ -175,8 +176,9 @@ const MenuRenderer = React.memo(
               );
           }
 
-          // Filter section items by search query
-          const filteredSectionItems = filterItemsBySearch(sectionItems, searchQuery);
+          // Filter section items by search query — index the section name so a
+          // section-targeted query like "starters" matches its items.
+          const filteredSectionItems = filterItemsBySearch(sectionItems, searchQuery, section.name);
           return { section, sectionItems: filteredSectionItems };
         })
         .filter(({ sectionItems }) => sectionItems.length > 0);
@@ -225,8 +227,9 @@ const MenuRenderer = React.memo(
         .filter((item) => item.status === "active")
         .map((item) => mapApiItemToMenuItem(item, category.id, restaurantId));
 
-      // Filter items by search query
-      const filteredItems = filterItemsBySearch(items, searchQuery);
+      // Filter items by search query — pass the category name so it's part of
+      // the searchable token set for these items.
+      const filteredItems = filterItemsBySearch(items, searchQuery, category.name);
 
       if (filteredItems.length === 0) return null;
 
@@ -515,16 +518,13 @@ export default function MenuPage() {
   const handleOpenMenuNav = React.useCallback(() => setShowMenuNav(true), []);
   const handleGoToCart = React.useCallback(() => router.push('/cart'), [router]);
 
-  // Helper function to filter items based on search query
-  // Only matches items where name starts with the search query
+  // Filter items by search query using the shared matcher
+  // (token-prefix AND across name, description, tags, dietary, allergens, category).
+  // Empty / whitespace query is a no-op (returns the original list).
   const filterItemsBySearch = React.useCallback(
-    (items: MenuItemType[], query: string): MenuItemType[] => {
+    (items: MenuItemType[], query: string, categoryName?: string): MenuItemType[] => {
       if (!query.trim()) return items;
-
-      const lowerQuery = query.toLowerCase().trim();
-      return items.filter((item) =>
-        item.name.toLowerCase().startsWith(lowerQuery)
-      );
+      return items.filter((item) => matchesQuery(item, query, categoryName));
     },
     []
   );
@@ -544,17 +544,17 @@ export default function MenuPage() {
             const items = areSectionItemsObjects(section.items)
               ? section.items.map((item) => mapApiItemToMenuItem(item, menu.id, sessionData?.business.id || context.restaurant.id))
               : [];
-            return filterItemsBySearch(items, deferredSearchQuery).length > 0;
+            return filterItemsBySearch(items, deferredSearchQuery, section.name).length > 0;
           });
         } else {
           const items = menu.items.map((item) => mapApiItemToMenuItem(item, menu.id, sessionData?.business.id || context.restaurant.id));
-          return filterItemsBySearch(items, deferredSearchQuery).length > 0;
+          return filterItemsBySearch(items, deferredSearchQuery, menu.name).length > 0;
         }
       });
     } else {
       return menuData.categories.some((category) => {
         const items = getItemsByCategory(context.restaurant.id, category.id);
-        return filterItemsBySearch(items, deferredSearchQuery).length > 0;
+        return filterItemsBySearch(items, deferredSearchQuery, category.name).length > 0;
       });
     }
   }, [deferredSearchQuery, useApiData, apiMenus, menuData.categories, menuUsesSections, areSectionItemsObjects, mapApiItemToMenuItem, filterItemsBySearch, sessionData?.business.id, context?.restaurant]);
@@ -587,7 +587,7 @@ export default function MenuPage() {
           <EmptyState
             icon="🔍"
             title="No items found"
-            description={`No menu items starting with "${searchQuery}". Please try a different search term.`}
+            description={`No menu items match "${searchQuery}". Please try a different search term.`}
           />
         ) : (
           menuData.categories.map((category) => {
