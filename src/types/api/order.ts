@@ -98,6 +98,7 @@ export interface OrderItem {
   addonsTotalPrice: number;
   unitPrice: number;
   itemTotal: number;
+  guestName?: string | null;
 }
 
 /**
