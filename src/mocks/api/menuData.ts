@@ -33,6 +33,7 @@ export const HARDCODED_MENU_DATA: MenuResponse = {
         _seconds: 1760022667,
         _nanoseconds: 679000000,
       },
+      order: 1,
     },
     {
       id: 'tJGL9psEVvbEiChvmxgl',
@@ -60,6 +61,7 @@ export const HARDCODED_MENU_DATA: MenuResponse = {
         _seconds: 1759701822,
         _nanoseconds: 266000000,
       },
+      order: 2,
     },
     {
       id: 'u5AHD2np3hfuaWcCThVO',
@@ -88,6 +90,7 @@ export const HARDCODED_MENU_DATA: MenuResponse = {
         _seconds: 1760262194,
         _nanoseconds: 418000000,
       },
+      order: 3,
     },
   ],
 };
