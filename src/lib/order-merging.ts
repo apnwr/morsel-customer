@@ -4,13 +4,15 @@
  */
 
 import type { Order as APIOrder } from '@/types/api/order';
+import { SessionParticipant } from '@/types/api/session';
+import { getParticipantName } from './utils';
 
 /**
  * Merge multiple placed orders into a single unified APIOrder.
  * Items are concatenated (not grouped) so each order's items remain distinct.
  * Totals are summed. The merged order uses the latestOrderId as its id.
  */
-export function mergeOrders(orders: APIOrder[], latestOrderId: string): APIOrder | null {
+export function mergeOrders(orders: APIOrder[], latestOrderId: string, participants: SessionParticipant[] = []): APIOrder | null {
   if (orders.length === 0) return null;
   if (orders.length === 1) return orders[0];
 
@@ -28,7 +30,7 @@ export function mergeOrders(orders: APIOrder[], latestOrderId: string): APIOrder
 
   for (const order of orders) {
     if (order.items) {
-      merged.items.push(...order.items);
+      merged.items.push(...order.items.map(i => ({ ...i, guestName: getParticipantName(participants, order.sessionUserId) })));
     }
     merged.total += order.total || 0;
 

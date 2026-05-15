@@ -16,6 +16,7 @@ import type { SessionOrder } from '@/types/api/session';
 import type { SessionBill } from '@/types/api/bill';
 import { billService } from '@/services/bill.service';
 import { deriveBillCacheKey, setCachedBill } from '@/lib/bill-cache';
+import { getParticipantName } from '@/lib/utils';
 
 const ORDERS_POLL_INTERVAL = 30000; // 30s — catch other participants' orders
 
@@ -82,7 +83,7 @@ export function useOrdersPageState(): OrdersPageState {
         pollRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- stable interval based on session
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable interval based on session
   }, [sessionData?.session?.id]);
 
   // Load all orders and merge into unified view
@@ -104,7 +105,7 @@ export function useOrdersPageState(): OrdersPageState {
     }
 
     if (cachedOrders.length > 0) {
-      setOrderData(mergeOrders(cachedOrders, allOrderIds[allOrderIds.length - 1]));
+      setOrderData(mergeOrders(cachedOrders, allOrderIds[allOrderIds.length - 1], sessionData?.session?.participants));
     }
 
     // 2. Always fetch from API to get latest data (dashboard-added items, etc.)
@@ -158,7 +159,7 @@ export function useOrdersPageState(): OrdersPageState {
         }
 
         if (freshOrders.length > 0) {
-          setOrderData(mergeOrders(freshOrders, allOrderIds[allOrderIds.length - 1]));
+          setOrderData(mergeOrders(freshOrders, allOrderIds[allOrderIds.length - 1], sessionData?.session?.participants));
         }
       })
       .catch(() => {
