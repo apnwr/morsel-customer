@@ -20,7 +20,7 @@ function hasValidLogo(logo: string | undefined | null): logo is string {
 export default function SpacePage() {
   const params = useParams();
   const router = useRouter();
-  const { setPreviewSession, sessionData, endSession } = useSession();
+  const { setPreviewSession, sessionData, isLoading: isSessionLoading, endSession } = useSession();
   const { clearCart } = useCart();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,6 +31,8 @@ export default function SpacePage() {
     const spaceId = params.spaceId as string;
 
     const init = async () => {
+      // if session is loading, wait for it to load
+      if (isSessionLoading) return
       // Check if user already has an active session for THIS space
       const existingUserId = localStorage.getItem(STORAGE_KEYS.SESSION_USER_ID);
       const existingSessionData = sessionData?.session;
@@ -136,8 +138,8 @@ export default function SpacePage() {
     };
 
     init();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.spaceId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.spaceId, sessionData?.session, isSessionLoading]);
 
   if (error) {
     return (

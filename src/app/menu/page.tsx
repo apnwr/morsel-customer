@@ -284,7 +284,7 @@ export default function MenuPage() {
   const router = useRouter();
   // Navigation guard - redirect to login if no restaurant context
   const context = useRequireRestaurantContext();
-  const { sessionData } = useSession();
+  const { sessionData, isLoading: isSessionLoading } = useSession();
   const { cart, addItem } = useCart();
   const hasCartItems = cart.items.length > 0;
 
@@ -305,12 +305,16 @@ export default function MenuPage() {
   // Fetch menu data from API if session data is available
   useEffect(() => {
     const fetchMenuData = async () => {
-      if (sessionData?.business.id) {
+      if (!isSessionLoading && sessionData?.business.id) {
         try {
           setIsLoading(true);
           const menusWithItems = await menuService.getMenusWithItems(
             sessionData.business.id
           );
+          if (menusWithItems.length > 0) {
+            // sort menu by order
+            menusWithItems?.sort((a, b) => a.order - b.order);
+          }
           setApiMenus(menusWithItems);
           setUseApiData(true);
         } catch (error) {
@@ -320,13 +324,11 @@ export default function MenuPage() {
         } finally {
           setIsLoading(false);
         }
-      } else {
-        setIsLoading(false);
       }
     };
 
     fetchMenuData();
-  }, [sessionData?.business.id]);
+  }, [sessionData?.business.id, isSessionLoading]);
 
   // Helper function to check if menu uses sections flow
   const menuUsesSections = React.useCallback((menu: MenuWithItems): boolean => {
@@ -380,53 +382,53 @@ export default function MenuPage() {
       customOptions: [
         ...(apiItem.variants && apiItem.variants.length > 0
           ? [
-              {
-                id: "variant",
-                name: apiItem.variant_title && apiItem.variant_title.trim().length > 0
-                  ? apiItem.variant_title
-                  : "Variant",
-                type: "radio" as const,
-                required: true,
-                choices: apiItem.variants
-                  // Defensive: Filter out malformed variants without required fields
-                  .filter((v) => {
-                    if (!v.name || v.price === undefined || v.price === null) {
-                      console.warn(`[MenuPage] Malformed variant for item "${apiItem.name}" - missing name or price (violates API spec)`);
-                      return false;
-                    }
-                    return true;
-                  })
-                  .map((v, idx) => ({
-                    id: `variant-${idx}`,
-                    label: v.name,
-                    priceModifier: v.price ?? 0, // Absolute variant price
-                  })),
-              },
-            ]
+            {
+              id: "variant",
+              name: apiItem.variant_title && apiItem.variant_title.trim().length > 0
+                ? apiItem.variant_title
+                : "Variant",
+              type: "radio" as const,
+              required: true,
+              choices: apiItem.variants
+                // Defensive: Filter out malformed variants without required fields
+                .filter((v) => {
+                  if (!v.name || v.price === undefined || v.price === null) {
+                    console.warn(`[MenuPage] Malformed variant for item "${apiItem.name}" - missing name or price (violates API spec)`);
+                    return false;
+                  }
+                  return true;
+                })
+                .map((v, idx) => ({
+                  id: `variant-${idx}`,
+                  label: v.name,
+                  priceModifier: v.price ?? 0, // Absolute variant price
+                })),
+            },
+          ]
           : []),
         ...(apiItem.addons.length > 0
           ? apiItem.addons
-              // Defensive: Filter out malformed addons without options
-              .filter((addonGroup) => {
-                if (!addonGroup.options || addonGroup.options.length === 0) {
-                  console.warn(`[MenuPage] Malformed addon "${addonGroup.name}" for item "${apiItem.name}" - missing options array`);
-                  return false;
-                }
-                return true;
-              })
-              .map((addonGroup, groupIdx) => ({
-                id: `addon-group-${groupIdx}`,
-                name: addonGroup.name,
-                type: addonGroup.maxOptions === 1 ? ("radio" as const) : ("checkbox" as const),
-                required: addonGroup.minOptions > 0,
-                minSelection: addonGroup.minOptions,
-                maxSelection: addonGroup.maxOptions,
-                choices: addonGroup.options.map((option, optIdx) => ({
-                  id: `addon-${groupIdx}-${optIdx}`,
-                  label: option.name,
-                  priceModifier: option.price ?? 0, // Default to 0 if undefined
-                })),
-              }))
+            // Defensive: Filter out malformed addons without options
+            .filter((addonGroup) => {
+              if (!addonGroup.options || addonGroup.options.length === 0) {
+                console.warn(`[MenuPage] Malformed addon "${addonGroup.name}" for item "${apiItem.name}" - missing options array`);
+                return false;
+              }
+              return true;
+            })
+            .map((addonGroup, groupIdx) => ({
+              id: `addon-group-${groupIdx}`,
+              name: addonGroup.name,
+              type: addonGroup.maxOptions === 1 ? ("radio" as const) : ("checkbox" as const),
+              required: addonGroup.minOptions > 0,
+              minSelection: addonGroup.minOptions,
+              maxSelection: addonGroup.maxOptions,
+              choices: addonGroup.options.map((option, optIdx) => ({
+                id: `addon-${groupIdx}-${optIdx}`,
+                label: option.name,
+                priceModifier: option.price ?? 0, // Default to 0 if undefined
+              })),
+            }))
           : []),
       ],
     };

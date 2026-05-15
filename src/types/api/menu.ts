@@ -26,6 +26,7 @@ export interface Menu {
   sections?: MenuSection[]; // Sections for organizing items
   showName?: boolean; // Controls whether to display the menu name (defaults to false if not provided)
   visibility?: 'active' | 'inactive' | string; // Controls menu name visibility (active = show, inactive/undefined = hide)
+  order: number;
 }
 
 export interface MenuResponse {
@@ -84,7 +85,7 @@ export interface MenuItem {
   discountedPrice?: number;
   item_images?: Array<{ url: string; path: string }>;
   spiceLevels?: string[]; // Array of spice level options (e.g., ["None", "Mild", "Medium", "Hot", "Extra Hot"])
-  spiceLevelEnabled?: boolean; // Whether spice level selection is enabled for this item
+  spiceLevelEnabled?: boolean; // Whether spice level selection is enabled for this item  
 }
 
 export interface MenuSection {
