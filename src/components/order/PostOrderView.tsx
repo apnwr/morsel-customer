@@ -26,12 +26,12 @@ import type { SessionBill } from '@/types/api/bill';
 // Helper function to get dietary type from stored dietary data
 const getDietaryTypeFromStoredData = (storedDietary: { allergens?: string[]; dietary?: string[] } | undefined) => {
   if (!storedDietary) return null;
-  
+
   const allDietaryInfo = [
     ...(storedDietary.allergens || []),
     ...(storedDietary.dietary || [])
   ].map(d => d.toLowerCase());
-  
+
   if (allDietaryInfo.some(d => d === 'non-vegetarian' || d === 'non vegetarian' || d === 'nonvegetarian')) {
     return 'non-vegetarian';
   }
@@ -43,12 +43,11 @@ const getDietaryTypeFromStoredData = (storedDietary: { allergens?: string[]; die
 
 // Dietary Symbol Component
 const DietarySymbol = ({ dietaryType }: { dietaryType: 'vegetarian' | 'non-vegetarian' }) => (
-  <div 
-    className={`w-4 h-4 flex items-center justify-center rounded-[3px] border-[1.5px] bg-white shrink-0 ${
-      dietaryType === 'vegetarian' 
-        ? 'border-green-600' 
-        : 'border-red-600'
-    }`}
+  <div
+    className={`w-4 h-4 flex items-center justify-center rounded-[3px] border-[1.5px] bg-white shrink-0 ${dietaryType === 'vegetarian'
+      ? 'border-green-600'
+      : 'border-red-600'
+      }`}
     aria-label={dietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
     title={dietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
   >
@@ -223,6 +222,14 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
                         style={{ fontFamily: 'Lato, sans-serif' }}
                       >
                         {item.name}{item.quantity > 1 ? `, x${item.quantity}` : ''}
+                        {
+                          item?.guestName &&
+                          <span
+                            className="inline-block ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-semibold rounded-full"
+                            style={{ fontFamily: 'Lato, sans-serif' }}>
+                            {item?.guestName}
+                          </span>
+                        }
                       </h4>
                       <p
                         className="text-black text-[14px] leading-normal font-medium opacity-50"
@@ -384,11 +391,10 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
         <button
           onClick={isCurrentUserPaid ? undefined : handlePayNow}
           disabled={isCurrentUserPaid}
-          className={`w-full max-w-2xl h-[70px] box-content flex items-center justify-between px-[22px] transition-all disabled:cursor-not-allowed ${
-            isCurrentUserPaid
-              ? 'bg-green-600 text-white'
-              : 'bg-black text-white disabled:opacity-50'
-          }`}
+          className={`w-full max-w-2xl h-[70px] box-content flex items-center justify-between px-[22px] transition-all disabled:cursor-not-allowed ${isCurrentUserPaid
+            ? 'bg-green-600 text-white'
+            : 'bg-black text-white disabled:opacity-50'
+            }`}
           style={{
             paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
             fontFamily: 'Helvetica Neue, sans-serif',

@@ -2,6 +2,7 @@
  * Utility functions for MORSEL Customer App
  */
 import { formatPrice as libFormatPrice } from '@/lib/currencies';
+import { SessionParticipant } from '@/types/api/session';
 
 type ClassValue = string | number | boolean | undefined | null | ClassValue[];
 
@@ -101,4 +102,19 @@ export function calculatePercentage(value: number, percentage: number): number {
  */
 export function roundToTwo(num: number): number {
   return Math.round(num * 100) / 100;
+}
+
+/**
+ * Get participant name from session participants
+ */
+export function getParticipantName(participants: SessionParticipant[] | undefined, sessionUserId: string | undefined): string | null {
+  if (!sessionUserId || !participants) {
+    return null;
+  }
+
+  const participant = participants.find(
+    (p) => p.sessionUserId === sessionUserId
+  );
+
+  return participant ? participant.guestName : null;
 }
