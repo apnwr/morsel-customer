@@ -300,267 +300,264 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
             animate="visible"
             exit="exit"
           >
-        {/* Header with Total and Save Button */}
-        <div className="sticky top-0 bg-white p-6 pb-0 z-10">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <p className="text-2xl font-black">{formatPrice(effectiveTotal)}</p>
-            </div>
-            <Button
-              onClick={serverModeLocked && !serverIsItemized ? onClose : handleSave}
-              variant="primary"
-              size="md"
-              className="rounded-[40px] px-10"
-              disabled={isSaving}
-            >
-              {serverModeLocked && !serverIsItemized
-                ? 'Close'
-                : isSaving ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 space-y-6">
-          {/* Participants List - Horizontal Scroll (Cart Page Style) */}
-          <div className="border-[3px] border-[#ECECEC] rounded-[30px] bg-white p-5">
-            {/* Split Mode Info */}
-            <div className="mb-4">
-              <h3 className="font-bold text-xl leading-tight text-black">
-                {localMode === 'even' ? 'Split evenly' : localMode === 'custom' ? 'Custom split' : localMode === 'all' ? 'Pay for everyone' : localMode === 'items' ? 'Pay for items' : 'Pay for self'}
-              </h3>
-              <p className="text-[10px] leading-tight text-black opacity-40">
-                {localMode === 'even' ? 'The bill will be divided equally among all participants.' : localMode === 'custom' ? 'Each participant pays a custom amount.' : localMode === 'all' ? 'You will pay for everyone in this session.' : localMode === 'items' ? 'Each participant pays for what they ordered.' : 'You will only pay for your own items.'}
-              </p>
-            </div>
-
-            {/* Participants Row */}
-            <div className="flex items-start gap-5 overflow-x-auto pb-2 -mx-5 px-5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              {split.participants.length > 0 ? (
-                <>
-                  {[...split.participants].sort((a, b) => {
-                    // Sort to put current user first
-                    const aIsCurrent = a.id === currentSessionUserId;
-                    const bIsCurrent = b.id === currentSessionUserId;
-                    if (aIsCurrent && !bIsCurrent) return -1;
-                    if (!aIsCurrent && bIsCurrent) return 1;
-                    return 0;
-                  }).map((participant) => {
-                    const localAmount = localShares[participant.id] || '0.00';
-                    const amount = parseFloat(localAmount) || 0;
-                    const isYou = participant.id === currentSessionUserId;
-                    const displayName = isYou ? 'You' : participant.name;
-
-                    return (
-                      <div
-                        key={participant.id}
-                        className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0 relative"
-                      >
-                        {/* Remove Button - Only show for mock participants */}
-                        {participant.isMock && (
-                          <button
-                            onClick={() => removeParticipant(participant.id)}
-                            className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors z-10"
-                            aria-label={`Remove ${participant.name}`}
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        )}
-
-                        <Avatar
-                          name={participant.name}
-                          className="w-[50px] h-[50px]"
-                        />
-                        <span className="text-xs font-black text-center text-black leading-tight">
-                          {displayName}
-                        </span>
-
-                        {localMode === 'custom' ? (
-                          <div className="w-[80px]">
-                            <div className="relative">
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={`${currencySymbol} ${localAmount}`}
-                                onChange={(e) => {
-                                  // Strip the symbol-and-space prefix produced above.
-                                  // Robust against multi-char symbols ("Rs", "KSh") and
-                                  // symbols containing dots ("د.إ", "د.م.").
-                                  const val = e.target.value.replace(/^.*\s/, '');
-                                  handleShareChange(participant.id, val);
-                                }}
-                                onBlur={() => handleShareBlur(participant.id)}
-                                autoFocus={isYou}
-                                className="w-full px-1 py-1 text-lg font-black text-center text-black bg-transparent focus:outline-none focus:bg-gray-50 rounded-lg transition-colors"
-                                aria-label={`Amount for ${displayName}`}
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-lg font-black text-center text-black leading-tight">
-                            {formatPrice(amount)}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {/* Add Participant Button */}
-                  <button
-                    onClick={() => console.log('Add clicked')}
-                    className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0"
-                  >
-                    <div className="w-[50px] h-[50px] rounded-full bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
-                      <Plus className="w-6 h-6 text-gray-400" />
-                    </div>
-                    <span className="text-xs font-black text-center text-black leading-tight opacity-40">
-                      Add
-                    </span>
-                    <span className="text-lg font-black text-center text-transparent leading-tight select-none">
-                      {formatPrice(0)}
-                    </span>
-                  </button>
-                </>
-              ) : (
-                /* Empty state */
-                <div className="w-full text-center py-4">
-                  <p className="text-sm text-gray-500 mb-3">No participants yet</p>
-                  <button
-                    onClick={() => console.log('Add clicked')}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span className="text-sm font-medium">Add participant</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Real-time Validation for Custom Split */}
-          {localMode === 'custom' && split.participants.length > 0 && (
-            <div className={`p-4 rounded-xl border-2 ${
-              isValidSum
-                ? 'bg-green-50 border-green-200'
-                : 'bg-orange-50 border-orange-200'
-            }`}>
+            {/* Header with Total and Save Button */}
+            <div className="sticky top-0 bg-white p-6 pb-0 z-10">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">Current Total:</span>
-                <span className={`text-lg font-bold ${
-                  isValidSum ? 'text-green-600' : 'text-orange-600'
-                }`}>
-                  {formatPrice(currentSum)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">Required Total:</span>
-                <span className="text-lg font-bold text-gray-900">
-                  {formatPrice(effectiveTotal)}
-                </span>
-              </div>
-              {!isValidSum && (
-                <div className="flex items-center justify-between pt-2 border-t border-orange-300">
-                  <span className="text-sm font-medium text-orange-700">Difference:</span>
-                  <span className="text-lg font-bold text-orange-600">
-                    {formatPrice(Math.abs(difference))} {difference > 0 ? 'short' : 'over'}
-                  </span>
+                <div>
+                  <p className="text-2xl font-black">{formatPrice(effectiveTotal)}</p>
                 </div>
-              )}
-              <p className={`text-xs mt-2 ${
-                isValidSum ? 'text-green-600' : 'text-orange-600'
-              }`}>
-                {isValidSum
-                  ? '✓ Split is valid'
-                  : '⚠ Adjust amounts to match the total'}
-              </p>
+                <Button
+                  onClick={serverModeLocked && !serverIsItemized ? onClose : handleSave}
+                  variant="primary"
+                  size="md"
+                  className="rounded-[40px] px-10"
+                  disabled={isSaving || difference !== 0}
+                >
+                  {serverModeLocked && !serverIsItemized
+                    ? 'Close'
+                    : isSaving ? 'Saving…' : 'Save'}
+                </Button>
+              </div>
             </div>
-          )}
 
-          {/* Payment Mode Options */}
-          <div>
-            {serverModeLocked ? (
-              <div className="space-y-2">
-                <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-[12px] text-gray-700">
-                  {anyonePaid ? (
-                    <>A payment has started — the split can no longer be changed.</>
-                  ) : (
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Participants List - Horizontal Scroll (Cart Page Style) */}
+              <div className="border-[3px] border-[#ECECEC] rounded-[30px] bg-white p-5">
+                {/* Split Mode Info */}
+                <div className="mb-4">
+                  <h3 className="font-bold text-xl leading-tight text-black">
+                    {localMode === 'even' ? 'Split evenly' : localMode === 'custom' ? 'Custom split' : localMode === 'all' ? 'Pay for everyone' : localMode === 'items' ? 'Pay for items' : 'Pay for self'}
+                  </h3>
+                  <p className="text-[10px] leading-tight text-black opacity-40">
+                    {localMode === 'even' ? 'The bill will be divided equally among all participants.' : localMode === 'custom' ? 'Each participant pays a custom amount.' : localMode === 'all' ? 'You will pay for everyone in this session.' : localMode === 'items' ? 'Each participant pays for what they ordered.' : 'You will only pay for your own items.'}
+                  </p>
+                </div>
+
+                {/* Participants Row */}
+                <div className="flex items-start gap-5 overflow-x-auto pb-2 -mx-5 px-5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  {split.participants.length > 0 ? (
                     <>
-                      Your tablemate set the split to
-                      <span className="font-semibold"> {localMode === 'items' ? 'Pay for items' : localMode === 'even' ? 'Split evenly' : localMode === 'custom' ? 'Custom split' : localMode === 'all' ? 'Pay for everyone' : 'Pay for self'}</span>.
-                      {serverIsItemized ? ' You can claim any remaining items.' : ' Your share is shown above.'}
+                      {[...split.participants].sort((a, b) => {
+                        // Sort to put current user first
+                        const aIsCurrent = a.id === currentSessionUserId;
+                        const bIsCurrent = b.id === currentSessionUserId;
+                        if (aIsCurrent && !bIsCurrent) return -1;
+                        if (!aIsCurrent && bIsCurrent) return 1;
+                        return 0;
+                      }).map((participant) => {
+                        const localAmount = localShares[participant.id] || '0.00';
+                        const amount = parseFloat(localAmount) || 0;
+                        const isYou = participant.id === currentSessionUserId;
+                        const displayName = isYou ? 'You' : participant.name;
+
+                        return (
+                          <div
+                            key={participant.id}
+                            className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0 relative"
+                          >
+                            {/* Remove Button - Only show for mock participants */}
+                            {participant.isMock && (
+                              <button
+                                onClick={() => removeParticipant(participant.id)}
+                                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors z-10"
+                                aria-label={`Remove ${participant.name}`}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+
+                            <Avatar
+                              name={participant.name}
+                              className="w-[50px] h-[50px]"
+                            />
+                            <span className="text-xs font-black text-center text-black leading-tight">
+                              {displayName}
+                            </span>
+
+                            {localMode === 'custom' ? (
+                              <div className="w-[80px]">
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={`${currencySymbol} ${localAmount}`}
+                                    onChange={(e) => {
+                                      // Strip the symbol-and-space prefix produced above.
+                                      // Robust against multi-char symbols ("Rs", "KSh") and
+                                      // symbols containing dots ("د.إ", "د.م.").
+                                      const val = e.target.value.replace(/^.*\s/, '');
+                                      handleShareChange(participant.id, val);
+                                    }}
+                                    onBlur={() => handleShareBlur(participant.id)}
+                                    autoFocus={isYou}
+                                    className="w-full px-1 py-1 text-lg font-black text-center text-black bg-transparent focus:outline-none focus:bg-gray-50 rounded-lg transition-colors"
+                                    aria-label={`Amount for ${displayName}`}
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-lg font-black text-center text-black leading-tight">
+                                {formatPrice(amount)}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Add Participant Button */}
+                      <button
+                        onClick={() => console.log('Add clicked')}
+                        className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0"
+                      >
+                        <div className="w-[50px] h-[50px] rounded-full bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
+                          <Plus className="w-6 h-6 text-gray-400" />
+                        </div>
+                        <span className="text-xs font-black text-center text-black leading-tight opacity-40">
+                          Add
+                        </span>
+                        <span className="text-lg font-black text-center text-transparent leading-tight select-none">
+                          {formatPrice(0)}
+                        </span>
+                      </button>
                     </>
+                  ) : (
+                    /* Empty state */
+                    <div className="w-full text-center py-4">
+                      <p className="text-sm text-gray-500 mb-3">No participants yet</p>
+                      <button
+                        onClick={() => console.log('Add clicked')}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span className="text-sm font-medium">Add participant</span>
+                      </button>
+                    </div>
                   )}
                 </div>
-                {serverIsItemized && (
-                  <button
-                    onClick={() => setShowItemizedPicker(true)}
-                    className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
-                  >
-                    <span className="font-medium">Pick items to pay for</span>
-                  </button>
+              </div>
+
+              {/* Real-time Validation for Custom Split */}
+              {localMode === 'custom' && split.participants.length > 0 && (
+                <div className={`p-4 rounded-xl border-2 ${isValidSum
+                  ? 'bg-green-50 border-green-200'
+                  : 'bg-orange-50 border-orange-200'
+                  }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Current Total:</span>
+                    <span className={`text-lg font-bold ${isValidSum ? 'text-green-600' : 'text-orange-600'
+                      }`}>
+                      {formatPrice(currentSum)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Required Total:</span>
+                    <span className="text-lg font-bold text-gray-900">
+                      {formatPrice(effectiveTotal)}
+                    </span>
+                  </div>
+                  {!isValidSum && (
+                    <div className="flex items-center justify-between pt-2 border-t border-orange-300">
+                      <span className="text-sm font-medium text-orange-700">Difference:</span>
+                      <span className="text-lg font-bold text-orange-600">
+                        {formatPrice(Math.abs(difference))} {difference > 0 ? 'short' : 'over'}
+                      </span>
+                    </div>
+                  )}
+                  <p className={`text-xs mt-2 ${isValidSum ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                    {isValidSum
+                      ? '✓ Split is valid'
+                      : '⚠ Adjust amounts to match the total'}
+                  </p>
+                </div>
+              )}
+
+              {/* Payment Mode Options */}
+              <div>
+                {serverModeLocked ? (
+                  <div className="space-y-2">
+                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-[12px] text-gray-700">
+                      {anyonePaid ? (
+                        <>A payment has started — the split can no longer be changed.</>
+                      ) : (
+                        <>
+                          Your tablemate set the split to
+                          <span className="font-semibold"> {localMode === 'items' ? 'Pay for items' : localMode === 'even' ? 'Split evenly' : localMode === 'custom' ? 'Custom split' : localMode === 'all' ? 'Pay for everyone' : 'Pay for self'}</span>.
+                          {serverIsItemized ? ' You can claim any remaining items.' : ' Your share is shown above.'}
+                        </>
+                      )}
+                    </div>
+                    {serverIsItemized && (
+                      <button
+                        onClick={() => setShowItemizedPicker(true)}
+                        className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                      >
+                        <span className="font-medium">Pick items to pay for</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {localMode !== 'all' && (
+                      <button
+                        onClick={() => handleModeChange('all')}
+                        className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                      >
+                        <span className="font-medium">Pay for everyone</span>
+                      </button>
+                    )}
+
+                    {localMode !== 'even' && (
+                      <button
+                        onClick={() => handleModeChange('even')}
+                        className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                      >
+                        <span className="font-medium">Split evenly</span>
+                      </button>
+                    )}
+
+                    {localMode !== 'custom' && (
+                      <button
+                        onClick={() => handleModeChange('custom')}
+                        className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                      >
+                        <span className="font-medium">Custom split</span>
+                      </button>
+                    )}
+
+                    {localMode !== 'self' && (
+                      <button
+                        onClick={() => handleModeChange('self')}
+                        className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                      >
+                        <span className="font-medium">Pay for self</span>
+                      </button>
+                    )}
+
+                    {localMode !== 'items' && (
+                      <button
+                        onClick={() => {
+                          handleModeChange('items');
+                          setShowItemizedPicker(true);
+                        }}
+                        className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
+                      >
+                        <span className="font-medium">Pay for items</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-            ) : (
-              <div className="space-y-2">
-                {localMode !== 'all' && (
-                  <button
-                    onClick={() => handleModeChange('all')}
-                    className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
-                  >
-                    <span className="font-medium">Pay for everyone</span>
-                  </button>
-                )}
 
-                {localMode !== 'even' && (
-                  <button
-                    onClick={() => handleModeChange('even')}
-                    className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
-                  >
-                    <span className="font-medium">Split evenly</span>
-                  </button>
-                )}
-
-                {localMode !== 'custom' && (
-                  <button
-                    onClick={() => handleModeChange('custom')}
-                    className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
-                  >
-                    <span className="font-medium">Custom split</span>
-                  </button>
-                )}
-
-                {localMode !== 'self' && (
-                  <button
-                    onClick={() => handleModeChange('self')}
-                    className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
-                  >
-                    <span className="font-medium">Pay for self</span>
-                  </button>
-                )}
-
-                {localMode !== 'items' && (
-                  <button
-                    onClick={() => {
-                      handleModeChange('items');
-                      setShowItemizedPicker(true);
-                    }}
-                    className="w-full flex items-center justify-between p-4 rounded-xl transition-colors bg-gray-50 hover:bg-gray-100"
-                  >
-                    <span className="font-medium">Pay for items</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Validation Error */}
-          {validationError && (
-            <div className="flex items-start gap-2 p-4 bg-red-50 border border-red-200 rounded-xl">
-              <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-red-800">{validationError}</p>
+              {/* Validation Error */}
+              {validationError && (
+                <div className="flex items-start gap-2 p-4 bg-red-50 border border-red-200 rounded-xl">
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-800">{validationError}</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
           </motion.div>
         </div>
       )}
