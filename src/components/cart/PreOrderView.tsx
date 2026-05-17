@@ -173,7 +173,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
               xmlns="http://www.w3.org/2000/svg"
               className={`transition-transform ${isBillExpanded ? 'rotate-180' : ''}`}
             >
-              <path d="M1 1.5L6 6.5L11 1.5" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M1 1.5L6 6.5L11 1.5" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
           {isBillExpanded && (
@@ -361,7 +361,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
         <button
           onClick={onPlaceOrder}
           disabled={isPlacingOrder || myItems.length === 0}
-          className="w-full max-w-2xl h-[70px] box-content bg-black text-white flex items-center justify-between px-[22px] transition-colors disabled:bg-gray-500 disabled:opacity-100 disabled:cursor-not-allowed"
+          className="w-full max-w-2xl h-[70px] box-content bg-brand text-white flex items-center justify-between px-[22px] transition-colors disabled:bg-gray-500 disabled:opacity-100 disabled:cursor-not-allowed"
           style={{
             paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
             fontFamily: 'Helvetica Neue, sans-serif',

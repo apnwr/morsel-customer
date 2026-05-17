@@ -372,7 +372,7 @@ export function PaymentResultView({
           <button
             onClick={handleGetReceipt}
             disabled={isReceiptLoading}
-            className="w-full max-w-2xl h-[70px] box-content bg-black text-white flex items-center justify-between px-[22px] transition-all disabled:opacity-70"
+            className="w-full max-w-2xl h-[70px] box-content bg-brand text-white flex items-center justify-between px-[22px] transition-all disabled:opacity-70"
             style={{
               paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
               fontFamily: 'Helvetica Neue, sans-serif',
@@ -382,11 +382,11 @@ export function PaymentResultView({
             }}
           >
             <span className="flex-shrink-0">{isReceiptLoading ? 'Loading...' : 'Get Receipt'}</span>
-            <div className="w-[30px] h-[30px] rounded-[4px] border-2 border-[#4B4B4B] flex items-center justify-center">
+            <div className="w-[30px] h-[30px] rounded-[4px] flex items-center justify-center">
               {isReceiptLoading ? (
                 <Loader2 className="w-[14px] h-[14px] text-white animate-spin" />
               ) : (
-                <Download className="w-[14px] h-[14px] text-white" />
+                <Download className="w-[30px] h-[30px] text-white" />
               )}
             </div>
           </button>

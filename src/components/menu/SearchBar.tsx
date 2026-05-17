@@ -94,7 +94,7 @@ function SearchBarComponent({
       {showConfirmOrder && onConfirmOrder && (
         <button
           onClick={onConfirmOrder}
-          className="h-[70px] box-content flex items-center justify-between px-[22px] bg-black text-white border-t border-[#F1F1F1] hover:bg-gray-900 active:opacity-95 transition-all shrink-0"
+          className="h-[70px] box-content flex items-center justify-between px-[22px] bg-brand text-white border-t border-[#F1F1F1] hover:opacity-90 active:opacity-95 transition-all shrink-0"
           style={{ paddingBottom: safeAreaPadding }}
           aria-label={
             cartItemCount > 0
@@ -107,7 +107,8 @@ function SearchBarComponent({
             className="text-[18px] font-medium"
             style={{ fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif', lineHeight: 1.22 }}
           >
-            Confirm order
+            {/* Confirm order */}
+            View Cart
           </span>
           <span className="flex items-center gap-[10px] shrink-0">
             {cartItemCount > 0 && (

@@ -23,6 +23,8 @@ function PaymentPageContent() {
   const { formatPrice } = useLocale();
 
   const sessionId = sessionData?.session?.id;
+  const participants = sessionData?.session?.participants;
+  console.log("participants", participants)
   const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID) || undefined;
 
   const amount = useMemo(() => {
@@ -47,11 +49,21 @@ function PaymentPageContent() {
     return splitPaymentStatus.find((s) => s.sessionUserId === currentSessionUserId) ?? null;
   }, [splitPaymentStatus, currentSessionUserId]);
 
+  const participantsIndex = useMemo(() => {
+    if (!participants || !currentSessionUserId) return undefined;
+    return participants.findIndex((p) => p.sessionUserId === currentSessionUserId);
+  }, [participants, currentSessionUserId]);
+
+  const currentUserSplitId = useMemo(() => {
+    if (!splitPaymentStatus || participantsIndex === null) return undefined;
+    return splitPaymentStatus.find((s) => s.index === participantsIndex)?.splitId || undefined;
+  }, [splitPaymentStatus, participantsIndex]);
+
   const splitIdentifier = useMemo(() => {
     if (!myServerSplit) return undefined;
     return String(myServerSplit.index);
   }, [myServerSplit]);
-
+  console.log("splitPaymentStatus", splitPaymentStatus, currentSessionUserId)
   const splitId = myServerSplit?.splitId;
 
   // Refresh once on mount so we have the freshest splitPaymentStatus before creating
@@ -159,8 +171,8 @@ function PaymentPageContent() {
       onBack={handleBack}
       sessionId={sessionId}
       sessionUserId={currentSessionUserId}
-      splitIdentifier={splitIdentifier}
-      splitId={splitId}
+      splitIdentifier={String(participantsIndex)}
+      splitId={currentUserSplitId}
       amount={amount}
     />
   );

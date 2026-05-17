@@ -310,7 +310,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
                   onClick={serverModeLocked && !serverIsItemized ? onClose : handleSave}
                   variant="primary"
                   size="md"
-                  className="rounded-[40px] px-10"
+                  className="rounded-[40px] px-10 bg-brand"
                   disabled={isSaving || difference !== 0}
                 >
                   {serverModeLocked && !serverIsItemized
