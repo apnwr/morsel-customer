@@ -8,6 +8,7 @@ export interface CreateEmbeddedCheckoutRequest {
   sessionId: string;
   sessionUserId?: string;
   splitIdentifier?: string;
+  splitId?: string;
 }
 
 export interface CreateEmbeddedCheckoutResponse {

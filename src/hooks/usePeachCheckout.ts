@@ -153,7 +153,7 @@ export function usePeachCheckout({
           showCancelButton: true,
           showAmountField: true,
           theme: {
-            brand: { primary: '#000000' },
+            brand: { primary: '#ff2f55' },
           },
           card: {
             submitButtonText: 'Pay Now',
@@ -175,12 +175,12 @@ export function usePeachCheckout({
     setStatus('creating');
 
     try {
-      // Fire API call and SDK load in parallel
+      // Fire API call and SDK load in parallel      
       const [checkoutResponse] = await Promise.all([
         paymentService.createEmbeddedCheckout({
           sessionId,
           sessionUserId,
-          splitIdentifier,
+          splitIdentifier: splitId,
         }),
         loadSDK(),
       ]);
@@ -209,7 +209,7 @@ export function usePeachCheckout({
       const message = err instanceof Error ? err.message : 'Failed to create checkout';
       setStatus('error', message);
     }
-  }, [sessionId, sessionUserId, splitIdentifier, setStatus, renderWidget]);
+  }, [sessionId, sessionUserId, splitId, setStatus, renderWidget]);
 
   const retry = useCallback(async () => {
     unmountWidget();
