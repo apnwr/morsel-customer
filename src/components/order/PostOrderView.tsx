@@ -390,10 +390,10 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
       >
         <button
           onClick={isCurrentUserPaid ? undefined : handlePayNow}
-          disabled={isCurrentUserPaid}
-          className={`w-full max-w-2xl h-[70px] box-content flex items-center justify-between px-[22px] transition-all disabled:cursor-not-allowed ${isCurrentUserPaid
+          disabled={isCurrentUserPaid || totalWithTip <= 0}
+          className={`w-full max-w-2xl h-[70px] box-content flex items-center justify-between px-[22px] transition-all disabled:cursor-not-allowed hover:animate-bounce ${isCurrentUserPaid
             ? 'bg-green-600 text-white'
-            : 'bg-brand text-white disabled:opacity-50'
+            : 'bg-brand text-white disabled:opacity-85'
             }`}
           style={{
             paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
