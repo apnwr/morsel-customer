@@ -24,7 +24,7 @@ function PaymentPageContent() {
 
   const sessionId = sessionData?.session?.id;
   const participants = sessionData?.session?.participants;
-  console.log("participants", participants)
+
   const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID) || undefined;
 
   const amount = useMemo(() => {
@@ -59,12 +59,12 @@ function PaymentPageContent() {
     return splitPaymentStatus.find((s) => s.index === participantsIndex)?.splitId || undefined;
   }, [splitPaymentStatus, participantsIndex]);
 
-  const splitIdentifier = useMemo(() => {
-    if (!myServerSplit) return undefined;
-    return String(myServerSplit.index);
-  }, [myServerSplit]);
-  console.log("splitPaymentStatus", splitPaymentStatus, currentSessionUserId)
-  const splitId = myServerSplit?.splitId;
+  // const splitIdentifier = useMemo(() => {
+  //   if (!myServerSplit) return undefined;
+  //   return String(myServerSplit.index);
+  // }, [myServerSplit]);
+  // console.log("splitPaymentStatus", splitPaymentStatus, currentSessionUserId)
+  // const splitId = myServerSplit?.splitId;
 
   // Refresh once on mount so we have the freshest splitPaymentStatus before creating
   // checkout. Wait for the refresh to resolve before flipping hasRefreshed — otherwise
@@ -150,7 +150,7 @@ function PaymentPageContent() {
         </p>
         <button
           onClick={handleAcceptNewAmount}
-          className="mt-2 h-12 px-10 min-w-[240px] bg-black text-white rounded-xl font-bold text-base active:scale-95 transition-transform"
+          className="mt-2 h-12 px-10 min-w-[240px] bg-brand text-white rounded-xl font-bold text-base active:scale-95 transition-transform"
           style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
         >
           Continue with {formatPrice(newTotal)}
@@ -171,7 +171,7 @@ function PaymentPageContent() {
       onBack={handleBack}
       sessionId={sessionId}
       sessionUserId={currentSessionUserId}
-      splitIdentifier={String(participantsIndex)}
+      // splitIdentifier={String(participantsIndex)}
       splitId={currentUserSplitId}
       amount={amount}
     />

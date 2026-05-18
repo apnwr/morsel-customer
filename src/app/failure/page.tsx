@@ -46,7 +46,7 @@ export default function FailurePage() {
         <div className="flex flex-col items-center gap-3 w-full max-w-xs mt-4">
           <button
             onClick={() => router.push('/')}
-            className="w-full py-3 bg-black text-white text-sm font-bold rounded-[30px]"
+            className="w-full py-3 bg-brand text-white text-sm font-bold rounded-[30px]"
             style={{ fontFamily: 'Lato, sans-serif' }}
           >
             Try Again

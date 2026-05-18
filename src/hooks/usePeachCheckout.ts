@@ -43,7 +43,6 @@ const INITIAL_STATE: PeachCheckoutState = {
 export function usePeachCheckout({
   sessionId,
   sessionUserId,
-  splitIdentifier,
   splitId,
   onSuccess,
   onFailure,

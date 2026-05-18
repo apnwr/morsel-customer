@@ -30,7 +30,7 @@ function CartPageContent() {
   }
 
   const hasPlacedOrders = allOrderIds.length > 0;
-  const showEmptyState = cartItemsCount === 0;
+  const showEmptyState = cartItemsCount === 0 && !isConfirming;
 
   return (
     <div className="min-h-screen bg-[#F7F8F8] overflow-x-hidden">
@@ -46,7 +46,7 @@ function CartPageContent() {
         <button
           type="button"
           onClick={() => router.push('/orders')}
-          className="w-full h-[44px] flex items-center justify-center bg-black text-white text-sm font-bold"
+          className="w-full h-[44px] flex items-center justify-center bg-brand text-white text-sm font-bold"
           style={{ fontFamily: 'Lato, sans-serif', lineHeight: 1 }}
         >
           View Ordered Items &rarr;

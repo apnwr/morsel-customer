@@ -135,11 +135,13 @@ export function useCartPageState(): CartPageState {
       router.push(`/orders?orderId=${orderId}`);
 
       // Clear cart and ephemeral order state after navigation is initiated
-      clearCart();
-      setInStorage(STORAGE_KEYS.KITCHEN_NOTE, '');
-      setInStorage(STORAGE_KEYS.TIP, { percentage: 10, amount: 0 });
-
-      setIsConfirming(false);
+      // Delay clearing to prevent the empty cart screen flashing before navigation completes
+      setTimeout(() => {
+        clearCart();
+        setInStorage(STORAGE_KEYS.KITCHEN_NOTE, '');
+        setInStorage(STORAGE_KEYS.TIP, { percentage: 10, amount: 0 });
+        setIsConfirming(false);
+      }, 1000);
     } catch (error) {
       console.error('[useCartPageState] Order error:', error);
       alert(error instanceof Error ? error.message : 'Failed to place order. Please try again.');

@@ -30,7 +30,7 @@ export default function MenuError({
       </p>
       <button
         onClick={reset}
-        className="px-6 py-3 bg-black text-white font-bold rounded-full text-sm"
+        className="px-6 py-3 bg-brand text-white font-bold rounded-full text-sm"
         style={{ fontFamily: 'Lato, sans-serif' }}
       >
         Try Again

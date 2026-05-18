@@ -9,7 +9,7 @@
 
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { useLocale } from '@/contexts/LocaleContext';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
@@ -42,8 +42,16 @@ interface PreOrderViewProps {
 export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps) {
   const router = useRouter();
   const { formatPrice } = useLocale();
-  const { cart, updateQuantity, removeItem, addItem } = useCart();
+  const { cart: liveCart, updateQuantity, removeItem, addItem } = useCart();
   const { sessionData } = useSession();
+
+  // Freeze the cart state while placing an order to prevent the UI from
+  // flashing empty if the cart is cleared before navigation completes.
+  const lastKnownCartRef = useRef(liveCart);
+  if (!isPlacingOrder) {
+    lastKnownCartRef.current = liveCart;
+  }
+  const cart = isPlacingOrder ? lastKnownCartRef.current : liveCart;
 
   const [kitchenNote, setKitchenNote] = useState(() => getFromStorage<string>(KITCHEN_NOTE_KEY) || '');
   const [showNoteInput, setShowNoteInput] = useState(false);
