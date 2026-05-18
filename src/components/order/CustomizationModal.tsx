@@ -154,7 +154,7 @@ export function CustomizationModal({
       ...(item.allergens || []),
       ...(item.dietary || [])
     ].map(d => d.toLowerCase());
-    
+
     if (allDietaryInfo.some(d => d === 'non-vegetarian' || d === 'non vegetarian' || d === 'nonvegetarian')) {
       return 'non-vegetarian';
     }
@@ -373,12 +373,11 @@ export function CustomizationModal({
             <div className="flex-1 min-w-0">
               {/* Vegetarian/Non-Vegetarian Symbol */}
               {getDietaryType && (
-                <div 
-                  className={`w-4 h-4 flex items-center justify-center rounded-[3px] border-[1.5px] bg-white mb-1 ${
-                    getDietaryType === 'vegetarian' 
-                      ? 'border-green-600' 
-                      : 'border-red-600'
-                  }`}
+                <div
+                  className={`w-4 h-4 flex items-center justify-center rounded-[3px] border-[1.5px] bg-white mb-1 ${getDietaryType === 'vegetarian'
+                    ? 'border-green-600'
+                    : 'border-red-600'
+                    }`}
                   aria-label={getDietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
                   title={getDietaryType === 'vegetarian' ? 'Vegetarian' : 'Non-vegetarian'}
                 >
@@ -417,27 +416,27 @@ export function CustomizationModal({
           {/* Allergens and Dietary Info */}
           {((item.allergens && item.allergens.length > 0) ||
             (item.dietary && item.dietary.length > 0)) && (
-            <div className="flex flex-wrap gap-1.5">
-              {item.allergens &&
-                item.allergens.map((allergen) => (
-                  <span
-                    key={`allergen-${allergen}`}
-                    className="px-2 py-1 bg-red-50 text-red-700 rounded-full text-[10px] font-medium leading-none"
-                  >
-                    ⚠️ {allergen}
-                  </span>
-                ))}
-              {item.dietary &&
-                item.dietary.map((diet) => (
-                  <span
-                    key={`dietary-${diet}`}
-                    className="px-2 py-1 bg-green-50 text-green-700 rounded-full text-[10px] font-medium capitalize leading-none"
-                  >
-                    ✓ {diet}
-                  </span>
-                ))}
-            </div>
-          )}
+              <div className="flex flex-wrap gap-1.5">
+                {item.allergens &&
+                  item.allergens.map((allergen) => (
+                    <span
+                      key={`allergen-${allergen}`}
+                      className="px-2 py-1 bg-red-50 text-red-700 rounded-full text-[10px] font-medium leading-none"
+                    >
+                      ⚠️ {allergen}
+                    </span>
+                  ))}
+                {item.dietary &&
+                  item.dietary.map((diet) => (
+                    <span
+                      key={`dietary-${diet}`}
+                      className="px-2 py-1 bg-green-50 text-green-700 rounded-full text-[10px] font-medium capitalize leading-none"
+                    >
+                      ✓ {diet}
+                    </span>
+                  ))}
+              </div>
+            )}
         </div>
 
         {/* Scrollable Content */}
@@ -449,7 +448,7 @@ export function CustomizationModal({
                 // Get current selection count for checkbox options
                 const currentSelectionCount =
                   option.type === "checkbox" &&
-                  Array.isArray(selectedChoices[option.id])
+                    Array.isArray(selectedChoices[option.id])
                     ? (selectedChoices[option.id] as string[]).length
                     : 0;
 
@@ -478,15 +477,15 @@ export function CustomizationModal({
                         <h3 className="font-bold text-lg">
                           {option.name}
                           {option.type === "checkbox" &&
-                          option.maxSelection &&
-                          option.maxSelection > 1 &&
-                          currentSelectionCount > 0 ? (
+                            option.maxSelection &&
+                            option.maxSelection > 1 &&
+                            currentSelectionCount > 0 ? (
                             <span className="text-gray-500 font-normal ml-1">
                               ({currentSelectionCount}/{option.maxSelection})
                             </span>
                           ) : null}
                           {option.required ||
-                          (option.minSelection && option.minSelection > 0) ? (
+                            (option.minSelection && option.minSelection > 0) ? (
                             <span className="text-red-500 ml-1">*</span>
                           ) : null}
                         </h3>
@@ -517,9 +516,9 @@ export function CustomizationModal({
                                 option.type === "radio"
                                   ? selectedChoices[option.id] === choice.id
                                   : Array.isArray(selectedChoices[option.id]) &&
-                                    (
-                                      selectedChoices[option.id] as string[]
-                                    ).includes(choice.id);
+                                  (
+                                    selectedChoices[option.id] as string[]
+                                  ).includes(choice.id);
 
                               // Check if this is a variant option (show flat price) or add-on (show +price)
                               const isVariant = isVariantOption(option.id);
@@ -535,11 +534,10 @@ export function CustomizationModal({
                                       option.maxSelection
                                     )
                                   }
-                                  className={`w-full flex items-center justify-between p-4 rounded-[12px] transition-all ${
-                                    isSelected
-                                      ? "bg-black text-white"
-                                      : "bg-white"
-                                  }`}
+                                  className={`w-full flex items-center justify-between p-4 rounded-[12px] transition-all ${isSelected
+                                    ? "bg-black text-white"
+                                    : "bg-white"
+                                    }`}
                                 >
                                   <span className="font-medium text-sm">
                                     {choice.label}
@@ -621,11 +619,10 @@ export function CustomizationModal({
                             <button
                               key={level}
                               onClick={() => setSelectedSpiceLevel(level)}
-                              className={`w-full flex items-center justify-between p-4 rounded-[12px] transition-all ${
-                                isSelected
-                                  ? "bg-black text-white"
-                                  : "bg-white"
-                              }`}
+                              className={`w-full flex items-center justify-between p-4 rounded-[12px] transition-all ${isSelected
+                                ? "bg-black text-white"
+                                : "bg-white"
+                                }`}
                             >
                               <span className="font-medium text-sm flex items-center gap-2">
                                 {level === "None" && "😊"}
@@ -683,7 +680,7 @@ export function CustomizationModal({
             <button
               onClick={handleContinue}
               disabled={!canContinue}
-              className="flex-1 py-4 bg-black text-white rounded-[12px] font-bold text-lg hover:bg-gray-900 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 py-4 bg-brand text-white rounded-[12px] font-bold text-lg hover:bg-gray-900 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Add Item - {formatPrice(totalPrice)}
             </button>

@@ -466,7 +466,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       stopInterval();
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionData?.session?.id, sessionData?.space?.id]);
 
   const value: SessionState = useMemo(() => ({

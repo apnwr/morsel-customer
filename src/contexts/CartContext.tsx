@@ -400,7 +400,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       cartSyncRollbackRef.current = null;
       // Fire the sync; do not await. catch() prevents unhandled rejection
       // warnings if the page is unloading.
-      syncFnRef.current(cartRef.current.items).catch(() => {});
+      syncFnRef.current(cartRef.current.items).catch(() => { });
     };
     window.addEventListener('pagehide', flush);
     return () => {
@@ -518,6 +518,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     function setupPolling() {
       console.log('[CartContext] 🔧 setupPolling called - initiating polling fallback');
 
+      // Clear any existing interval to prevent multiple intervals running concurrently
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
+      }
+
       // Initial sync
       syncCartFromQueue();
 
@@ -554,10 +560,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // IMPORTANT: Only merge with user's own items, not other participants' items
     const existingItemIndex = cart.items.findIndex(
       item => item.menuItem.id === menuItem.id &&
-              item.customizations.length === 0 &&
-              customizations.length === 0 &&
-              item.spiceLevel === spiceLevel && // Same spice level
-              (!item.sessionUserId || item.sessionUserId === currentSessionUserId) // Same user
+        item.customizations.length === 0 &&
+        customizations.length === 0 &&
+        item.spiceLevel === spiceLevel && // Same spice level
+        (!item.sessionUserId || item.sessionUserId === currentSessionUserId) // Same user
     );
 
     let newItems: CartItem[];
@@ -972,7 +978,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const itemParticipantMap: Record<string, string> = {};
       const itemImagesMap: Record<string, string> = {};
       const itemDietaryMap: Record<string, { allergens?: string[]; dietary?: string[] }> = {};
-      
+
       cart.items.forEach(cartItem => {
         if (cartItem.sessionUserId) {
           itemParticipantMap[cartItem.menuItem.id] = cartItem.sessionUserId;

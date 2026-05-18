@@ -29,28 +29,28 @@ export const Button: React.FC<ButtonProps> = ({
 }) => {
   // Base styles
   const baseStyles = 'font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2';
-  
+
   // Variant styles
   const variantStyles = {
-    primary: 'bg-black text-white hover:bg-gray-900',
+    primary: 'bg-brand text-white hover:bg-gray-900',
     secondary: 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50',
     pill: 'rounded-full',
     icon: 'border border-gray-200 hover:bg-gray-50',
   };
-  
+
   // Size styles - ensuring minimum 44x44px touch targets
   const sizeStyles = {
     sm: variant === 'icon' ? 'w-11 h-11' : 'px-4 py-2 text-sm min-h-[44px]',
     md: variant === 'icon' ? 'w-11 h-11' : 'px-6 py-3 text-base min-h-[44px]',
     lg: variant === 'icon' ? 'w-12 h-12' : 'px-8 py-4 text-lg min-h-[48px]',
   };
-  
+
   // Border radius (except for pill and icon which have their own)
   const borderRadius = variant === 'pill' ? 'rounded-full' : variant === 'icon' ? 'rounded-lg' : 'rounded-xl';
-  
+
   // Width
   const widthStyle = fullWidth ? 'w-full' : '';
-  
+
   const combinedClassName = `
     ${baseStyles}
     ${variantStyles[variant]}
@@ -59,7 +59,7 @@ export const Button: React.FC<ButtonProps> = ({
     ${widthStyle}
     ${className}
   `.trim().replace(/\s+/g, ' ');
-  
+
   return (
     <motion.button
       className={combinedClassName}
