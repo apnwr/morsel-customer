@@ -11,6 +11,8 @@ import { useSession } from '@/contexts/SessionContext';
 import { Badge } from '@/components/ui/Badge';
 import { OrderTabs, TabInfo } from '@/components/session/OrderTabs';
 import Image from 'next/image';
+import TotalBillCard from './RunningBill';
+import { useOrdersPageState } from '@/hooks/useOrdersPageState';
 
 const SNACKBAR_DURATION_MS = 2000;
 
@@ -44,6 +46,9 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
   >(null);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { order } = useOrder();
+  const {
+    bill,
+  } = useOrdersPageState();
   const { sessionData } = useSession();
   const [remainingMinutes, setRemainingMinutes] = useState(0);
 
@@ -214,8 +219,26 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
               )}
             </div>
 
+            {isCartPage || isOrdersPage ? (
+              <button
+                onClick={onRightIconClick}
+                className="shrink-0 px-5 h-[44px] flex items-center justify-center rounded-full bg-brand text-white text-[14px] font-bold"
+                style={{ fontFamily: 'Lato, sans-serif' }}
+                aria-label="Menu"
+              >
+                Menu
+              </button>
+            ) : (
+              bill && bill?.subtotal > 0 && (
+                <TotalBillCard
+                  amount={bill ? bill.subtotal : 0}
+                  onClick={() => router.push('/orders')} />
+              )
+
+            )
+            }
             {/* Center element: centerLabel when provided, "Cart" on cart/orders page, cart pill elsewhere */}
-            {centerLabel ? (
+            {/* {centerLabel ? (
               <div className="shrink-0 h-[59px] flex items-center justify-center">
                 <p
                   className="text-[24px] font-bold text-black"
@@ -298,12 +321,11 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
                   </button>
                 </div>
               )
-            )}
+            )} */}
 
             {/* Right side */}
-            <div className="flex items-center gap-2 shrink-0">
-              {isCartPage || isOrdersPage ? (
-                /* "Menu" text button on cart/orders pages */
+            {/* <div className="flex items-center gap-2 shrink-0">
+              {isCartPage || isOrdersPage ? (                
                 <button
                   onClick={onRightIconClick}
                   className="shrink-0 px-5 h-[44px] flex items-center justify-center rounded-full bg-brand text-white text-[14px] font-bold"
@@ -312,8 +334,7 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
                 >
                   Menu
                 </button>
-              ) : (
-                /* Orders icon on menu page — always visible, disabled when no orders */
+              ) : (                
                 <button
                   type="button"
                   onClick={() => placedOrdersCount > 0 && router.push('/orders')}
@@ -331,7 +352,7 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
                   </svg>
                 </button>
               )}
-            </div>
+            </div> */}
           </div>
 
           {/* Filter Pills */}

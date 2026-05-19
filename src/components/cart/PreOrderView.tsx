@@ -22,6 +22,7 @@ import { BillSection } from '@/components/cart/BillSection';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
+import { Button } from '../ui';
 
 // Lazy load CustomizationModal
 const CustomizationModal = dynamic(
@@ -356,9 +357,8 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
 
       {/* Place Order Button */}
       <div
-        className="fixed left-0 right-0 z-20 flex justify-center"
+        className="fixed left-0 right-0 bottom-2 z-20 flex justify-center"
         style={{
-          bottom: 0,
           // iOS Safari fixed positioning fix
           transform: 'translateZ(0)',
           WebkitTransform: 'translateZ(0)',
@@ -366,25 +366,17 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
           WebkitBackfaceVisibility: 'hidden',
         }}
       >
-        <button
+        <Button
           onClick={onPlaceOrder}
           disabled={isPlacingOrder || myItems.length === 0}
-          className="w-full max-w-2xl h-[70px] box-content bg-brand text-white flex items-center justify-between px-[22px] transition-colors disabled:bg-gray-500 disabled:opacity-100 disabled:cursor-not-allowed"
-          style={{
-            paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
-            fontFamily: 'Helvetica Neue, sans-serif',
-            fontWeight: 700,
-            fontSize: '20px',
-            lineHeight: '1.22',
-          }}
-        >
+          className="w-full justify-between mx-1 text-[20px] font-medium">
           <span className="flex-shrink-0">
             {isPlacingOrder ? 'Placing order...' : 'Place Order'}
           </span>
           <span className="flex-shrink-0">
             {isClient ? formatPrice(cart.total) : formatPrice(0)}
           </span>
-        </button>
+        </Button>
       </div>
 
       {/* Customization Modal */}

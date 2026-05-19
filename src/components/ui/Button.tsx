@@ -3,6 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { scaleVariants } from '@/lib/animations';
+import { cn } from '@/lib/utils';
 
 interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'pill' | 'icon';
@@ -15,6 +16,7 @@ interface ButtonProps {
   type?: 'button' | 'submit' | 'reset';
   children: React.ReactNode;
   'aria-label'?: string;
+  style?: React.CSSProperties;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -25,17 +27,17 @@ export const Button: React.FC<ButtonProps> = ({
   disabled = false,
   className = '',
   children,
+  style = { fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif' },
   ...props
 }) => {
   // Base styles
   const baseStyles = 'font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2';
 
-  // Variant styles
   const variantStyles = {
-    primary: 'bg-brand text-white hover:bg-gray-900',
-    secondary: 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50',
+    primary: 'bg-brand text-white',
+    secondary: 'bg-white text-gray-700 border border-gray-200',
     pill: 'rounded-full',
-    icon: 'border border-gray-200 hover:bg-gray-50',
+    icon: 'border border-gray-200',
   };
 
   // Size styles - ensuring minimum 44x44px touch targets
@@ -51,14 +53,14 @@ export const Button: React.FC<ButtonProps> = ({
   // Width
   const widthStyle = fullWidth ? 'w-full' : '';
 
-  const combinedClassName = `
-    ${baseStyles}
-    ${variantStyles[variant]}
-    ${sizeStyles[size]}
-    ${borderRadius}
-    ${widthStyle}
-    ${className}
-  `.trim().replace(/\s+/g, ' ');
+  const combinedClassName = cn(
+    baseStyles,
+    variantStyles[variant],
+    sizeStyles[size],
+    borderRadius,
+    widthStyle,
+    className
+  );
 
   return (
     <motion.button
@@ -71,6 +73,7 @@ export const Button: React.FC<ButtonProps> = ({
       initial="initial"
       whileTap="tap"
       whileHover={disabled || loading ? undefined : "hover"}
+      style={style}
     >
       {loading ? (
         <>

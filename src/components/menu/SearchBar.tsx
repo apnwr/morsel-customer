@@ -4,6 +4,7 @@ import React, { memo } from 'react';
 import Image from 'next/image';
 import { Search, X } from 'lucide-react';
 import { useLocale } from '@/contexts/LocaleContext';
+import { Button } from '../ui';
 
 interface SearchBarProps {
   searchQuery: string;
@@ -92,42 +93,39 @@ function SearchBarComponent({
 
       {/* Confirm Order CTA - 70px, separated by subtle divider. Absorbs safe-area (black bg fills zone). */}
       {showConfirmOrder && onConfirmOrder && (
-        <button
-          onClick={onConfirmOrder}
-          className="h-[70px] box-content flex items-center justify-between px-[22px] bg-brand text-white border-t border-[#F1F1F1] hover:opacity-90 active:opacity-95 transition-all shrink-0"
-          style={{ paddingBottom: safeAreaPadding }}
-          aria-label={
-            cartItemCount > 0
-              ? `Confirm order, ${cartItemCount} item${cartItemCount === 1 ? '' : 's'}, total ${formatPrice(cartTotal)}`
-              : `Confirm order, total ${formatPrice(cartTotal)}`
-          }
-          type="button"
-        >
-          <span
-            className="text-[18px] font-medium"
-            style={{ fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif', lineHeight: 1.22 }}
+        <div className='mx-1'>
+          <Button
+            onClick={onConfirmOrder}
+            className="w-full justify-between mb-2 text-[20px] font-medium"
+            // style={{ paddingBottom: safeAreaPadding }}
+            aria-label={
+              cartItemCount > 0
+                ? `Confirm order, ${cartItemCount} item${cartItemCount === 1 ? '' : 's'}, total ${formatPrice(cartTotal)}`
+                : `Confirm order, total ${formatPrice(cartTotal)}`
+            }
+            type="button"
           >
-            {/* Confirm order */}
-            View Cart
-          </span>
-          <span className="flex items-center gap-[10px] shrink-0">
-            {cartItemCount > 0 && (
-              <span
-                className="text-[13px] font-semibold px-[10px] py-[2px] rounded-full bg-white/20"
-                style={{ fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif' }}
-                aria-hidden="true"
-              >
-                {cartItemCount}
-              </span>
-            )}
-            <span
-              className="text-[18px] font-semibold"
-              style={{ fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif', lineHeight: 1.22 }}
-            >
-              {formatPrice(cartTotal)}
+            <span>
+              {/* Confirm order */}
+              View Cart
             </span>
-          </span>
-        </button>
+            <span className="flex items-center gap-[10px] shrink-0">
+              {cartItemCount > 0 && (
+                <span
+                  className="text-[13px] font-semibold px-[10px] py-[2px] rounded-full bg-white/20"
+                  style={{ fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif' }}
+                  aria-hidden="true"
+                >
+                  {cartItemCount}
+                </span>
+              )}
+              <span
+                className="text-[20px] font-semibold">
+                {formatPrice(cartTotal)}
+              </span>
+            </span>
+          </Button>
+        </div>
       )}
     </div>
   );

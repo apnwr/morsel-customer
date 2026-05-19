@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { tipService } from '@/services/tip.service';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
+import { Button } from '../ui';
 
 const STORAGE_KEY = STORAGE_KEYS.TIP;
 
@@ -109,11 +110,10 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
                 key={option.value}
                 type="button"
                 onClick={() => handleSelectPreset(option.value)}
-                className={`flex-1 px-5 py-2 rounded-[30px] border-2 text-[16px] font-bold text-center transition-all ${
-                  isSelected
-                    ? 'bg-black border-[#595959] text-white'
-                    : 'bg-white border-[#ECECEC] text-black'
-                }`}
+                className={`flex-1 px-5 py-2 rounded-[30px] border-2 text-[16px] font-bold text-center transition-all ${isSelected
+                  ? 'bg-black border-[#595959] text-white'
+                  : 'bg-white border-[#ECECEC] text-black'
+                  }`}
                 style={{ fontFamily: 'Lato, sans-serif' }}
               >
                 {option.label}
@@ -124,11 +124,10 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
         <button
           type="button"
           onClick={() => setShowCustomModal(true)}
-          className={`w-full px-5 py-2 rounded-[30px] border-2 text-[16px] font-bold text-center transition-all ${
-            selectedTip === -1
-              ? 'bg-black border-[#595959] text-white'
-              : 'bg-white border-[#ECECEC] text-black hover:bg-gray-50'
-          }`}
+          className={`w-full px-5 py-2 rounded-[30px] border-2 text-[16px] font-bold text-center transition-all ${selectedTip === -1
+            ? 'bg-black border-[#595959] text-white'
+            : 'bg-white border-[#ECECEC] text-black hover:bg-gray-50'
+            }`}
           style={{ fontFamily: 'Lato, sans-serif' }}
         >
           Custom Tip
@@ -189,17 +188,17 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
           </div>
 
           {/* Confirm button */}
-          <button
+          <Button
             type="button"
             onClick={handleConfirmCustomTip}
-            className="w-full mt-5 py-4 rounded-[30px] bg-black text-white text-[18px] font-bold text-center transition-all active:opacity-90"
+            className="w-full mt-5 text-[18px] font-bold"
             style={{ fontFamily: 'Lato, sans-serif' }}
           >
             {customTipInput && parseFloat(customTipInput) > 0
               ? `Tip ${formatPrice(parseFloat(customTipInput))}`
               : getTipLabel()
             }
-          </button>
+          </Button>
         </div>
       </Modal>
     </>

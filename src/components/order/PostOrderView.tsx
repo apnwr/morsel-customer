@@ -22,6 +22,7 @@ import { prefetchSDK } from '@/lib/peach-payments/sdk-loader';
 import { useFlowType } from '@/hooks/useFlowType';
 import type { Order as APIOrder, OrderItem } from '@/types/api/order';
 import type { SessionBill } from '@/types/api/bill';
+import { Button } from '../ui';
 
 // Helper function to get dietary type from stored dietary data
 const getDietaryTypeFromStoredData = (storedDietary: { allergens?: string[]; dietary?: string[] } | undefined) => {
@@ -304,7 +305,7 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
                 Items total
               </span>
               <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                {formatPrice(bill?.subtotal ?? orderTotal)}
+                {formatPrice(bill?.itemTotalWithoutTax ?? orderTotal)}
               </span>
             </div>
 
@@ -379,37 +380,28 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
 
       {/* Fixed Pay Now CTA */}
       <div
-        className="fixed left-0 right-0 z-20 rounded-t-[30px] overflow-hidden flex justify-center"
+        className="fixed left-0 right-0 bottom-2 overflow-hidden flex justify-center"
         style={{
-          bottom: 0,
           transform: 'translateZ(0)',
           WebkitTransform: 'translateZ(0)',
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
         }}
       >
-        <button
+        <Button
           onClick={isCurrentUserPaid ? undefined : handlePayNow}
           disabled={isCurrentUserPaid || totalWithTip <= 0}
-          className={`w-full max-w-2xl h-[70px] box-content flex items-center justify-between px-[22px] transition-all disabled:cursor-not-allowed hover:animate-bounce ${isCurrentUserPaid
+          className={`w-full mx-1 justify-between text-[20px] font-medium ${isCurrentUserPaid
             ? 'bg-green-600 text-white'
             : 'bg-brand text-white disabled:opacity-85'
-            }`}
-          style={{
-            paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
-            fontFamily: 'Helvetica Neue, sans-serif',
-            fontWeight: 700,
-            fontSize: '20px',
-            lineHeight: '1.22',
-          }}
-        >
+            }`}>
           <span className="flex-shrink-0">
             {isCurrentUserPaid ? 'Paid' : 'Pay Now'}
           </span>
           <span className="flex-shrink-0">
             {formatPrice(totalWithTip)}
           </span>
-        </button>
+        </Button>
       </div>
     </>
   );
