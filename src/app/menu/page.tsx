@@ -578,7 +578,7 @@ export default function MenuPage() {
     >
       <Header showCart />
 
-      <div className="p-4">
+      <div className="p-4 pt-0">
         {menuData.categories.length === 0 ? (
           <EmptyState
             icon="🍽️"

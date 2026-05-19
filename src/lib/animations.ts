@@ -133,16 +133,19 @@ export const fadeSlideUpVariants: Variants = {
 export const scaleVariants: Variants = {
   initial: {
     scale: 1,
+    opacity: 1,
   },
   tap: {
     scale: 0.95,
+    opacity: 0.9,
     transition: {
-      duration: 0.1,
+      duration: 0.08,
       ease: 'easeInOut',
     },
   },
   hover: {
-    scale: 1.02,
+    scale: 0.98,
+    opacity: 0.85,
     transition: {
       duration: 0.2,
       ease: 'easeOut',

@@ -31,6 +31,7 @@ export const billService = {
       total: d.total,
       itemCount: d.itemCount,
       orderCount: d.orderCount,
+      itemTotalWithoutTax: d.itemTotalWithoutTax,
     };
   },
 };

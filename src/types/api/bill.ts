@@ -28,6 +28,7 @@ export interface SessionBill {
   total: number;
   itemCount: number;
   orderCount: number;
+  itemTotalWithoutTax?: number;
 }
 
 export interface SessionBillResponse {
