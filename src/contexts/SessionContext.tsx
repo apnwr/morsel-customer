@@ -395,6 +395,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           session: {
             ...prev.session,
             participants: latestParticipants,
+            sessionTips: response.data?.sessionTips,
+            actualOrders: response.data.orders || []
           },
           participantsCount: latestParticipants.length,
         };

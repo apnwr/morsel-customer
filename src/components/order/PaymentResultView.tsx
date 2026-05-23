@@ -274,7 +274,7 @@ export function PaymentResultView({
             >
               {billSectionTitle}
             </h3>
-            <div className="flex flex-col gap-2 w-full">
+            <div className="flex flex-col gap-2 w-full border-2 border-[#ECECEC] rounded-[20px] bg-white p-4">
               {/* Items total */}
               <div className="flex items-center justify-between w-full">
                 <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
@@ -350,6 +350,24 @@ export function PaymentResultView({
                   {formatPrice(billTotalWithoutTip + tipAmount)}
                 </span>
               </div>
+
+              {/* My Share */}
+              {sortedParticipants.length > 1 && (
+                <div className="flex items-center justify-between w-full pt-2 border-t border-gray-200">
+                  <span
+                    className="text-black text-[16px] font-bold"
+                    style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
+                  >
+                    My Share
+                  </span>
+                  <span
+                    className="text-black text-[20px] font-bold"
+                    style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
+                  >
+                    {formatPrice(amount)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}
