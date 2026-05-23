@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useLocale } from '@/contexts/LocaleContext';
 import { getCurrencySymbol } from '@/lib/currencies';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -77,7 +77,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
 
   // Server-first: map serverSplitType to local mode key; default to 'even' when no server type.
   // Deliberately ignores local split.mode — that's per-device and can be stale.
-  const effectiveMode: 'even' | 'custom' | 'self' | 'all' | 'items' = (() => {
+  const effectiveMode: 'even' | 'custom' | 'self' | 'all' | 'items' = useMemo(() => {
     switch (serverSplitType) {
       case 'equal': return 'even';
       case 'custom': return 'custom';
@@ -85,7 +85,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
       case 'itemized': return 'items';
       default: return 'even';
     }
-  })();
+  }, [serverSplitType]);
 
   // Initialize local shares, server-first:
   //   1. If the server has per-participant amounts, seed from those.
@@ -123,6 +123,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const [localShares, setLocalShares] = useState<Record<string, string>>(initializeLocalShares);
   const [validationError, setValidationError] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
+  const hasSyncedRef = useRef(false);
 
   // Calculate current sum for real-time validation feedback from LOCAL state
   const getCurrentSum = () => {
@@ -139,6 +140,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
       setLocalMode(effectiveMode);
       setLocalShares(initializeLocalShares());
       setValidationError('');
+      hasSyncedRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -196,6 +198,17 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
     setLocalShares(newLocalShares);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, localMode, split.participants.length, effectiveTotal, userItemsTotal, sessionData?.session?.actualOrders]);
+
+  useEffect(() => {
+    if (sessionId && split?.participants?.length > 0 && !hasSyncedRef.current) {
+      hasSyncedRef.current = true;
+      const sharesSnapshot: Record<string, number> = {};
+      Object.entries(localShares).forEach(([id, val]) => {
+        sharesSnapshot[id] = parseFloat(val) || 0;
+      });
+      syncSplitToServer(sessionId, localMode, sharesSnapshot, split.participants);
+    }
+  }, [sessionId, split.participants, localMode, localShares, syncSplitToServer]);
 
 
   const handleModeChange = (mode: 'even' | 'custom' | 'self' | 'all' | 'items') => {

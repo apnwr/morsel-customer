@@ -352,7 +352,7 @@ export function PaymentResultView({
               </div>
 
               {/* My Share */}
-              {sortedParticipants.length > 1 && (
+              {/* {sortedParticipants.length > 1 && (
                 <div className="flex items-center justify-between w-full pt-2 border-t border-gray-200">
                   <span
                     className="text-black text-[16px] font-bold"
@@ -367,7 +367,7 @@ export function PaymentResultView({
                     {formatPrice(amount)}
                   </span>
                 </div>
-              )}
+              )} */}
             </div>
           </div>
         )}
