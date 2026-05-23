@@ -18,7 +18,7 @@ const ITEMIZED_SELECTIONS_KEY = STORAGE_KEYS.ITEMIZED_SELECTIONS;
  */
 function calculateUserItemsTotal(cart: Cart | null, currentSessionUserId: string | null): number {
   if (!cart || !currentSessionUserId) return 0;
-  
+
   const userItemsSubtotal = cart.items
     .filter(item => item.sessionUserId === currentSessionUserId)
     .reduce((sum, item) => sum + item.itemTotal, 0);
@@ -217,14 +217,14 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
       // Debug logging to understand ID matching
-      console.log('[SplitContext] ✓ calculateSplit called:', {
-        mode: prev.mode,
-        currentSessionUserId,
-        participantsCount: prev.participants.length,
-        participants: prev.participants.map(p => ({ id: p.id, name: p.name, isMock: p.isMock })),
-        total,
-        formattedTotal: `$${total.toFixed(2)}`
-      });
+      // console.log('[SplitContext] ✓ calculateSplit called:', {
+      //   mode: prev.mode,
+      //   currentSessionUserId,
+      //   participantsCount: prev.participants.length,
+      //   participants: prev.participants.map(p => ({ id: p.id, name: p.name, isMock: p.isMock })),
+      //   total,
+      //   formattedTotal: `$${total.toFixed(2)}`
+      // });
 
       let newShares: Record<string, number> = {};
 
@@ -255,7 +255,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
             // Calculate user's items total if cart is provided
             const userItemsTotal = calculateUserItemsTotal(cart ?? null, currentSessionUserId);
             const remainingTotal = total - userItemsTotal;
-            
+
             newShares[currentUser.id] = userItemsTotal;
             const others = prev.participants.filter((p) => p.id !== currentUser.id);
             if (others.length > 0) {
@@ -264,7 +264,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
                 newShares[p.id] = Math.round(amountPerOther * 100) / 100;
               });
             }
-            
+
             console.log('[SplitContext] 💰 Pay for self calculated:', {
               userItemsTotal: `$${userItemsTotal.toFixed(2)}`,
               remainingTotal: `$${remainingTotal.toFixed(2)}`,
@@ -468,7 +468,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
   const addMockParticipant = useCallback(() => {
     setSplit((prev) => {
       const mockParticipant = generateMockParticipant(prev.participants);
-      
+
       // Check if participant already exists
       if (prev.participants.some((p) => p.id === mockParticipant.id)) {
         return prev;

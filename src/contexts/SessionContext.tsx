@@ -98,7 +98,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           setSessionDataState(null);
         } else {
           // Valid session with userId - load it
-          console.log('[SessionContext] ✅ Loading saved session from localStorage');
+          // console.log('[SessionContext] ✅ Loading saved session from localStorage');
           setSessionDataState(parsed);
         }
       }
@@ -114,7 +114,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // Set preview session (ephemeral, NOT persisted to localStorage)
   const setPreviewSession = useCallback((data: OrderingSessionData | null) => {
-    console.log('[SessionContext] 👁️ Setting preview session (ephemeral, not saved)');
+    // console.log('[SessionContext] 👁️ Setting preview session (ephemeral, not saved)');
     setPreviewSessionState(data);
   }, []);
 
@@ -122,7 +122,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Should only be called AFTER user successfully joins as participant
   const setSessionData = useCallback((data: OrderingSessionData) => {
     try {
-      console.log('[SessionContext] ✅ Setting active session (saving to localStorage)');
+      // console.log('[SessionContext] ✅ Setting active session (saving to localStorage)');
       setSessionDataState(data);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (error) {
@@ -133,7 +133,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Set active order ID (persisted to localStorage)
   const setActiveOrderId = useCallback((orderId: string | null) => {
     try {
-      console.log('[SessionContext] 📍 Setting active order ID:', orderId);
+      // console.log('[SessionContext] 📍 Setting active order ID:', orderId);
       setActiveOrderIdState(orderId);
       if (orderId) {
         localStorage.setItem(STORAGE_KEY_ACTIVE_ORDER, orderId);
@@ -261,7 +261,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      console.log('[SessionContext] Refreshing session data for session:', sessionData.session.id);
+      // console.log('[SessionContext] Refreshing session data for session:', sessionData.session.id);
 
       // Fetch latest session detail from API
       const response = await sessionService.getSessionById(sessionData.session.id);
@@ -307,12 +307,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setSessionDataState(updatedSessionData);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedSessionData));
 
-      console.log('[SessionContext] Session data refreshed successfully:', {
-        sessionId: response.data.id,
-        ordersCount: response.data.orders.length,
-        participantsCount: response.data.participants.length,
-        splitsCount: response.data.splits?.length || 0,
-      });
+      // console.log('[SessionContext] Session data refreshed successfully:', {
+      //   sessionId: response.data.id,
+      //   ordersCount: response.data.orders.length,
+      //   participantsCount: response.data.participants.length,
+      //   splitsCount: response.data.splits?.length || 0,
+      // });
     } catch (error) {
       console.error('[SessionContext] Failed to refresh session data:', error);
       // Don't throw - allow the app to continue even if refresh fails
@@ -453,10 +453,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     const handleVisibility = () => {
       if (document.hidden) {
-        console.log('[SessionContext] 🛌 Tab hidden — pausing polling');
+        // console.log('[SessionContext] 🛌 Tab hidden — pausing polling');
         stopInterval();
       } else {
-        console.log('[SessionContext] 👀 Tab visible — resuming polling');
+        // console.log('[SessionContext] 👀 Tab visible — resuming polling');
         startInterval();
       }
     };
@@ -464,7 +464,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
-      console.log('[SessionContext] 🔌 Stopping polling');
+      // console.log('[SessionContext] 🔌 Stopping polling');
       stopInterval();
       document.removeEventListener('visibilitychange', handleVisibility);
     };
