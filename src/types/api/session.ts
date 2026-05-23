@@ -81,7 +81,7 @@ export interface Session {
   createdAt?: Timestamp;
   expiresAt?: string;
   sessionTips?: Record<string, SessionTips>
-  actualOrders: SessionOrder[];
+  actualOrders?: SessionOrder[];
 }
 
 export interface OrderingSessionData {
