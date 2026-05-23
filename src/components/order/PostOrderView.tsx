@@ -72,7 +72,6 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
   const router = useRouter();
   const { formatPrice } = useLocale();
   const { sessionData, splitPaymentStatus, isParticipantPaid } = useSession();
-  const { split } = useSplit();
   const flowType = useFlowType();
   // Current user
   const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
@@ -189,37 +188,6 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
     }
     return null;
   }, [splitPaymentStatus, currentSessionUserId]);
-
-  const currentParticipantSplitLocal = useMemo(() => {
-    if (!split?.shares) return null;
-    const itemsTotal = split.shares[currentSessionUserId || ''] || 0;
-    let taxPerc = 0;
-    if (bill?.taxes) {
-      Object.entries(bill.taxes).forEach(([key, tax]) => {
-        if (tax.percentage) {
-          taxPerc = tax.percentage;
-        }
-      })
-    }
-    const taxAmount = ((itemsTotal * taxPerc) / 100);
-    const itemTotalWithoutTax = itemsTotal - taxAmount;
-    const grandTotal = itemsTotal + tipAmount;
-    return {
-      itemsTotal,
-      itemTotalWithoutTax,
-      taxAmount,
-      tipAmount: tipAmount,
-      grandTotal
-    };
-  }, [split.participants, currentSessionUserId, tipAmount]);
-  // console.log("currentParticipantSplit", currentParticipantSplitLocal)
-
-  const myShareTotal = useMemo(() => {
-    if (currentParticipantSplitFromServer) {
-      return currentParticipantSplitFromServer.grandTotal || 0;
-    }
-    return currentParticipantSplitLocal?.grandTotal || 0;
-  }, [currentParticipantSplitFromServer, currentParticipantSplitLocal]);
 
   const handlePayNow = useCallback(() => {
     const params = new URLSearchParams({
@@ -457,7 +425,7 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
             </div>
 
             {/* My Share */}
-            {(sessionData?.session?.participants?.length ?? 0) > 1 && (currentParticipantSplitFromServer || currentParticipantSplitLocal)
+            {(sessionData?.session?.participants?.length ?? 0) > 1 && (currentParticipantSplitFromServer)
               && (
                 <div>
 
@@ -501,7 +469,7 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
                             currentParticipantSplitFromServer ?
                               formatPrice(currentParticipantSplitFromServer.itemsTotal || 0)
                               :
-                              formatPrice(currentParticipantSplitLocal?.itemsTotal || 0)
+                              ""
                           }
                         </span>
                       </div>
@@ -517,7 +485,7 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
                             currentParticipantSplitFromServer ?
                               formatPrice(currentParticipantSplitFromServer.tipAmount || 0)
                               :
-                              formatPrice(currentParticipantSplitLocal?.tipAmount || 0)
+                              ""
                           }
                         </span>
                       </div>
@@ -538,7 +506,7 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
                             currentParticipantSplitFromServer ?
                               formatPrice(currentParticipantSplitFromServer.grandTotal || 0)
                               :
-                              currentParticipantSplitLocal?.grandTotal && formatPrice(currentParticipantSplitLocal.grandTotal || 0)
+                              ""
                           }
                         </span>
                       </div>

@@ -1,13 +1,13 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 import { SplitBill, Participant, Cart } from '@/types/cart';
 import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { calculateEvenSplit, validateSplit, generateMockParticipant } from '@/mocks/mockSplit';
 import { sanitizeSplitAmount } from '@/lib/validation';
 import { splitService } from '@/services/split.service';
 import { useSession } from '@/contexts/SessionContext';
-import type { SplitCalculateRequest, SplitEntry } from '@/types/api/split';
+import type { SplitCalculateRequest, SplitConfig, SplitEntry, SplitType } from '@/types/api/split';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 const STORAGE_KEY = STORAGE_KEYS.SPLIT;
@@ -48,6 +48,7 @@ interface SplitState {
   clearItemizedSelections: () => void;
   /** Sync split to server. Rejects on POST failure so callers can surface the error. */
   syncSplitToServer: (sessionId: string, mode: SplitBill['mode'], shares: Record<string, number>, participants: Participant[]) => Promise<void>;
+  refreshSplit: () => void;
 }
 
 const SplitContext = createContext<SplitState | undefined>(undefined);
@@ -95,6 +96,9 @@ export function SplitProvider({ children }: { children: ReactNode }) {
   const [itemizedSelections, setItemizedSelectionsState] = useState<Record<string, string[]>>(() => {
     return getFromStorage<Record<string, string[]>>(ITEMIZED_SELECTIONS_KEY) || {};
   });
+  const { serverSplitConfig, sessionData } = useSession();
+  const sessionId = useMemo(() => sessionData?.session?.id, [sessionData?.session?.id]);
+  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
   // Save to localStorage whenever split changes
   useEffect(() => {
@@ -213,8 +217,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         };
       }
 
-      // Get current user's sessionUserId to correctly identify them
-      const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
+      // Get current user's sessionUserId to correctly identify them      
 
       // Debug logging to understand ID matching
       // console.log('[SplitContext] ✓ calculateSplit called:', {
@@ -420,7 +423,6 @@ export function SplitProvider({ children }: { children: ReactNode }) {
           const [orderId, itemId] = key.split('_');
           return { itemId, orderId, quantity };
         });
-        const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
         payload = {
           type: 'itemized',
           numberOfSplits: participants.length,
@@ -440,6 +442,9 @@ export function SplitProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      if (currentSessionUserId) {
+        payload.sessionUserId = currentSessionUserId;
+      }
       const response = await splitService.calculateSplit(sessionId, payload);
       console.log('[SplitContext] Split synced to server:', response.data);
       setServerSplits(response.data?.splits || null);
@@ -479,7 +484,27 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         participants: [...prev.participants, mockParticipant],
       };
     });
-  }, []);
+  }, [currentSessionUserId]);
+
+  const refreshSplit = useCallback(async () => {
+    if (sessionId && serverSplitConfig?.type && serverSplitConfig?.amounts && serverSplitConfig.numberOfSplits) {
+      try {
+        const payload: SplitCalculateRequest = {
+          type: serverSplitConfig.type,
+          numberOfSplits: serverSplitConfig.numberOfSplits,
+          amounts: serverSplitConfig.amounts,
+          ...(serverSplitConfig.type === 'itemized' && serverSplitConfig.itemIds ? { itemIds: serverSplitConfig.itemIds } as any : {}),
+        }
+        if (currentSessionUserId) {
+          payload.sessionUserId = currentSessionUserId;
+        }
+        await splitService.calculateSplit(sessionId, payload);
+        refreshSessionData();
+      } catch (error) {
+        throw error;
+      }
+    }
+  }, [sessionId, serverSplitConfig, currentSessionUserId]);
 
   const value: SplitState = {
     split,
@@ -497,6 +522,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
     setItemizedSelection,
     clearItemizedSelections,
     syncSplitToServer,
+    refreshSplit
   };
 
   return (

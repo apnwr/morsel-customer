@@ -7,6 +7,7 @@ import { getFromStorage, setInStorage } from '@/mocks/mockStorage';
 import { tipService } from '@/services/tip.service';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { Button } from '../ui';
+import { useSplit } from '@/contexts';
 
 const STORAGE_KEY = STORAGE_KEYS.TIP;
 
@@ -36,6 +37,7 @@ interface TipSelectorProps {
 
 export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }: TipSelectorProps) {
   const { formatPrice } = useLocale();
+  const { refreshSplit } = useSplit();
   const [selectedTip, setSelectedTip] = useState<number>(() => {
     const stored = getFromStorage<TipState>(STORAGE_KEY);
     // return stored?.percentage ?? 10;
@@ -44,30 +46,31 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customTipInput, setCustomTipInput] = useState('');
   const [syncError, setSyncError] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Calculate the actual tip amount
-  const tipAmount = selectedTip === -1
-    ? parseFloat(getFromStorage<TipState>(STORAGE_KEY)?.amount?.toString() || '0') || 0
-    : Math.round(subtotal * (selectedTip / 100) * 100) / 100;
+  // const tipAmount = selectedTip === -1
+  //   ? parseFloat(getFromStorage<TipState>(STORAGE_KEY)?.amount?.toString() || '0') || 0
+  //   : Math.round(subtotal * (selectedTip / 100) * 100) / 100;
 
   // Sync tip to server (debounced). Surfaces a small inline error on failure
   // so the user knows their tip wasn't saved.
-  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const syncTipToServer = useCallback((amount: number) => {
+  const syncTipToServer = useCallback(async (amount: number) => {
     if (!sessionId || !sessionUserId) return;
+    const pending = amount > 0
+      ? tipService.addOrUpdateParticipantTip(sessionId, sessionUserId, amount)
+      : tipService.removeParticipantTip(sessionId, sessionUserId);
 
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    syncTimerRef.current = setTimeout(() => {
-      const pending = amount > 0
-        ? tipService.addOrUpdateParticipantTip(sessionId, sessionUserId, amount)
-        : tipService.removeParticipantTip(sessionId, sessionUserId);
-      pending
-        .then(() => setSyncError(false))
-        .catch((err) => {
-          console.error('[TipSelector] Failed to sync tip:', err);
-          setSyncError(true);
-        });
-    }, 500);
+    try {
+      await pending;
+      setSyncError(false)
+    } catch (err) {
+      console.error('[TipSelector] Failed to sync tip:', err);
+      setSyncError(true);
+    } finally {
+      await refreshSplit()
+
+    }
   }, [sessionId, sessionUserId]);
 
   // Persist tip state and notify parent (NO server sync here — that happens only on user action)
@@ -78,11 +81,11 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
   // }, [selectedTip, tipAmount, onTipChange]);
 
 
-  const handleSelectPreset = useCallback((value: number) => {
-    setSelectedTip(value);
-    const amount = Math.round(subtotal * (value / 100) * 100) / 100;
-    syncTipToServer(amount);
-  }, [subtotal, syncTipToServer]);
+  // const handleSelectPreset = useCallback((value: number) => {
+  //   setSelectedTip(value);
+  //   const amount = Math.round(subtotal * (value / 100) * 100) / 100;
+  //   syncTipToServer(amount);
+  // }, [subtotal, syncTipToServer]);
 
   // Get current tip label for the confirm button
   const getTipLabel = () => {
@@ -91,15 +94,21 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
     return `Tip ${selectedTip}%`;
   };
 
-  const handleConfirmCustomTip = useCallback(() => {
+  const handleConfirmCustomTip = useCallback(async () => {
     const amount = parseFloat(customTipInput) || 0;
     setSelectedTip(-1);
     const state: TipState = { percentage: -1, amount };
     setInStorage(STORAGE_KEY, state);
     onTipChange?.(state);
-    syncTipToServer(amount);
-    setShowCustomModal(false);
-    setCustomTipInput('');
+    try {
+      setIsLoading(true);
+      await syncTipToServer(amount);
+      setShowCustomModal(false);
+      setCustomTipInput('');
+      setIsLoading(false);
+    } catch {
+      setIsLoading(false);
+    }
   }, [customTipInput, onTipChange, syncTipToServer]);
 
   return (
@@ -196,6 +205,7 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
             onClick={handleConfirmCustomTip}
             className="w-full mt-5 text-[18px] font-bold"
             style={{ fontFamily: 'Lato, sans-serif' }}
+            loading={isLoading}
           >
             {customTipInput && parseFloat(customTipInput) > 0
               ? `Tip ${formatPrice(parseFloat(customTipInput))}`

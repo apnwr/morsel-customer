@@ -139,7 +139,7 @@ export function PeachCheckoutView({
             >
               Payment
             </h1>
-            <p className="text-sm text-gray-500">{formatPrice(amount)}</p>
+            {/* <p className="text-sm text-gray-500">{formatPrice(amount)}</p> */}
           </div>
         </div>
       </div>
