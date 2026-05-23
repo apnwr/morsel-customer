@@ -22,6 +22,7 @@ import { Footer } from "@/components/layout/Footer";
 import type { MenuWithItems } from "@/types/api/menu";
 import { useMenuAvailability } from "@/hooks/useMenuAvailability";
 import { matchesQuery } from "@/lib/menu-search";
+import usePrefetch from "@/hooks/usePrefetch";
 
 // Lazy load CustomizationModal since it's only shown on demand
 const CustomizationModal = dynamic(
@@ -290,6 +291,9 @@ export default function MenuPage() {
 
   // Session validation - checks session status and expiry
   useSessionValidation();
+  usePrefetch({
+    route: "/cart"
+  })
   const [showMenuNav, setShowMenuNav] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItemType | null>(null);
   const [apiMenus, setApiMenus] = useState<MenuWithItems[]>([]);

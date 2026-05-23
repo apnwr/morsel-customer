@@ -143,14 +143,14 @@ export const scaleVariants: Variants = {
       ease: 'easeInOut',
     },
   },
-  hover: {
-    scale: 0.98,
-    opacity: 0.85,
-    transition: {
-      duration: 0.2,
-      ease: 'easeOut',
-    },
-  },
+  // hover: {
+  //   scale: 0.98,
+  //   opacity: 0.85,
+  //   transition: {
+  //     duration: 0.2,
+  //     ease: 'easeOut',
+  //   },
+  // },
 };
 
 /**

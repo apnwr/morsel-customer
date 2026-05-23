@@ -23,6 +23,8 @@ import { useFlowType } from '@/hooks/useFlowType';
 import type { Order as APIOrder, OrderItem } from '@/types/api/order';
 import type { SessionBill } from '@/types/api/bill';
 import { Button } from '../ui';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useSplit } from '@/contexts';
 
 // Helper function to get dietary type from stored dietary data
 const getDietaryTypeFromStoredData = (storedDietary: { allergens?: string[]; dietary?: string[] } | undefined) => {
@@ -70,8 +72,8 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
   const router = useRouter();
   const { formatPrice } = useLocale();
   const { sessionData, splitPaymentStatus, isParticipantPaid } = useSession();
+  const { split } = useSplit();
   const flowType = useFlowType();
-
   // Current user
   const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
@@ -129,7 +131,7 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
     if (splitPaymentStatus && currentSessionUserId) {
       const serverEntry = splitPaymentStatus.find((s) => s.sessionUserId === currentSessionUserId);
       if (serverEntry && typeof serverEntry.amount === 'number') {
-        return serverEntry.amount;
+        return serverEntry.amount - (serverEntry.tip || 0);
       }
     }
 
@@ -144,7 +146,13 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
   }, [splitPaymentStatus, currentSessionUserId, sessionData?.session?.participants, billTotal]);
 
   // Tip state — read from localStorage initially
-  const [tipAmount, setTipAmount] = useState(() => getStoredTip().amount);
+  const [tipAmount, setTipAmount] = useState(0);
+
+  // State for toggling expanded items when there are more than 4 items
+  const [isItemsExpanded, setIsItemsExpanded] = useState(false);
+
+  // State for toggling My Share expanded/collapsed
+  const [isMyShareExpanded, setIsMyShareExpanded] = useState(true);
 
   // Total including tip
   const totalWithTip = Math.round((userAmount + tipAmount) * 100) / 100;
@@ -156,7 +164,62 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
   useEffect(() => {
     prefetchSDK();
     router.prefetch('/payment');
-  }, [router]);
+  }, []);
+
+  useEffect(() => {
+    if (sessionData?.session?.sessionTips && currentSessionUserId) {
+      // console.log("sessionData?.session?.sessionTips?.[", sessionData?.session?.sessionTips?.[currentSessionUserId]?.amount)
+      setTipAmount(sessionData?.session?.sessionTips?.[currentSessionUserId]?.amount || 0);
+    }
+  }, [sessionData?.session?.sessionTips, currentSessionUserId])
+
+
+  const currentParticipantSplitFromServer = useMemo(() => {
+    if (splitPaymentStatus && currentSessionUserId) {
+      const serverEntry = splitPaymentStatus.find((s) => s.sessionUserId === currentSessionUserId);
+      if (serverEntry) {
+        return {
+          itemsTotal: serverEntry.amount - (serverEntry.tip || 0),
+          itemTotalWithoutTax: serverEntry.amount - (serverEntry.tax || 0),
+          taxAmount: serverEntry.tax,
+          tipAmount: serverEntry.tip,
+          grandTotal: serverEntry.amount
+        };
+      }
+    }
+    return null;
+  }, [splitPaymentStatus, currentSessionUserId]);
+
+  const currentParticipantSplitLocal = useMemo(() => {
+    if (!split?.shares) return null;
+    const itemsTotal = split.shares[currentSessionUserId || ''] || 0;
+    let taxPerc = 0;
+    if (bill?.taxes) {
+      Object.entries(bill.taxes).forEach(([key, tax]) => {
+        if (tax.percentage) {
+          taxPerc = tax.percentage;
+        }
+      })
+    }
+    const taxAmount = ((itemsTotal * taxPerc) / 100);
+    const itemTotalWithoutTax = itemsTotal - taxAmount;
+    const grandTotal = itemsTotal + tipAmount;
+    return {
+      itemsTotal,
+      itemTotalWithoutTax,
+      taxAmount,
+      tipAmount: tipAmount,
+      grandTotal
+    };
+  }, [split.participants, currentSessionUserId, tipAmount]);
+  // console.log("currentParticipantSplit", currentParticipantSplitLocal)
+
+  const myShareTotal = useMemo(() => {
+    if (currentParticipantSplitFromServer) {
+      return currentParticipantSplitFromServer.grandTotal || 0;
+    }
+    return currentParticipantSplitLocal?.grandTotal || 0;
+  }, [currentParticipantSplitFromServer, currentParticipantSplitLocal]);
 
   const handlePayNow = useCallback(() => {
     const params = new URLSearchParams({
@@ -188,70 +251,87 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
         {/* 2. Order Items */}
         <div className="mb-6">
           <div className="flex flex-col gap-[15px]">
-            {orderData?.items?.map((item: OrderItem, idx: number) => {
-              const dietaryType = getDietaryTypeFromStoredData(itemDietary[item.itemId]);
-              const itemImage = itemImages[item.itemId];
+            {orderData?.items
+              ?.slice(0, isItemsExpanded ? undefined : 4)
+              ?.map((item: OrderItem, idx: number) => {
+                const dietaryType = getDietaryTypeFromStoredData(itemDietary[item.itemId]);
+                const itemImage = itemImages[item.itemId];
 
-              const addonLabels = item.addOns
-                ?.flatMap((addon) => addon.selectedOptions?.map((o) => o.name) || [])
-                .filter(Boolean);
+                const addonLabels = item.addOns
+                  ?.flatMap((addon) => addon.selectedOptions?.map((o) => o.name) || [])
+                  .filter(Boolean);
 
-              return (
-                <div key={idx} className="flex flex-col gap-2">
-                  <div className="flex items-center gap-[5px]">
-                    <div className="relative w-[47px] h-[47px] flex-shrink-0 rounded-[12px] overflow-hidden bg-[#F8F8F8]">
-                      {itemImage ? (
-                        <Image
-                          src={itemImage}
-                          alt={item.name || 'Item'}
-                          fill
-                          sizes="47px"
-                          style={{ objectFit: 'cover' }}
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xl">&#x1F37D;&#xFE0F;</div>
-                      )}
+                return (
+                  <div key={idx} className="flex flex-col gap-2">
+                    <div className="flex items-center gap-[5px]">
+                      <div className="relative w-[47px] h-[47px] flex-shrink-0 rounded-[12px] overflow-hidden bg-[#F8F8F8]">
+                        {itemImage ? (
+                          <Image
+                            src={itemImage}
+                            alt={item.name || 'Item'}
+                            fill
+                            sizes="47px"
+                            style={{ objectFit: 'cover' }}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xl">&#x1F37D;&#xFE0F;</div>
+                        )}
+                      </div>
+                      {dietaryType && <DietarySymbol dietaryType={dietaryType} />}
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <h4
+                          className="text-black text-[14px] leading-normal font-bold truncate"
+                          style={{ fontFamily: 'Lato, sans-serif' }}
+                        >
+                          {item.name}{item.quantity > 1 ? `, x${item.quantity}` : ''}
+                          {
+                            item?.guestName &&
+                            <span
+                              className="inline-block ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-semibold rounded-full"
+                              style={{ fontFamily: 'Lato, sans-serif' }}>
+                              {item?.guestName}
+                            </span>
+                          }
+                        </h4>
+                        <p
+                          className="text-black text-[14px] leading-normal font-medium opacity-50"
+                          style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
+                        >
+                          {item.itemTotal != null ? formatPrice(item.itemTotal) : formatPrice(0)}
+                        </p>
+                      </div>
                     </div>
-                    {dietaryType && <DietarySymbol dietaryType={dietaryType} />}
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <h4
-                        className="text-black text-[14px] leading-normal font-bold truncate"
+                    {addonLabels && addonLabels.length > 0 && (
+                      <p
+                        className="text-black text-[12px] leading-normal"
                         style={{ fontFamily: 'Lato, sans-serif' }}
                       >
-                        {item.name}{item.quantity > 1 ? `, x${item.quantity}` : ''}
-                        {
-                          item?.guestName &&
-                          <span
-                            className="inline-block ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-semibold rounded-full"
-                            style={{ fontFamily: 'Lato, sans-serif' }}>
-                            {item?.guestName}
-                          </span>
-                        }
-                      </h4>
-                      <p
-                        className="text-black text-[14px] leading-normal font-medium opacity-50"
-                        style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
-                      >
-                        {item.itemTotal != null ? formatPrice(item.itemTotal) : formatPrice(0)}
+                        {addonLabels.join(', ')}
                       </p>
-                    </div>
+                    )}
                   </div>
-                  {addonLabels && addonLabels.length > 0 && (
-                    <p
-                      className="text-black text-[12px] leading-normal"
-                      style={{ fontFamily: 'Lato, sans-serif' }}
-                    >
-                      {addonLabels.join(', ')}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
+
+          {orderData?.items && orderData.items.length > 4 && (
+            <button
+              onClick={() => setIsItemsExpanded(!isItemsExpanded)}
+              className="mt-2 flex items-center justify-center gap-1.5 mx-auto text-brand text-[14px] font-bold py-1.5 px-3 rounded-full hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
+              style={{ fontFamily: 'Lato, sans-serif' }}
+            >
+              <span>{isItemsExpanded ? 'Show less' : 'Show more'}</span>
+              {isItemsExpanded ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </button>
+          )}
         </div>
 
         {/* 3. Kitchen Note Display */}
@@ -298,13 +378,13 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
           >
             Bill
           </h3>
-          <div className="flex flex-col gap-2 w-full">
+          <div className="flex flex-col gap-2 w-full border-2 border-[#ECECEC] rounded-[20px] bg-white p-4">
             {/* Items total */}
             <div className="flex items-center justify-between w-full">
-              <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+              <span className="text-black text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
                 Items total
               </span>
-              <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+              <span className="text-black text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
                 {formatPrice(bill?.itemTotalWithoutTax ?? orderTotal)}
               </span>
             </div>
@@ -314,10 +394,10 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
               .filter(([, tax]) => tax.amount > 0)
               .map(([taxId, tax]) => (
                 <div key={taxId} className="flex items-center justify-between w-full">
-                  <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                  <span className="text-black text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
                     {tax.name} ({tax.percentage}%)
                   </span>
-                  <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                  <span className="text-black text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
                     {formatPrice(tax.amount)}
                   </span>
                 </div>
@@ -328,10 +408,10 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
               .filter(([, charge]) => charge.amount > 0)
               .map(([chargeId, charge]) => (
                 <div key={chargeId} className="flex items-center justify-between w-full">
-                  <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                  <span className="text-black text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
                     {charge.name}
                   </span>
-                  <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                  <span className="text-black text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
                     {formatPrice(charge.amount)}
                   </span>
                 </div>
@@ -340,40 +420,132 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
             {/* Discount — only when > 0 */}
             {(bill?.totalDiscount ?? 0) > 0 && (
               <div className="flex items-center justify-between w-full">
-                <span className="text-green-700 text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                <span className="text-green-700 text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
                   Discount
                 </span>
-                <span className="text-green-700 text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                <span className="text-green-700 text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
                   -{formatPrice(bill?.totalDiscount ?? 0)}
                 </span>
               </div>
             )}
 
             {/* Tip */}
+
             <div className="flex items-center justify-between w-full">
-              <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+              <span className="text-black text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
                 Tip
               </span>
-              <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+              <span className="text-black text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
                 {formatPrice(tipAmount)}
               </span>
             </div>
 
             {/* Grand total */}
-            <div className="flex items-center justify-between w-full pt-2 border-t border-gray-200">
+            <div className="flex items-center justify-between w-full pt-2 border-t border-dashed border-gray-200">
               <span
-                className="text-black text-[16px] font-medium"
-                style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
+                className="text-black text-[14px] font-bold"
+                style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
               >
                 Grand total
               </span>
               <span
-                className="text-black text-[16px] font-medium"
-                style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
+                className="text-black text-[14px] font-bold"
+                style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
               >
                 {formatPrice(billTotalWithoutTip + tipAmount)}
               </span>
             </div>
+
+            {/* My Share */}
+            {(sessionData?.session?.participants?.length ?? 0) > 1 && (currentParticipantSplitFromServer || currentParticipantSplitLocal)
+              && (
+                <div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsMyShareExpanded(!isMyShareExpanded)}
+                    className="flex items-center justify-between w-full pt-2 text-left focus:outline-none cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="text-black text-[14px] font-bold"
+                        style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
+                      >
+                        Your personalized bill
+                      </span>
+                      {isMyShareExpanded ? (
+                        <ChevronUp className="w-4 h-4 text-black/50 group-hover:text-black transition-colors" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-black/50 group-hover:text-black transition-colors" />
+                      )}
+                    </div>
+                    {/* {!isMyShareExpanded && (
+                      <span
+                        className="text-black text-[16px] font-bold"
+                        style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
+                      >
+                        {formatPrice(myShareTotal)}
+                      </span>
+                    )} */}
+                  </button>
+
+                  {isMyShareExpanded && (
+                    <div className='flex flex-col gap-2 w-full mx-1 mt-2'>
+                      {/* Items total */}
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-black text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                          Your items total
+                        </span>
+                        <span className="text-black text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                          {
+                            currentParticipantSplitFromServer ?
+                              formatPrice(currentParticipantSplitFromServer.itemsTotal || 0)
+                              :
+                              formatPrice(currentParticipantSplitLocal?.itemsTotal || 0)
+                          }
+                        </span>
+                      </div>
+
+                      {/* Tip */}
+
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-black text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                          Your tip
+                        </span>
+                        <span className="text-black text-[14px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
+                          {
+                            currentParticipantSplitFromServer ?
+                              formatPrice(currentParticipantSplitFromServer.tipAmount || 0)
+                              :
+                              formatPrice(currentParticipantSplitLocal?.tipAmount || 0)
+                          }
+                        </span>
+                      </div>
+
+                      {/* Grand total */}
+                      <div className="flex items-center justify-between w-full pt-2 border-t border-dashed border-gray-200">
+                        <span
+                          className="text-black text-[14px] font-bold"
+                          style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
+                        >
+                          Your total
+                        </span>
+                        <span
+                          className="text-black text-[14px] font-bold"
+                          style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
+                        >
+                          {
+                            currentParticipantSplitFromServer ?
+                              formatPrice(currentParticipantSplitFromServer.grandTotal || 0)
+                              :
+                              currentParticipantSplitLocal?.grandTotal && formatPrice(currentParticipantSplitLocal.grandTotal || 0)
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
           </div>
         </div>
       </div>

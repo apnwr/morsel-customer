@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocale } from '@/contexts/LocaleContext';
 import { getCurrencySymbol } from '@/lib/currencies';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,6 +14,7 @@ import { modalVariants, backdropVariants } from '@/lib/animations';
 import { getFromStorage } from '@/mocks/mockStorage';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { ItemizedPickerSheet } from '@/components/order/ItemizedPickerSheet';
+import { useOrder } from '@/contexts';
 
 interface SplitSettingsModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const { split, setSplitMode, setSplitForTotal, removeParticipant, updateShare, syncSplitToServer, itemizedSelections } = useSplit();
   const { cart } = useCart();
   const { sessionData, serverSplitType, splitPaymentStatus } = useSession();
+
   const { formatPrice, currency } = useLocale();
   // Currency symbol for the active locale, used by the custom-split editable input
   // (display, strip-on-edit, and the invisible width-spacer below).
@@ -56,6 +58,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const isInitiator = !!initiatorId && initiatorId === currentSessionUserId;
   const anyonePaid = sortedSplits.some((s) => s.paid);
 
+  // console.log("serverSplitType", serverSplitType, splitPaymentStatus, initiatorId)
   // Lock the mode picker once a server split exists, EXCEPT for the initiator
   // before any payment lands — they can still flip the mode (e.g. items → even).
   // After any payment, freeze for everyone (initiator included) so we don't
@@ -172,23 +175,28 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
       case 'self': {
         // "Pay for self" - current user pays only for their own items
         // Others split the remaining amount evenly
-        const othersCount = split.participants.filter(p => p.id !== currentSessionUserId).length;
-        const remainingTotal = effectiveTotal - userItemsTotal;
-        const amountPerOther = othersCount > 0 ? remainingTotal / othersCount : 0;
-        split.participants.forEach(p => {
-          if (p.id === currentSessionUserId) {
-            newLocalShares[p.id] = userItemsTotal.toFixed(2);
+        const s: Record<string, number> = {};
+        sessionData?.session?.actualOrders?.forEach(i => {
+          if (!s[i.sessionUserId]) {
+            s[i.sessionUserId] = i.total
           } else {
-            newLocalShares[p.id] = amountPerOther.toFixed(2);
+            s[i.sessionUserId] += i.total
           }
-        });
+        })
+
+        if (s) {
+          for (const key in s) {
+            newLocalShares[key] = s[key].toFixed(2)
+          }
+        }
         break;
       }
     }
 
     setLocalShares(newLocalShares);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, localMode, split.participants.length, effectiveTotal, userItemsTotal]);
+  }, [isOpen, localMode, split.participants.length, effectiveTotal, userItemsTotal, sessionData?.session?.actualOrders]);
+
 
   const handleModeChange = (mode: 'even' | 'custom' | 'self' | 'all' | 'items') => {
     // Only update local mode - don't update context until Save is clicked

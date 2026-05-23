@@ -2,6 +2,8 @@
  * API Types for Ordering Session
  */
 
+import { Order } from './order';
+
 export interface Timestamp {
   _seconds: number;
   _nanoseconds: number;
@@ -61,6 +63,14 @@ export interface SessionParticipant {
   joinedAt?: Timestamp;
 }
 
+export interface SessionTips {
+  timestamp: {
+    _seconds: number;
+    _nanoseconds: number;
+  };
+  amount: number;
+}
+
 export interface Session {
   id: string;
   spaceId: string;
@@ -70,6 +80,8 @@ export interface Session {
   orders: string[];
   createdAt?: Timestamp;
   expiresAt?: string;
+  sessionTips?: Record<string, SessionTips>
+  actualOrders: SessionOrder[];
 }
 
 export interface OrderingSessionData {
@@ -168,6 +180,7 @@ export interface SessionDetail {
   /** Payment records for the session */
   payments?: any[];
   updatedAt: Timestamp;
+  sessionTips?: Record<string, SessionTips>
 }
 
 export interface SessionDetailResponse {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
@@ -10,7 +10,7 @@ import { PreOrderView } from "@/components/cart/PreOrderView";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Footer } from "@/components/layout/Footer";
 import CartLoading from "./loading";
-
+import usePrefetch from "@/hooks/usePrefetch";
 export const dynamic = 'force-dynamic';
 
 function CartPageContent() {
@@ -24,6 +24,10 @@ function CartPageContent() {
     isConfirming,
     handlePlaceOrder,
   } = useCartPageState();
+
+  usePrefetch({
+    route: '/orders'
+  });
 
   if (!restaurantContext || !restaurantContext.restaurant) {
     return null;

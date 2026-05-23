@@ -139,7 +139,8 @@ export function useCartPageState(): CartPageState {
       setTimeout(() => {
         clearCart();
         setInStorage(STORAGE_KEYS.KITCHEN_NOTE, '');
-        setInStorage(STORAGE_KEYS.TIP, { percentage: 10, amount: 0 });
+        // setInStorage(STORAGE_KEYS.TIP, { percentage: 10, amount: 0 });
+        setInStorage(STORAGE_KEYS.TIP, { percentage: 0, amount: 0 });
         setIsConfirming(false);
       }, 1000);
     } catch (error) {

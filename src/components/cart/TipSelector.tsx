@@ -38,7 +38,8 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
   const { formatPrice } = useLocale();
   const [selectedTip, setSelectedTip] = useState<number>(() => {
     const stored = getFromStorage<TipState>(STORAGE_KEY);
-    return stored?.percentage ?? 10;
+    // return stored?.percentage ?? 10;
+    return stored?.percentage ?? 0;
   });
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customTipInput, setCustomTipInput] = useState('');
@@ -70,11 +71,12 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
   }, [sessionId, sessionUserId]);
 
   // Persist tip state and notify parent (NO server sync here — that happens only on user action)
-  useEffect(() => {
-    const state: TipState = { percentage: selectedTip, amount: tipAmount };
-    setInStorage(STORAGE_KEY, state);
-    onTipChange?.(state);
-  }, [selectedTip, tipAmount, onTipChange]);
+  // useEffect(() => {
+  // const state: TipState = { percentage: selectedTip, amount: tipAmount };
+  // setInStorage(STORAGE_KEY, state);
+  // onTipChange?.(state);
+  // }, [selectedTip, tipAmount, onTipChange]);
+
 
   const handleSelectPreset = useCallback((value: number) => {
     setSelectedTip(value);
@@ -84,7 +86,8 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
 
   // Get current tip label for the confirm button
   const getTipLabel = () => {
-    if (selectedTip === -1) return 'Custom Tip';
+    // if (selectedTip === -1) return 'Custom Tip';
+    if (selectedTip === -1) return 'Confirm';
     return `Tip ${selectedTip}%`;
   };
 
@@ -102,7 +105,7 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
   return (
     <>
       <div className="flex flex-col gap-3">
-        <div className="flex gap-3 items-start justify-center w-full">
+        {/* <div className="flex gap-3 items-start justify-center w-full">
           {TIP_OPTIONS.map((option) => {
             const isSelected = selectedTip === option.value;
             return (
@@ -120,7 +123,7 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
               </button>
             );
           })}
-        </div>
+        </div> */}
         <button
           type="button"
           onClick={() => setShowCustomModal(true)}
@@ -207,5 +210,6 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
 
 /** Read the current tip state from localStorage */
 export function getStoredTip(): TipState {
-  return getFromStorage<TipState>(STORAGE_KEY) || { percentage: 10, amount: 0 };
+  // return getFromStorage<TipState>(STORAGE_KEY) || { percentage: 10, amount: 0 };
+  return getFromStorage<TipState>(STORAGE_KEY) || { percentage: 0, amount: 0 };
 }
