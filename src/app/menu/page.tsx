@@ -195,7 +195,7 @@ const MenuRenderer = React.memo(
                 three-tier hierarchy (black menu ▸ pink category ▸ inset items).
                 Viewport-anchored width matches the category band's pattern. */}
             {menu.visibility === 'active' && (
-              <div className="w-screen mx-[calc(50%-50vw)] mb-7 px-4 py-4 bg-black">
+              <div className="w-screen mx-[calc(50%-50vw)] mb-7 px-4 py-4 bg-brand">
                 <h2 className={`font-bold text-xl ${menuUnavailable ? 'text-white/40' : 'text-white'}`}>{category.name}</h2>
               </div>
             )}
@@ -243,7 +243,7 @@ const MenuRenderer = React.memo(
                 three-tier hierarchy (black menu ▸ pink category ▸ inset items).
                 Viewport-anchored width matches the category band's pattern. */}
             {menu.visibility === 'active' && (
-              <div className="w-screen mx-[calc(50%-50vw)] mb-7 px-4 py-4 bg-black">
+              <div className="w-screen mx-[calc(50%-50vw)] mb-7 px-4 py-4 bg-brand">
                 <h2 className={`font-bold text-xl ${menuUnavailable ? 'text-white/40' : 'text-white'}`}>{category.name}</h2>
               </div>
             )}

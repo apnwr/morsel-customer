@@ -10,7 +10,6 @@ export default function HomePage() {
   const { sessionData } = useSession();
   const { context } = useRestaurant();
   const [isVisible, setIsVisible] = useState(false);
-
   useEffect(() => {
     // Trigger fade-in animation
     const fadeTimer = setTimeout(() => {
@@ -40,9 +39,8 @@ export default function HomePage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white">
         <div
-          className={`flex flex-col items-center transition-opacity duration-700 ${
-            isVisible ? 'opacity-100' : 'opacity-0'
-          }`}
+          className={`flex flex-col items-center transition-opacity duration-700 ${isVisible ? 'opacity-100' : 'opacity-0'
+            }`}
         >
           <h1 className="text-5xl font-bold text-purple-600">morsel</h1>
           <p className="text-sm text-gray-500 mt-2">Enjoy every meal, not the math.</p>
@@ -55,9 +53,8 @@ export default function HomePage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
       <div
-        className={`flex flex-col w-full items-center text-center transition-opacity duration-700 ${
-          isVisible ? 'opacity-100' : 'opacity-0'
-        }`}
+        className={`flex flex-col w-full items-center text-center transition-opacity duration-700 ${isVisible ? 'opacity-100' : 'opacity-0'
+          }`}
       >
         <h1 className="text-5xl font-bold text-purple-600 mb-4">morsel</h1>
         <p className="text-sm text-gray-500 mb-12">Enjoy every meal, not the math.</p>

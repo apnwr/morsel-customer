@@ -3,6 +3,7 @@
 import React from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { useLocale } from '@/contexts/LocaleContext';
+import { useSession } from '@/contexts';
 
 interface BillSectionProps {
   userAmount: number;
@@ -11,6 +12,8 @@ interface BillSectionProps {
 export function BillSection({ userAmount }: BillSectionProps) {
   const { cart } = useCart();
   const { formatPrice } = useLocale();
+  const { sessionData } = useSession();
+  const noOfParticipants = sessionData?.session?.participants?.length || 0;
 
   return (
     <div className="flex flex-col gap-4 w-full">
@@ -77,23 +80,25 @@ export function BillSection({ userAmount }: BillSectionProps) {
           </div>
         </div>
       </div>
-
       {/* My Share */}
-      <div className="flex items-center justify-between w-full">
-        <span
-          className="text-black text-[16px] leading-[1.22] font-bold"
-          style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
-        >
-          My Share
-        </span>
-        <span
-          className="text-black text-[20px] leading-[1.22] font-bold"
-          style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
-        >
-          {formatPrice(userAmount)}
-        </span>
-      </div>
-    </div>
+      {
+        noOfParticipants > 0 &&
+        <div className="flex items-center justify-between w-full">
+          <span
+            className="text-black text-[16px] leading-[1.22] font-bold"
+            style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}>
+            My Share
+          </span>
+          <span
+            className="text-black text-[20px] leading-[1.22] font-bold"
+            style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
+          >
+            {formatPrice(userAmount)}
+          </span>
+        </div>
+      }
+
+    </div >
   );
 }
 

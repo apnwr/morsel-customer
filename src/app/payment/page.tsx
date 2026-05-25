@@ -77,7 +77,7 @@ function PaymentPageContent() {
       if (!cancelled) setHasRefreshed(true);
     });
     return () => { cancelled = true; };
-  }, [hasRefreshed, refreshSessionData]);
+  }, [hasRefreshed]);
 
   // Server-authoritative share amount (without tip). If present, validate against the
   // query param so we don't charge the user a stale amount after a concurrent split change.
@@ -108,12 +108,12 @@ function PaymentPageContent() {
       });
       router.replace(`/orders?${params.toString()}`);
     },
-    [router, amount, tipAmount]
+    [amount, tipAmount]
   );
 
   const handleBack = useCallback(() => {
     router.back();
-  }, [router]);
+  }, []);
 
   const handleAcceptNewAmount = useCallback(() => {
     if (serverShare == null) return;
@@ -123,7 +123,7 @@ function PaymentPageContent() {
       tip: String(tipAmount),
     });
     router.replace(`/payment?${params.toString()}`);
-  }, [router, serverShare, tipAmount]);
+  }, [serverShare, tipAmount]);
 
   if (!restaurantContext || !restaurantContext.restaurant) {
     return null;
@@ -144,7 +144,7 @@ function PaymentPageContent() {
         >
           Split changed
         </h1>
-        <p className="text-sm text-gray-600 text-center max-w-xs">
+        <p className="text-sm text-gray-600 text-center">
           Your share has been updated to <span className="font-bold">{formatPrice(newTotal)}</span>.
           Review before continuing.
         </p>

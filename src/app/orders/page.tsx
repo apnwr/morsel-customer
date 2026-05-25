@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
@@ -26,19 +26,18 @@ function OrdersPageContent() {
     const r = searchParams.get('paymentResult');
     return r === 'success' || r === 'failure' ? r : null;
   });
-  const [paymentAmount] = useState(() => {
+  const paymentAmount = useMemo(() => {
     const n = Number(searchParams.get('amount') || 0);
     return Number.isFinite(n) ? n : 0;
-  });
-  const [paymentTip] = useState(() => {
+  }, [searchParams]);
+  const paymentTip = useMemo(() => {
     const n = Number(searchParams.get('tip') || 0);
     return Number.isFinite(n) ? n : 0;
-  });
+  }, [searchParams]);
 
   const {
     orderData,
     bill,
-    orderDisplayLabel,
     allOrderIds,
     isLoading,
   } = useOrdersPageState();
@@ -48,7 +47,7 @@ function OrdersPageContent() {
     if (searchParams.get('paymentResult')) {
       router.replace('/orders');
     }
-  }, [searchParams, router]);
+  }, [searchParams]);
 
   const handleBackToMenu = useCallback(async () => {
     await endSession('completed');

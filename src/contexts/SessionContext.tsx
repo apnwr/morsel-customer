@@ -13,6 +13,8 @@ const STORAGE_KEY = STORAGE_KEYS.SESSION_DATA;
 const STORAGE_KEY_USER_ID = STORAGE_KEYS.SESSION_USER_ID;
 const STORAGE_KEY_ACTIVE_ORDER = STORAGE_KEYS.ACTIVE_ORDER_ID;
 
+
+export const INACTIVE_SESSION_STATUS = ["ended"] as const;
 interface SessionState {
   // Preview session - ephemeral, not persisted (for QR scan preview before login)
   previewSession: OrderingSessionData | null;
@@ -111,6 +113,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (sessionData?.session?.status && INACTIVE_SESSION_STATUS.includes(sessionData?.session?.status as any)) {
+      clearSession();
+    }
+  }, [sessionData?.session])
 
   // Set preview session (ephemeral, NOT persisted to localStorage)
   const setPreviewSession = useCallback((data: OrderingSessionData | null) => {
@@ -300,6 +308,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             typeof o === 'string' ? o : (o as SessionOrder).orderId
           ),
           participants: response.data.participants, // Update participants
+          sessionTips: response.data?.sessionTips,
+          actualOrders: response.data.orders || [],
+          splitInitiator: response.data.splitInitiator,
+          status: response.data.status,
         },
         participantsCount: response.data.participants.length,
       };
@@ -396,7 +408,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             ...prev.session,
             participants: latestParticipants,
             sessionTips: response.data?.sessionTips,
-            actualOrders: response.data.orders || []
+            actualOrders: response.data.orders || [],
+            splitInitiator: response.data.splitInitiator,
+            status: response.data.status,
           },
           participantsCount: latestParticipants.length,
         };

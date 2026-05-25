@@ -67,6 +67,7 @@ export interface OrderConfirmItem {
 export interface QueueConfirmRequest {
   sessionUserId: string;
   paymentType: 'cash' | 'card' | 'upi' | string;
+  notes?: string;
 }
 
 /**

@@ -33,7 +33,7 @@ const CustomizationModal = dynamic(
   { ssr: false }
 );
 
-const KITCHEN_NOTE_KEY = STORAGE_KEYS.KITCHEN_NOTE;
+export const KITCHEN_NOTE_KEY = STORAGE_KEYS.KITCHEN_NOTE;
 
 interface PreOrderViewProps {
   onPlaceOrder: () => Promise<void>;

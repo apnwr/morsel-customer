@@ -48,13 +48,17 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
     [splitPaymentStatus]
   );
   const initiatorId = useMemo(() => {
-    if (serverSplitType === 'itemized') {
-      return sortedSplits[0]?.sessionUserId ?? null;
+    // if (serverSplitType === 'itemized') {
+    //   return sortedSplits[0]?.sessionUserId ?? null;
+    // }
+    if (sessionData?.session?.splitInitiator) {
+      return sessionData?.session?.splitInitiator
     }
     return sessionId
       ? getFromStorage<string>(STORAGE_KEYS.SPLIT_INITIATOR(sessionId)) ?? null
       : null;
   }, [serverSplitType, sortedSplits, sessionId]);
+
   const isInitiator = !!initiatorId && initiatorId === currentSessionUserId;
   const anyonePaid = sortedSplits.some((s) => s.paid);
 
@@ -124,6 +128,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const [validationError, setValidationError] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const hasSyncedRef = useRef(false);
+  const hasSyncServerRef = useRef(false);
 
   // Calculate current sum for real-time validation feedback from LOCAL state
   const getCurrentSum = () => {
@@ -200,13 +205,15 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   }, [isOpen, localMode, split.participants.length, effectiveTotal, userItemsTotal, sessionData?.session?.actualOrders]);
 
   useEffect(() => {
-    if (sessionId && split?.participants?.length > 0 && !hasSyncedRef.current) {
-      hasSyncedRef.current = true;
-      const sharesSnapshot: Record<string, number> = {};
-      Object.entries(localShares).forEach(([id, val]) => {
-        sharesSnapshot[id] = parseFloat(val) || 0;
-      });
-      syncSplitToServer(sessionId, localMode, sharesSnapshot, split.participants);
+    if (sessionId && split?.participants?.length > 0 && !hasSyncServerRef.current) {
+      setTimeout(() => {
+        hasSyncServerRef.current = true;
+        const sharesSnapshot: Record<string, number> = {};
+        Object.entries(localShares).forEach(([id, val]) => {
+          sharesSnapshot[id] = parseFloat(val) || 0;
+        });
+        syncSplitToServer(sessionId, localMode, sharesSnapshot, split.participants);
+      }, 200)
     }
   }, [sessionId, split.participants, localMode, localShares, syncSplitToServer]);
 
@@ -295,6 +302,13 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
       setIsSaving(false);
     }
   };
+
+  const splitInitiatorName = useMemo(() => {
+    if (sessionData?.session?.splitInitiator && sessionData?.session?.participants?.length > 0) {
+      return sessionData?.session?.participants.find(i => i.sessionUserId === sessionData.session?.splitInitiator)?.guestName
+    }
+    return undefined
+  }, [sessionData?.session?.participants, sessionData?.session?.splitInitiator]);
 
   return (
     <AnimatePresence>
@@ -498,12 +512,12 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
               <div>
                 {serverModeLocked ? (
                   <div className="space-y-2">
-                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-[12px] text-gray-700">
+                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-[14px] text-gray-700">
                       {anyonePaid ? (
                         <>A payment has started — the split can no longer be changed.</>
                       ) : (
                         <>
-                          Your tablemate set the split to
+                          Your tablemate <span className="font-bold">{splitInitiatorName}</span> set the split to
                           <span className="font-semibold"> {localMode === 'items' ? 'Pay for items' : localMode === 'even' ? 'Split evenly' : localMode === 'custom' ? 'Custom split' : localMode === 'all' ? 'Pay for everyone' : 'Pay for self'}</span>.
                           {serverIsItemized ? ' You can claim any remaining items.' : ' Your share is shown above.'}
                         </>
