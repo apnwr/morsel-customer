@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { loadSDK } from '@/lib/peach-payments/sdk-loader';
+import { loadSDK, resetSDKLoader } from '@/lib/peach-payments/sdk-loader';
 import { config } from '@/lib/config';
 import { paymentService } from '@/services/payment.service';
 import type { PeachCheckoutState, PeachCheckoutStatus } from '@/types/api/payment';
@@ -75,6 +75,45 @@ export function usePeachCheckout({
       instanceRef.current = null;
     }
     setIsWidgetMounted(false);
+
+    // Clean up Peach Payments scripts and styles from head
+    if (typeof document !== 'undefined') {
+      const peachElements = document.querySelectorAll(
+        'script[src*="peachpayments"], link[href*="peachpayments"], style[id*="peach"], link[href*="checkout.peach"]'
+      );
+      peachElements.forEach((el) => {
+        try {
+          el.remove();
+        } catch (e) {
+          console.error('[usePeachCheckout] Failed to remove element:', el, e);
+        }
+      });
+
+      // Remove inline style tags that contain peach payments selectors
+      const styleTags = document.querySelectorAll('style');
+      styleTags.forEach((el) => {
+        if (
+          el.textContent &&
+          (el.textContent.includes('peach') ||
+            el.textContent.includes('checkout-root') ||
+            el.textContent.includes('peach-checkout'))
+        ) {
+          try {
+            el.remove();
+          } catch (e) {
+            console.error('[usePeachCheckout] Failed to remove style tag:', el, e);
+          }
+        }
+      });
+
+      // Also reset the SDK loader singleton state so it can reload next time
+      resetSDKLoader();
+
+      // Clean up the global Checkout object
+      if (typeof window !== 'undefined' && 'Checkout' in window) {
+        delete (window as any).Checkout;
+      }
+    }
   }, []);
 
   const renderWidget = useCallback((element: HTMLDivElement, checkoutId: string) => {
@@ -106,16 +145,16 @@ export function usePeachCheckout({
 
               let verified = result.success && result.status === 'success';
 
-              if (!verified && config.peachPayments.trustClientResultCode) {
-                const peachCode = (result.verification as Record<string, unknown> | undefined)?.['result.code'];
-                if (typeof peachCode === 'string' && PEACH_SUCCESS_CODE.test(peachCode)) {
-                  console.warn(
-                    '[usePeachCheckout] NEXT_PUBLIC_PEACH_TRUST_CLIENT override: backend reported failure but Peach result.code %s is a valid success. Treating as success.',
-                    peachCode
-                  );
-                  verified = true;
-                }
-              }
+              // if (!verified && config.peachPayments.trustClientResultCode) {
+              //   const peachCode = (result.verification as Record<string, unknown> | undefined)?.['result.code'];
+              //   if (typeof peachCode === 'string' && PEACH_SUCCESS_CODE.test(peachCode)) {
+              //     console.warn(
+              //       '[usePeachCheckout] NEXT_PUBLIC_PEACH_TRUST_CLIENT override: backend reported failure but Peach result.code %s is a valid success. Treating as success.',
+              //       peachCode
+              //     );
+              //     verified = true;
+              //   }
+              // }
 
               if (verified) {
                 setState({

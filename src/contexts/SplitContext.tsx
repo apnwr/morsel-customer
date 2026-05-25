@@ -371,7 +371,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
     shares: Record<string, number>,
     participants: Participant[]
   ): Promise<void> => {
-    if (!sessionId || participants.length === 0) return;
+    if (!sessionId || participants.length === 0 && !sessionData?.session) return;
 
     // Snapshot before the POST: was there already a server-side split type? If
     // not, this call is the first commit for the session — the local user is
@@ -442,8 +442,12 @@ export function SplitProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      if (currentSessionUserId) {
+      if (currentSessionUserId && !sessionData?.session?.splitInitiator) {
         payload.sessionUserId = currentSessionUserId;
+      } else {
+        if (sessionData?.session?.splitInitiator) {
+          payload.sessionUserId = sessionData?.session?.splitInitiator;
+        }
       }
       const response = await splitService.calculateSplit(sessionId, payload);
       console.log('[SplitContext] Split synced to server:', response.data);
@@ -452,7 +456,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       // First-commit-wins: stamp the local user as initiator only on the very
       // first save for this session and only if no marker exists yet. Prevents
       // a later "claim items" save (in itemized mode) from flipping ownership.
-      if (isFirstCommit) {
+      if (isFirstCommit && !sessionData?.session?.splitInitiator) {
         const initiatorKey = STORAGE_KEYS.SPLIT_INITIATOR(sessionId);
         const existing = getFromStorage<string>(initiatorKey);
         const me = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
@@ -468,7 +472,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       // Rethrow so callers can surface the failure to the user instead of silently accepting it
       throw error;
     }
-  }, [itemizedSelections, refreshSessionData, serverSplitType]);
+  }, [itemizedSelections, refreshSessionData, serverSplitType, sessionData?.session?.splitInitiator]);
 
   const addMockParticipant = useCallback(() => {
     setSplit((prev) => {
@@ -487,7 +491,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
   }, [currentSessionUserId]);
 
   const refreshSplit = useCallback(async () => {
-    if (sessionId && serverSplitConfig?.type && serverSplitConfig?.amounts && serverSplitConfig.numberOfSplits) {
+    if (sessionId && serverSplitConfig?.type && serverSplitConfig?.amounts && serverSplitConfig.numberOfSplits && sessionData?.session) {
       try {
         const payload: SplitCalculateRequest = {
           type: serverSplitConfig.type,
@@ -495,8 +499,12 @@ export function SplitProvider({ children }: { children: ReactNode }) {
           amounts: serverSplitConfig.amounts,
           ...(serverSplitConfig.type === 'itemized' && serverSplitConfig.itemIds ? { itemIds: serverSplitConfig.itemIds } as any : {}),
         }
-        if (currentSessionUserId) {
+        if (currentSessionUserId && !sessionData?.session?.splitInitiator) {
           payload.sessionUserId = currentSessionUserId;
+        } else {
+          if (sessionData?.session?.splitInitiator) {
+            payload.sessionUserId = sessionData?.session?.splitInitiator;
+          }
         }
         await splitService.calculateSplit(sessionId, payload);
         refreshSessionData();
@@ -504,7 +512,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     }
-  }, [sessionId, serverSplitConfig, currentSessionUserId]);
+  }, [sessionId, serverSplitConfig, currentSessionUserId, sessionData?.session?.splitInitiator]);
 
   const value: SplitState = {
     split,

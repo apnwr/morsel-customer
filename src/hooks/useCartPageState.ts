@@ -18,6 +18,7 @@ import { orderService } from '@/services/order.service';
 import type { RestaurantContext } from '@/types/restaurant';
 import type { SessionOrder } from '@/types/api/session';
 import type { QueueItem } from '@/types/api/order';
+import { KITCHEN_NOTE_KEY } from '@/components/cart/PreOrderView';
 
 export interface CartPageState {
   /** Number of items currently in the cart */
@@ -108,7 +109,8 @@ export function useCartPageState(): CartPageState {
         console.log('[useCartPageState] Area order placed:', orderId);
       } else {
         // Space flow: use queue/confirm
-        const result = await confirmOrder('cash');
+        const notes = getFromStorage<string>(KITCHEN_NOTE_KEY) || '';
+        const result = await confirmOrder('cash', notes);
         console.log('[useCartPageState] Order confirmation result:', result);
 
         if (!result.success || !result.orderId) {

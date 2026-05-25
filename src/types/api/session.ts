@@ -82,6 +82,7 @@ export interface Session {
   expiresAt?: string;
   sessionTips?: Record<string, SessionTips>
   actualOrders?: SessionOrder[];
+  splitInitiator?: string | null;
 }
 
 export interface OrderingSessionData {
@@ -180,7 +181,8 @@ export interface SessionDetail {
   /** Payment records for the session */
   payments?: any[];
   updatedAt: Timestamp;
-  sessionTips?: Record<string, SessionTips>
+  sessionTips?: Record<string, SessionTips>;
+  splitInitiator?: string | null;
 }
 
 export interface SessionDetailResponse {

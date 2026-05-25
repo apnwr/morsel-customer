@@ -10,6 +10,7 @@ import { SessionProvider } from "@/contexts/SessionContext";
 import { LocaleProvider } from "@/contexts/LocaleContext";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import DebugPanelWrapper from "@/components/layout/DebugPanelWrapper";
+import Initializer from "@/components/layout/Initializer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,6 +52,7 @@ export default function RootLayout({
                   <CartProvider>
                     <OrderProvider>
                       <SplitProvider>
+                        <Initializer />
                         {children}
                         <DebugPanelWrapper />
                       </SplitProvider>

@@ -35,7 +35,6 @@ export function ParticipantsList({ totalOverride }: ParticipantsListProps = {}) 
   const { cart } = useCart();
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  const sessionId = sessionData?.session?.id;
   const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
   // The effective total for split — bill total (with taxes/charges) takes priority over cart total
@@ -48,7 +47,7 @@ export function ParticipantsList({ totalOverride }: ParticipantsListProps = {}) 
     if (split.participants.length > 0) {
       calculateSplit(splitTotal, cart);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- cart passed for "self" mode; cartItemsLength + splitTotal cover meaningful changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cart passed for "self" mode; cartItemsLength + splitTotal cover meaningful changes
   }, [splitTotal, cartItemsLength, split.participants.length, split.mode, calculateSplit]);
 
   // Sync session participants (from SessionContext polling) into SplitContext.
@@ -81,7 +80,7 @@ export function ParticipantsList({ totalOverride }: ParticipantsListProps = {}) 
         addParticipant(newParticipant);
       }
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiParticipants]);
 
   // Get participants from API, prioritizing API data but ensuring all are in split

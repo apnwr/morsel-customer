@@ -139,7 +139,7 @@ export function PeachCheckoutView({
             >
               Payment
             </h1>
-            {/* <p className="text-sm text-gray-500">{formatPrice(amount)}</p> */}
+            <p className="text-sm text-gray-500">{formatPrice(amount)}</p>
           </div>
         </div>
       </div>
@@ -196,7 +196,7 @@ export function PeachCheckoutView({
               >
                 {cfg.title}
               </h3>
-              <p className="text-sm text-gray-500 text-center max-w-xs">{cfg.message}</p>
+              <p className="text-sm text-gray-500 text-center">{cfg.message}</p>
               <button
                 onClick={retry}
                 className="mt-4 h-12 px-10 min-w-[240px] bg-black text-white rounded-xl font-bold text-base transition-all active:scale-95"

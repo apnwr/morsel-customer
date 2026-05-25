@@ -25,7 +25,7 @@ interface CartState {
   updateQuantity: (cartItemId: string, quantity: number) => void;
   clearCart: () => void;
   getItemCount: () => number;
-  confirmOrder: (paymentType: 'cash' | 'card' | 'upi' | string) => Promise<{ orderId: string; success: boolean }>;
+  confirmOrder: (paymentType: 'cash' | 'card' | 'upi' | string, notes: string) => Promise<{ orderId: string; success: boolean }>;
   syncCartFromQueue: () => Promise<void>;
   /** Set when user adds or removes via addItem/removeItem (not from sync). Consumed by Header to show "X item(s) added/removed" snackbar once. */
   lastCartAction: { type: 'added' | 'removed'; count: number } | null;
@@ -925,7 +925,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const confirmOrder = async (paymentType: 'cash' | 'card' | 'upi' | string): Promise<{ orderId: string; success: boolean }> => {
+  const confirmOrder = async (paymentType: 'cash' | 'card' | 'upi' | string, notes: string): Promise<{ orderId: string; success: boolean }> => {
     // Validate session data
     if (!sessionData?.session?.id) {
       throw new Error('Active session not available. Please login again.');
@@ -953,6 +953,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const response = await orderService.confirmOrder(sessionData.session.id, {
         sessionUserId,
         paymentType,
+        notes
       });
 
       console.log('[CartContext] Order confirmed successfully:', {
