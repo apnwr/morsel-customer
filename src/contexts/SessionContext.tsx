@@ -390,8 +390,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const latestParticipants = response.data.participants;
 
       // Update split payment status and config from polling response
-      setSplitPaymentStatus(response.data.splits || null);
-      setServerSplitConfig(response.data.splitConfig || null);
+      setSplitPaymentStatus(response?.data?.splits || null);
+      setServerSplitConfig(response?.data?.splitConfig || null);
 
       // Apply branch currency / timezone
       if (response.data.currency || response.data.timezone) {

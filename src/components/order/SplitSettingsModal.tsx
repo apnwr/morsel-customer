@@ -47,6 +47,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
     () => [...(splitPaymentStatus ?? [])].sort((a, b) => a.index - b.index),
     [splitPaymentStatus]
   );
+
   const initiatorId = useMemo(() => {
     // if (serverSplitType === 'itemized') {
     //   return sortedSplits[0]?.sessionUserId ?? null;
@@ -139,6 +140,8 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const difference = effectiveTotal - currentSum;
   const isValidSum = Math.abs(difference) < 0.01; // Allow for rounding errors
 
+  // console.log("localMode", localMode, localShares)
+
   // Reset local state when modal opens — use effective mode (not raw split.mode)
   useEffect(() => {
     if (isOpen) {
@@ -148,7 +151,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
       hasSyncedRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, effectiveMode]);
 
   // Calculate local shares when local mode changes (but not for custom or items mode)
   useEffect(() => {
@@ -205,15 +208,17 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   }, [isOpen, localMode, split.participants.length, effectiveTotal, userItemsTotal, sessionData?.session?.actualOrders]);
 
   useEffect(() => {
-    if (sessionId && split?.participants?.length > 0 && !hasSyncServerRef.current) {
-      setTimeout(() => {
+    if (sessionId && split?.participants?.length > 0 && !hasSyncServerRef.current && Object.values(localShares).length > 0) {
+      const sharesSnapshot: Record<string, number> = {};
+      Object.entries(localShares).forEach(([id, val]) => {
+        sharesSnapshot[id] = parseFloat(val) || 0;
+      });
+      if (Object.values(sharesSnapshot).length > 0 && Object.values(sharesSnapshot).some(item => item > 0)) {
         hasSyncServerRef.current = true;
-        const sharesSnapshot: Record<string, number> = {};
-        Object.entries(localShares).forEach(([id, val]) => {
-          sharesSnapshot[id] = parseFloat(val) || 0;
-        });
-        syncSplitToServer(sessionId, localMode, sharesSnapshot, split.participants);
-      }, 200)
+        setTimeout(() => {
+          syncSplitToServer(sessionId, localMode, sharesSnapshot, split.participants);
+        }, 200)
+      }
     }
   }, [sessionId, split.participants, localMode, localShares, syncSplitToServer]);
 

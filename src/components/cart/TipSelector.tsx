@@ -71,7 +71,7 @@ export function TipSelector({ subtotal, onTipChange, sessionId, sessionUserId }:
       await refreshSplit()
 
     }
-  }, [sessionId, sessionUserId]);
+  }, [sessionId, sessionUserId, refreshSplit]);
 
   // Persist tip state and notify parent (NO server sync here — that happens only on user action)
   // useEffect(() => {
