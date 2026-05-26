@@ -79,7 +79,7 @@ function serverTypeToLocalMode(serverType: string): SplitBill['mode'] {
 }
 
 export function SplitProvider({ children }: { children: ReactNode }) {
-  const { serverSplitType, splitPaymentStatus, refreshSessionData } = useSession();
+  const { serverSplitType, splitPaymentStatus, refreshSessionData, serverSplitConfig, sessionData } = useSession();
 
   const [split, setSplit] = useState<SplitBill>(() => {
     // Initialize from localStorage or use empty split
@@ -96,7 +96,6 @@ export function SplitProvider({ children }: { children: ReactNode }) {
   const [itemizedSelections, setItemizedSelectionsState] = useState<Record<string, string[]>>(() => {
     return getFromStorage<Record<string, string[]>>(ITEMIZED_SELECTIONS_KEY) || {};
   });
-  const { serverSplitConfig, sessionData } = useSession();
   const sessionId = useMemo(() => sessionData?.session?.id, [sessionData?.session?.id]);
   const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
@@ -142,7 +141,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
 
       if (modeMatches && sharesMatch) return prev;
 
-      console.log(`[SplitContext] Hydrating from server: mode ${prev.mode} → ${serverMode}, shares:`, serverShares);
+      // console.log(`[SplitContext] Hydrating from server: mode ${prev.mode} → ${serverMode}, shares:`, serverShares);
       return {
         ...prev,
         mode: serverMode,
@@ -450,7 +449,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         }
       }
       const response = await splitService.calculateSplit(sessionId, payload);
-      console.log('[SplitContext] Split synced to server:', response.data);
+      // console.log('[SplitContext] Split synced to server:', response.data);
       setServerSplits(response.data?.splits || null);
 
       // First-commit-wins: stamp the local user as initiator only on the very

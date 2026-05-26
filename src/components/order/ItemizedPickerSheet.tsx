@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useLocale } from '@/contexts/LocaleContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSplit } from '@/contexts/SplitContext';
@@ -13,6 +13,7 @@ import { sessionService } from '@/services/session.service';
 import { useSessionBill } from '@/hooks/useSessionBill';
 import type { SessionOrder, SessionOrderItem, SessionDetail } from '@/types/api/session';
 import type { SplitEntry } from '@/types/api/split';
+import { Button } from '../ui';
 
 interface ItemizedPickerSheetProps {
   isOpen: boolean;
@@ -62,10 +63,17 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
   // sheet opens, so we get the freshest items list at the moment of save.
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
+  // Local selection state: key → quantity selected by current user (draft)
+  const [selections, setSelections] = useState<Record<string, number>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [conflictNotice, setConflictNotice] = useState<string | null>(null);
 
   /* eslint-disable react-hooks/set-state-in-effect -- fetch + loading indicator on sheet open */
   useEffect(() => {
-    if (!isOpen || !sessionId) return;
+    if (!isOpen || !sessionId) {
+      setSessionDetail(null);
+      return;
+    }
 
     let cancelled = false;
     setIsLoadingItems(true);
@@ -113,10 +121,6 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
     return items;
   }, [sessionDetail?.orders]);
 
-  // Local selection state: key → quantity selected by current user (draft)
-  const [selections, setSelections] = useState<Record<string, number>>({});
-  const [isSaving, setIsSaving] = useState(false);
-  const [conflictNotice, setConflictNotice] = useState<string | null>(null);
 
   // Participant name lookup by sessionUserId (authoritative: session participants)
   const nameBySessionUserId = useMemo(() => {
@@ -186,10 +190,23 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
       .reduce((sum, e) => sum + e.qty, 0);
   }, [serverClaimsByKey, currentSessionUserId]);
 
+  const hasInitializedRef = useRef(false);
+
   // Initialize draft when sheet opens: prefer user's own server split, then localStorage draft.
   /* eslint-disable react-hooks/set-state-in-effect -- initialization from async-fetched session data */
   useEffect(() => {
-    if (!isOpen || !currentSessionUserId) return;
+    if (!isOpen || !currentSessionUserId) {
+      hasInitializedRef.current = false;
+      return;
+    }
+
+    if (hasInitializedRef.current) return;
+
+    // We need either myServerSplit to have items, or sessionDetail to be loaded
+    const hasMyServerSplitItems = !!(myServerSplit?.items && myServerSplit.items.length > 0);
+    const isDataLoaded = hasMyServerSplitItems || sessionDetail !== null;
+
+    if (!isDataLoaded) return;
 
     const initial: Record<string, number> = {};
 
@@ -209,7 +226,8 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
 
     setSelections(initial);
     setConflictNotice(null);
-  }, [isOpen, currentSessionUserId, allItems, itemizedSelections, myServerSplit]);
+    hasInitializedRef.current = true;
+  }, [isOpen, currentSessionUserId, allItems, itemizedSelections, myServerSplit, sessionDetail]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Calculate current user's selected subtotal (items only, before tax/charges)
@@ -596,29 +614,22 @@ export function ItemizedPickerSheet({ isOpen, onClose, onConfirm, sessionId, tot
 
             {/* Fixed Bottom CTA */}
             <div
-              className="fixed left-0 right-0 z-20 flex justify-center"
+              className="fixed left-0 right-0 bottom-2 z-20 flex justify-center"
               style={{
-                bottom: 0,
                 transform: 'translateZ(0)',
               }}
             >
-              <button
+              <Button
                 onClick={handleConfirm}
                 disabled={isSaving || selectedTotal <= 0}
-                className="w-full max-w-2xl h-[70px] box-content bg-black text-white flex items-center justify-between px-[22px] disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{
-                  paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
-                  fontFamily: 'Helvetica Neue, sans-serif',
-                  fontWeight: 700,
-                  fontSize: '20px',
-                }}
+                className="w-full max-w-2xl h-[70px] justify-between px-[22px] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="flex items-center gap-2">
                   {isSaving && <Loader2 className="w-5 h-5 animate-spin" />}
                   {isSaving ? 'Checking…' : 'Confirm Selection'}
                 </span>
                 <span>{formatPrice(selectedTotal)}</span>
-              </button>
+              </Button>
             </div>
           </motion.div>
         </div>
