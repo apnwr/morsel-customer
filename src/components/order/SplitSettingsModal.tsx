@@ -15,6 +15,8 @@ import { getFromStorage } from '@/mocks/mockStorage';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { ItemizedPickerSheet } from '@/components/order/ItemizedPickerSheet';
 import { useOrder } from '@/contexts';
+import { SplitEntry, SplitType } from '@/types/api/split';
+import { Participant } from '@/types';
 
 interface SplitSettingsModalProps {
   isOpen: boolean;
@@ -23,8 +25,45 @@ interface SplitSettingsModalProps {
   total?: number;
 }
 
+function getSplitType(serverSplitType: SplitType | null | undefined) {
+  switch (serverSplitType) {
+    case 'equal': return 'even';
+    case 'custom': return 'custom';
+    case 'participant': return 'self';
+    case 'itemized': return 'items';
+    default: return 'even';
+  }
+}
+
+function getParticipantShares(spilts: SplitEntry[] | undefined | null, participants: Participant[], effectiveTotal: number) {
+  const shares: Record<string, string> = {};
+
+  if (spilts && spilts.length > 0) {
+    participants.forEach((p) => {
+      const serverEntry = spilts.find((s) => s.sessionUserId === p.id);
+      const amount =
+        serverEntry && typeof serverEntry.amount === 'number' ? serverEntry.amount : 0;
+      shares[p.id] = amount.toFixed(2);
+    });
+    return shares;
+  }
+
+  const participantCount = participants.length;
+  if (participantCount > 0 && effectiveTotal > 0) {
+    const even = effectiveTotal / participantCount;
+    participants.forEach((p) => {
+      shares[p.id] = even.toFixed(2);
+    });
+    return shares;
+  }
+
+  participants.forEach((p) => {
+    shares[p.id] = '0.00';
+  });
+  return shares;
+};
 export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModalProps) {
-  const { split, setSplitMode, setSplitForTotal, removeParticipant, updateShare, syncSplitToServer, itemizedSelections } = useSplit();
+  const { split, setSplitMode, setSplitForTotal, removeParticipant, updateShare, syncSplitToServer } = useSplit();
   const { cart } = useCart();
   const { sessionData, serverSplitType, splitPaymentStatus } = useSession();
 
@@ -83,13 +122,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   // Server-first: map serverSplitType to local mode key; default to 'even' when no server type.
   // Deliberately ignores local split.mode — that's per-device and can be stale.
   const effectiveMode: 'even' | 'custom' | 'self' | 'all' | 'items' = useMemo(() => {
-    switch (serverSplitType) {
-      case 'equal': return 'even';
-      case 'custom': return 'custom';
-      case 'participant': return 'self';
-      case 'itemized': return 'items';
-      default: return 'even';
-    }
+    return getSplitType(serverSplitType);
   }, [serverSplitType]);
 
   // Initialize local shares, server-first:
@@ -130,7 +163,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const [isSaving, setIsSaving] = useState(false);
   const hasSyncedRef = useRef(false);
   const hasSyncServerRef = useRef(false);
-
+  // console.log("localShares", localShares, localMode, effectiveMode)
   // Calculate current sum for real-time validation feedback from LOCAL state
   const getCurrentSum = () => {
     return Object.values(localShares).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
@@ -141,6 +174,23 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   const isValidSum = Math.abs(difference) < 0.01; // Allow for rounding errors
 
   // console.log("localMode", localMode, localShares)
+
+  const sessionSplitType = useMemo(() => sessionId && getSplitType(sessionData?.session?.splitConfig?.type), [sessionId, sessionData?.session?.splitConfig?.type]);
+  const sessionSplitAmounts = useMemo(() => sessionId ? getParticipantShares(sessionData.session?.splits, split.participants, effectiveTotal) : undefined, [sessionId, sessionData?.session?.splits])
+  useEffect(() => {
+    if (sessionId && split?.participants?.length > 0 && !hasSyncServerRef.current && (sessionSplitAmounts && Object.values(sessionSplitAmounts).length > 0)) {
+      const sharesSnapshot: Record<string, number> = {};
+      Object.entries(sessionSplitAmounts).forEach(([id, val]) => {
+        sharesSnapshot[id] = parseFloat(val) || 0;
+      });
+      if (sessionSplitType && Object.values(sharesSnapshot).length > 0 && Object.values(sharesSnapshot).some(item => item > 0)) {
+        hasSyncServerRef.current = true;
+        setTimeout(() => {
+          syncSplitToServer(sessionId, sessionSplitType, sharesSnapshot, split.participants);
+        }, 200)
+      }
+    }
+  }, [sessionId, split.participants, sessionSplitType, sessionSplitAmounts, syncSplitToServer]);
 
   // Reset local state when modal opens — use effective mode (not raw split.mode)
   useEffect(() => {
@@ -206,21 +256,6 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
     setLocalShares(newLocalShares);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, localMode, split.participants.length, effectiveTotal, userItemsTotal, sessionData?.session?.actualOrders]);
-
-  useEffect(() => {
-    if (sessionId && split?.participants?.length > 0 && !hasSyncServerRef.current && Object.values(localShares).length > 0) {
-      const sharesSnapshot: Record<string, number> = {};
-      Object.entries(localShares).forEach(([id, val]) => {
-        sharesSnapshot[id] = parseFloat(val) || 0;
-      });
-      if (Object.values(sharesSnapshot).length > 0 && Object.values(sharesSnapshot).some(item => item > 0)) {
-        hasSyncServerRef.current = true;
-        setTimeout(() => {
-          syncSplitToServer(sessionId, localMode, sharesSnapshot, split.participants);
-        }, 200)
-      }
-    }
-  }, [sessionId, split.participants, localMode, localShares, syncSplitToServer]);
 
 
   const handleModeChange = (mode: 'even' | 'custom' | 'self' | 'all' | 'items') => {

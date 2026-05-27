@@ -71,8 +71,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // but every entry in splits[] carries its own `type`. We pick the first one (all entries share
   // a type per session) and fall back to splitConfig.type for older GET shapes.
   const serverSplitType: SplitType | null = useMemo(() => {
-    const fromSplits = splitPaymentStatus?.find((s) => !!s.type)?.type;
-    return fromSplits ?? serverSplitConfig?.type ?? null;
+    // const fromSplits = splitPaymentStatus?.find((s) => !!s.type)?.type;
+    // return fromSplits ?? serverSplitConfig?.type ?? null;
+    return serverSplitConfig?.type ? serverSplitConfig.type : null;
   }, [splitPaymentStatus, serverSplitConfig]);
 
   // Active order ID: tracks which order tab is currently active
@@ -118,7 +119,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (sessionData?.session?.status && INACTIVE_SESSION_STATUS.includes(sessionData?.session?.status as any)) {
       clearSession();
     }
-  }, [sessionData?.session])
+  }, [sessionData?.session?.status])
 
   // Set preview session (ephemeral, NOT persisted to localStorage)
   const setPreviewSession = useCallback((data: OrderingSessionData | null) => {
@@ -312,6 +313,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           actualOrders: response.data.orders || [],
           splitInitiator: response.data.splitInitiator,
           status: response.data.status,
+          splitConfig: response.data.splitConfig,
+          splits: response.data.splits
         },
         participantsCount: response.data.participants.length,
       };
@@ -411,6 +414,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             actualOrders: response.data.orders || [],
             splitInitiator: response.data.splitInitiator,
             status: response.data.status,
+            splitConfig: response.data.splitConfig,
+            splits: response.data.splits
           },
           participantsCount: latestParticipants.length,
         };
@@ -426,7 +431,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('[SessionContext] Polling error:', error);
     }
-  }, [setLocale]);
+  }, []);
 
   // Effect: Polling-only sync for session data (participants, splits, config),
   // with Page Visibility API integration. We pause the interval when the tab
@@ -435,9 +440,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // a meaningful chunk of GETs on every dining session — most realistic
   // sessions have long stretches where the tab is in the background.
   // TODO: Switch to Firebase Realtime DB once it includes split data.
+
+  const _sessionId = useMemo(() => sessionData?.session?.id, [sessionData?.session?.id]);
+  const _spaceId = useMemo(() => sessionData?.space?.id, [sessionData?.space?.id]);
   useEffect(() => {
-    const sessionId = sessionData?.session?.id;
-    const spaceId = sessionData?.space?.id;
+    const sessionId = _sessionId;
+    const spaceId = _spaceId;
 
     if (!sessionId || !spaceId) return;
 
@@ -483,7 +491,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionData?.session?.id, sessionData?.space?.id]);
+  }, [_sessionId, _spaceId]);
 
   const value: SessionState = useMemo(() => ({
     previewSession,
