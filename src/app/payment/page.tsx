@@ -133,37 +133,37 @@ function PaymentPageContent() {
     return <OrdersLoading />;
   }
 
-  if (amountMismatch && serverShare != null) {
-    const newTotal = Math.round((serverShare + tipAmount) * 100) / 100;
-    return (
-      <div className="min-h-dvh bg-white flex flex-col items-center justify-center px-6 gap-4">
-        <AlertCircle className="w-10 h-10 text-orange-500" />
-        <h1
-          className="text-xl font-bold text-black text-center"
-          style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
-        >
-          Split changed
-        </h1>
-        <p className="text-sm text-gray-600 text-center">
-          Your share has been updated to <span className="font-bold">{formatPrice(newTotal)}</span>.
-          Review before continuing.
-        </p>
-        <button
-          onClick={handleAcceptNewAmount}
-          className="mt-2 h-12 px-10 min-w-[240px] bg-brand text-white rounded-xl font-bold text-base active:scale-95 transition-transform"
-          style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
-        >
-          Continue with {formatPrice(newTotal)}
-        </button>
-        <button
-          onClick={() => router.replace('/orders')}
-          className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          Back to order
-        </button>
-      </div>
-    );
-  }
+  // if (amountMismatch && serverShare != null) {
+  //   const newTotal = Math.round((serverShare + tipAmount) * 100) / 100;
+  //   return (
+  //     <div className="min-h-dvh bg-white flex flex-col items-center justify-center px-6 gap-4">
+  //       <AlertCircle className="w-10 h-10 text-orange-500" />
+  //       <h1
+  //         className="text-xl font-bold text-black text-center"
+  //         style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
+  //       >
+  //         Split changed
+  //       </h1>
+  //       <p className="text-sm text-gray-600 text-center">
+  //         Your share has been updated to <span className="font-bold">{formatPrice(newTotal)}</span>.
+  //         Review before continuing.
+  //       </p>
+  //       <button
+  //         onClick={handleAcceptNewAmount}
+  //         className="mt-2 h-12 px-10 min-w-[240px] bg-brand text-white rounded-xl font-bold text-base active:scale-95 transition-transform"
+  //         style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
+  //       >
+  //         Continue with {formatPrice(newTotal)}
+  //       </button>
+  //       <button
+  //         onClick={() => router.replace('/orders')}
+  //         className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+  //       >
+  //         Back to order
+  //       </button>
+  //     </div>
+  //   );
+  // }
 
   return (
     <PeachCheckoutView

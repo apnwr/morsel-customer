@@ -136,7 +136,7 @@ export function ParticipantsList({ totalOverride }: ParticipantsListProps = {}) 
       if (splitPaymentStatus && splitPaymentStatus.length > 0) {
         const serverEntry = splitPaymentStatus.find((s) => s.sessionUserId === sessionUserId);
         if (serverEntry && typeof serverEntry.amount === 'number') {
-          return serverEntry.amount;
+          return serverEntry.amount - (serverEntry?.tip || 0);
         }
       }
 

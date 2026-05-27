@@ -43,11 +43,11 @@ function OrdersPageContent() {
   } = useOrdersPageState();
 
   // Strip payment query params after hydration so a refresh doesn't replay the result screen
-  useEffect(() => {
-    if (searchParams.get('paymentResult')) {
-      router.replace('/orders');
-    }
-  }, [searchParams]);
+  // useEffect(() => {
+  //   if (searchParams.get('paymentResult')) {
+  //     router.replace('/orders');
+  //   }
+  // }, [searchParams]);
 
   const handleBackToMenu = useCallback(async () => {
     await endSession('completed');

@@ -3,6 +3,7 @@
  */
 
 import { Order } from './order';
+import { SplitConfig, SplitEntry } from './split';
 
 export interface Timestamp {
   _seconds: number;
@@ -83,6 +84,8 @@ export interface Session {
   sessionTips?: Record<string, SessionTips>
   actualOrders?: SessionOrder[];
   splitInitiator?: string | null;
+  splitConfig?: SplitConfig | null;
+  splits?: SplitEntry[] | null;
 }
 
 export interface OrderingSessionData {
