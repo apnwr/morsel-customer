@@ -14,131 +14,154 @@ The My Tab page provides a summary view of the current dining session — showin
 
 ## Page Layout (Top → Bottom)
 
-| Section | Description |
-|---------|-------------|
-| **Sticky Top Bar** | Back button (chevron, `router.back()`) + centered Morsel text logo (`morsel_text_logo.svg`, 76×17px — same size as Footer logo) |
-| **Table Name** | `h1` showing `sessionData.space.name` (e.g. "Table 15"), falls back to "Table" |
+| Section              | Description                                                                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Sticky Top Bar**   | Back button (chevron, `router.back()`) + centered Morsel text logo (`morsel_text_logo.svg`, 76×17px — same size as Footer logo)                                                                                                |
+| **Table Name**       | `h1` showing `sessionData.space.name` (e.g. "Table 15"), falls back to "Table"                                                                                                                                                 |
 | **ParticipantsList** | Shared black card component — shows participant avatars, per-person amounts, split mode label, and "Change" settings button. Opens `SplitSettingsModal` on tap. Handles its own participant sync (Firebase + polling fallback) |
-| **Google Reviews** | Centered placeholder link (198×112px gray card) pointing to a hardcoded Google Maps URL |
-| **Browse Menu** | Full-width outlined CTA button → navigates to `/menu` |
-| **Pay Now Bar** | Fixed bottom black bar (70px, rounded-t-30px) showing "Pay Now {amount}" + diagonal arrow icon |
-| **Footer** | Standard app footer |
+| **Google Reviews**   | Centered placeholder link (198×112px gray card) pointing to a hardcoded Google Maps URL                                                                                                                                        |
+| **Browse Menu**      | Full-width outlined CTA button → navigates to `/menu`                                                                                                                                                                          |
+| **Pay Now Bar**      | Fixed bottom black bar (70px, rounded-t-30px) showing "Pay Now {amount}" + diagonal arrow icon                                                                                                                                 |
+| **Footer**           | Standard app footer                                                                                                                                                                                                            |
 
 ---
 
 ## Navigation
 
-| From | To | Trigger |
-|------|----|---------|
-| `/my-tab` | Previous page | Back chevron (`router.back()`) |
-| `/my-tab` | `/menu` | "Browse Menu" CTA button |
-| `/my-tab` | External | Google Reviews link (opens in new tab) |
+| From      | To            | Trigger                                       |
+| --------- | ------------- | --------------------------------------------- |
+| `/my-tab` | Previous page | Back chevron (`router.back()`)                |
+| `/my-tab` | `/payment`    | "Pay Now" bar → `/payment?amount=...&tip=...` |
+| `/my-tab` | `/menu`       | "Browse Menu" CTA button                      |
+| `/my-tab` | External      | Google Reviews link (opens in new tab)        |
 
 ---
 
 ## Data Flow
 
-### Orders Total Calculation
+### Bill Total
 
+There is **no** `ordersTotal` state and **no** manual summation of `session.orders[].total`. The page reads the bill total straight from `useSessionBill()` (`my-tab/page.tsx:39-40`):
+
+```ts
+const { bill } = useSessionBill();
+const billTotal = bill?.total ?? 0;
 ```
-1. Read sessionId from sessionData.session.id
-         |
-2. Fetch full session via:
-   GET /ordering-session/session/{sessionId}
-         |
-3. Sum all order totals from session.orders[]
-   (only objects with a `total` field are counted)
-         |
-4. Store result in ordersTotal state
-```
+
+`useSessionBill()` goes through the shared bill cache, so concurrent consumers de-dupe to a single fetch.
 
 ### Pay Now Amount Calculation
 
+Server-first. The page reads the current user's amount from `splitPaymentStatus` (via `useSession()`), falls back to an even share, and **ignores** local `split.shares`. `isSplitApplicableForTotal` / `split-utils` is no longer imported here (`my-tab/page.tsx:47-59`).
+
 ```
-1. evenShare = ordersTotal / max(1, apiParticipants.length)
-         |
-2. Check if split.shares are applicable for current ordersTotal
-   via isSplitApplicableForTotal(split.splitForTotal, ordersTotal)
-         |
-3. If applicable AND current user has a share → use split.shares[userId]
-   Otherwise → use evenShare
+evenShare  = billTotal / max(1, apiParticipants.length)
+serverAmount = splitPaymentStatus.find(s => s.sessionUserId === me)?.amount ?? null
+
+payNowAmount = flowType === 'area'
+                 ? billTotal                          // area flow: pay the whole bill
+                 : serverAmount != null
+                     ? serverAmount                    // server-provided split share
+                     : evenShare                       // fallback
 ```
 
 ### ParticipantsList (Delegated)
 
 The `ParticipantsList` component handles its own data lifecycle:
+
 - Fetches session details independently
 - Syncs API participants into `SplitContext`
 - Uses Firebase Realtime DB for live participant updates (falls back to 10s polling)
 - Recalculates split when cart total or participants change
 - Renders its own `SplitSettingsModal`
 
+Note: `ParticipantsList` is **hidden in the area flow** (`flowType !== 'area'` guard — `my-tab/page.tsx:117`), since area orders are single-participant with no split.
+
+---
+
+## Pay Now / Payment Navigation
+
+`handlePayNow` (`my-tab/page.tsx:67-76`) adds the stored tip and routes to the `/payment` route:
+
+```ts
+const tipAmount = getStoredTip().amount;
+const totalWithTip = round((payNowAmount + tipAmount) * 100) / 100;
+router.push(`/payment?amount=${totalWithTip}&tip=${tipAmount}`);
+```
+
+An effect (`my-tab/page.tsx:62-65`) prefetches the Peach SDK (`prefetchSDK()`) and the `/payment` route so the payment screen opens instantly.
+
 ---
 
 ## State
 
-| State | Type | Source | Purpose |
-|-------|------|--------|---------|
-| `ordersTotal` | `number` | API fetch on mount | Sum of all placed order totals in session |
-| `sessionData` | `SessionData` | `useSession()` context | Provides session ID, space name, participants |
-| `split` | `SplitState` | `useSplit()` context | Current split mode, shares, participants |
-| `currentSessionUserId` | `string` | localStorage (`morsel_session_user_id`) | Identifies current user for share lookup |
+| State                  | Type                  | Source                                  | Purpose                                       |
+| ---------------------- | --------------------- | --------------------------------------- | --------------------------------------------- |
+| `bill`                 | `SessionBill \| null` | `useSessionBill()`                      | Provides `bill.total` (the bill total)        |
+| `sessionData`          | `SessionData`         | `useSession()` context                  | Provides session ID, space name, participants |
+| `splitPaymentStatus`   | array                 | `useSession()` context                  | Server-provided per-user pay amounts          |
+| `flowType`             | `'space' \| 'area'`   | `useFlowType()`                         | Branches Pay Now amount and ParticipantsList  |
+| `currentSessionUserId` | `string`              | localStorage (`morsel_session_user_id`) | Identifies current user for share lookup      |
+
+There is **no** `useSplit()` in this page.
 
 ### Derived Values
 
-| Value | Derivation |
-|-------|-----------|
-| `apiParticipants` | `sessionData.session.participants` (memoized) |
-| `evenShare` | `ordersTotal / max(1, apiParticipants.length)` |
-| `tableLabel` | `sessionData.space.name ?? "Table"` |
-| `useSplitShares` | `isSplitApplicableForTotal(split.splitForTotal, ordersTotal)` |
-| `payNowAmount` | Split share for current user if applicable, else `evenShare` |
+| Value             | Derivation                                                     |
+| ----------------- | -------------------------------------------------------------- |
+| `apiParticipants` | `sessionData.session.participants` (memoized)                  |
+| `billTotal`       | `bill?.total ?? 0`                                             |
+| `evenShare`       | `billTotal / max(1, apiParticipants.length)`                   |
+| `tableLabel`      | `sessionData.space.name ?? "Table"`                            |
+| `serverAmount`    | `splitPaymentStatus.find(s => s.sessionUserId === me)?.amount` |
+| `payNowAmount`    | `area` → `billTotal`; else `serverAmount ?? evenShare`         |
 
 ---
 
 ## Guards
 
-| Guard | Purpose |
-|-------|---------|
+| Guard                           | Purpose                                                     |
+| ------------------------------- | ----------------------------------------------------------- |
 | `useRequireRestaurantContext()` | Redirects if no restaurant context (user hasn't scanned QR) |
-| `useSessionValidation()` | Validates active session exists |
+| `useSessionValidation()`        | Validates active session exists                             |
 
 ---
 
 ## APIs Used
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /ordering-session/session/{sessionId}` | Fetch session orders to compute `ordersTotal` |
+| Endpoint                          | Purpose                                  |
+| --------------------------------- | ---------------------------------------- |
+| Bill fetch via `useSessionBill()` | Provides `bill.total` (shared, de-duped) |
 
 ---
 
 ## Components Used
 
-| Component | Source | Purpose |
-|-----------|--------|---------|
+| Component          | Source                                  | Purpose                                          |
+| ------------------ | --------------------------------------- | ------------------------------------------------ |
 | `ParticipantsList` | `@/components/session/ParticipantsList` | Split card with avatars, amounts, settings modal |
-| `Footer` | `@/components/layout/Footer` | Standard app footer |
+| `Footer`           | `@/components/layout/Footer`            | Standard app footer                              |
 
 ---
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `src/app/my-tab/page.tsx` | Page component |
-| `src/components/session/ParticipantsList.tsx` | Shared split/participants card (also used on orders page) |
+| File                                          | Purpose                                                      |
+| --------------------------------------------- | ------------------------------------------------------------ |
+| `src/app/my-tab/page.tsx`                     | Page component                                               |
+| `src/components/session/ParticipantsList.tsx` | Shared split/participants card (also used on orders page)    |
 | `src/components/order/SplitSettingsModal.tsx` | Modal for changing split mode (rendered by ParticipantsList) |
-| `src/lib/split-utils.ts` | `isSplitApplicableForTotal()` utility |
+| `src/hooks/useSessionBill.ts`                 | Provides `bill.total` via the shared bill cache              |
+| `src/components/cart/TipSelector.tsx`         | `getStoredTip()` — read at Pay Now time                      |
 
 ---
 
 ## Edge Cases
 
-| Scenario | Behavior |
-|----------|----------|
-| No session ID | `ordersTotal` set to 0 |
-| API fetch fails | `ordersTotal` falls back to 0 |
-| No participants | `evenShare` = `ordersTotal / 1` (full amount) |
-| Split shares not applicable for current total | Falls back to even share |
-| Current user not found in split shares | Falls back to even share |
+| Scenario                          | Behavior                                            |
+| --------------------------------- | --------------------------------------------------- |
+| No session ID                     | `billTotal` is 0; Pay Now disabled                  |
+| Bill not yet loaded               | `bill?.total ?? 0` → `billTotal` is 0               |
+| No participants                   | `evenShare` = `billTotal / 1` (full amount)         |
+| No server amount for current user | Falls back to even share                            |
+| Area flow                         | `payNowAmount = billTotal`; ParticipantsList hidden |

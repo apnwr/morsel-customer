@@ -1,5 +1,12 @@
 # Backend Split Schema — Proposal
 
+> **Status as of 2026-05-29** (proposal — not yet implemented server-side):
+>
+> 1. The `all` → `custom` mapping (§3.5) has already shipped **client-side** — the client posts `type: 'custom'` for "Pay for everyone".
+> 2. The `serverModeLocked` client guard (§8) has shipped (`SplitSettingsModal.tsx:110`).
+> 3. The §2 claim that "removing the `splitConfig` fields is a pure cleanup, no client changes required" is **now FALSE.** `SplitContext.refreshSplit()` (`SplitContext.tsx:493-508`) reads `serverSplitConfig.{type, amounts, numberOfSplits, itemIds}`. Those reads must be updated before the backend drops the fields.
+> 4. `participant` (Pay for self) is **still emitted as a distinct type** by the client (`SplitContext.tsx:404-409`) — collapsing it into `custom` (§3.5) remains open.
+
 Target: the `splits` and `splitConfig` objects returned by `GET /ordering-session/session/{id}` and `POST /ordering-session/session/{id}/split`.
 
 Two problems to solve:
@@ -12,12 +19,14 @@ Two problems to solve:
 ## 1. The upsert bug (fix this first)
 
 ### Reproduction
+
 - Session has 3 participants: Sandeep, Ayush, Piyush.
 - Sandeep `POST /split` with itemized items → server stores one split for Sandeep.
 - Ayush `POST /split` with itemized items → server should **add** Ayush's entry. Instead, the response shows `splits[]` containing **only** the later writer (Piyush).
 - Piyush (who per the user narrative hadn't claimed) appears to have the only surviving split.
 
 ### Evidence from the pasted session response
+
 ```json
 "splits": [
   {
@@ -38,16 +47,19 @@ Two problems to solve:
 ### Required backend behaviour
 
 For itemized splits:
+
 - `POST /split` with a given `sessionUserId` must **upsert that participant's entry** in `splits[]`, keyed on `sessionUserId`.
 - Other participants' existing entries must not be touched.
 - The response's `splits[]` must contain **every participant that has committed a split so far**, not just the most recent writer.
 - `splitConfig.itemIds` (if we keep it — see §2) must be the **union** of all claimed items across all splits, not just the latest POSTer's.
 
 For equal/custom/participant splits:
+
 - The first `POST /split` with `type ≠ itemized` creates one split entry per participant, populated from `amounts[]`.
 - Subsequent POSTs of the same type may rebalance. Mode changes (equal→custom) should be guarded — we've already restricted this on the client via `serverModeLocked`, but backend should reject cross-mode writes with 409 when splits already exist, to prevent accidental destruction.
 
 ### Rejection semantics
+
 - If someone tries to claim an item already in another split's `items[]`, reject with 409 (conflict).
 - If `type` differs from the current `splitConfig.type`, reject with 409.
 
@@ -78,6 +90,7 @@ For equal/custom/participant splits:
 ```
 
 Four concerns tangled together:
+
 - **Config** (how the bill is being split): `type`
 - **Per-participant state**: `splits[]` entries
 - **Initial intent at creation**: `numberOfSplits`, `amounts` (only useful at `POST` time, useless afterwards)
@@ -86,6 +99,7 @@ Four concerns tangled together:
 ### What the client actually reads
 
 From the frontend code:
+
 - `serverSplitConfig.type` — used in `SplitSettingsModal`, `ParticipantsList`, `PaymentResultView` for the mode label.
 - `serverSplitConfig.remainingItems` — not currently read but planned.
 - `splits[].sessionUserId` — used everywhere for per-participant amounts + payment routing.
@@ -108,20 +122,20 @@ Removing them is a pure cleanup; no client changes required.
 // Top-level on the session response
 interface Session {
   // …existing fields…
-  splitState?: SplitState;          // absent when no split has been created
+  splitState?: SplitState; // absent when no split has been created
 }
 
 interface SplitState {
   // Backend only knows three structural modes. 'participant' (pay for self) and
   // 'all' (pay for everyone) are CLIENT-SIDE UI PRESETS — the client expresses
   // them using type='custom' with appropriate amounts. See §3.5.
-  type: 'equal' | 'custom' | 'itemized';
-  initiatedBy: string;              // sessionUserId of whoever first POSTed /split
+  type: "equal" | "custom" | "itemized";
+  initiatedBy: string; // sessionUserId of whoever first POSTed /split
   initiatedAt: Timestamp;
-  version: number;                  // bumped on every mutation; used for optimistic concurrency (§11)
+  version: number; // bumped on every mutation; used for optimistic concurrency (§11)
 
-  splits: Split[];                  // per-participant commitments
-  remainingItems: OrderItem[];      // derived; items not in any split (itemized only)
+  splits: Split[]; // per-participant commitments
+  remainingItems: OrderItem[]; // derived; items not in any split (itemized only)
 
   // Derived aggregates — purely for client convenience, computable from splits[]
   allPaid: boolean;
@@ -130,25 +144,25 @@ interface SplitState {
 }
 
 interface Split {
-  splitId: string;                  // stable, primary identity
-  index: number;                    // stable integer, 0-based; used for payment routing
-  sessionUserId: string | null;     // null = unassigned slot (rare; for pre-allocated equal splits where a participant hasn't joined yet)
+  splitId: string; // stable, primary identity
+  index: number; // stable integer, 0-based; used for payment routing
+  sessionUserId: string | null; // null = unassigned slot (rare; for pre-allocated equal splits where a participant hasn't joined yet)
 
   // Itemized mode only
   items: SplitItem[];
 
   // Financial breakdown — always present, always the truth
-  subtotal: number;                 // for itemized: sum of item totals; else: from POST payload
+  subtotal: number; // for itemized: sum of item totals; else: from POST payload
   tax: number;
   charges: number;
   tip: number;
-  amount: number;                   // total = subtotal + tax + charges + tip
+  amount: number; // total = subtotal + tax + charges + tip
 
   // Payment state
   paid: boolean;
   paidAt: Timestamp | null;
-  paidBy: string | null;            // who tendered (can differ from sessionUserId for "pay for others")
-  method: 'card' | 'cash' | 'upi' | null;
+  paidBy: string | null; // who tendered (can differ from sessionUserId for "pay for others")
+  method: "card" | "cash" | "upi" | null;
   transactionId: string | null;
 }
 
@@ -190,9 +204,9 @@ interface SplitItem {
 
 Currently the backend has four modes: `equal`, `custom`, `participant`, `itemized`. The `participant` and `all` modes are **UI affordances, not distinct data shapes**:
 
-| UI preset | How it's expressed | Canonical data |
-|---|---|---|
-| "Pay for everyone" (`all`) | One participant's amount = billTotal; others = 0 | `type: 'custom'`, amounts distributed |
+| UI preset                      | How it's expressed                                                        | Canonical data                        |
+| ------------------------------ | ------------------------------------------------------------------------- | ------------------------------------- |
+| "Pay for everyone" (`all`)     | One participant's amount = billTotal; others = 0                          | `type: 'custom'`, amounts distributed |
 | "Pay for self" (`participant`) | Each participant's amount = their own items' total + pro-rata tax/charges | `type: 'custom'`, amounts distributed |
 
 Both are just specific `amounts[]` vectors under `type: 'custom'`. Keeping them as distinct backend modes causes real bugs:
@@ -282,10 +296,12 @@ This avoids any moment where client and backend disagree about shape.
 ## 6. Payment routing implications
 
 Currently:
+
 - Client sends `splitIdentifier: String(splits[me].index)` to `POST /payments/peach-payments/embedded`.
 - Backend resolves `index` → `splitId` → charge.
 
 Recommendation: **move to `splitId` as the canonical identifier**.
+
 - Indexes are fragile (if backend ever reindexes, client's cached identifier becomes wrong).
 - `splitId` is a UUID — stable, unambiguous.
 - Accept both `splitIdentifier` (legacy) and `splitId` for one release, then deprecate.
@@ -295,6 +311,7 @@ Recommendation: **move to `splitId` as the canonical identifier**.
 ## 7. Summary of asks to backend team
 
 ### Must-fix (data correctness)
+
 1. Upsert semantics on `POST /split` — preserve other participants' splits when one participant updates theirs.
 2. Reject cross-mode writes with 409 when splits already exist.
 3. Reject item claims that overlap with other participants' committed splits with 409.
@@ -305,6 +322,7 @@ Recommendation: **move to `splitId` as the canonical identifier**.
 8. **Rounding contract**: backend guarantees `subtotal + tax + charges + tip === amount` — see §12.
 
 ### Should-fix (schema cleanup)
+
 9. Remove `splitConfig.numberOfSplits`, `amounts`, `itemIds`, `splitTaxes`, `splitCharges`, `splitTips`, `itemizedSplit`.
 10. Rename `splitConfig.sessionUserId` → `initiatedBy`.
 11. Promote `allPaid`, `totalPaid`, `remainingTotal`, `canPay` to the top of `splitState`.
@@ -314,6 +332,7 @@ Recommendation: **move to `splitId` as the canonical identifier**.
 15. Add `splitState.version` integer for optimistic concurrency — see §11.
 
 ### Nice-to-have (future-proofing)
+
 16. Accept `splitId` on the payment-create endpoint alongside `splitIdentifier`.
 17. Include `paidBy` and `transactionId` on every split once payment settles.
 18. ETag / 304 support on `GET /session` — see §14.
@@ -332,6 +351,7 @@ No one is privileged. The "first POSTer" is not a manager. Treating them as one 
 ### Allowed per-participant edits (no mode change)
 
 Any participant can re-POST `/split` to modify **their own** claim, subject to:
+
 - Their split is not `paid: true`.
 - The new items don't overlap with other participants' committed `splits[i].items`.
 - The submitted `type` matches the current `splitState.type` (no silent mode conversion).
@@ -345,6 +365,7 @@ To switch mode (e.g. itemized → equal), the split must be reset first:
 **New endpoint:** `DELETE /ordering-session/session/{id}/split`
 
 Semantics:
+
 - Clears `splitState` entirely — removes all `splits[]` and `splitState.type`.
 - Requires `splitState.allPaid === false` (can't reset after anyone has paid). Reject with 409 otherwise.
 - Requires the caller to be a session participant (`sessionUserId` present in `participants`).
@@ -361,9 +382,9 @@ After a successful DELETE, the next `POST /split` creates a fresh `splitState` w
 
 ### Client UX implications
 
-- `SplitSettingsModal` in the locked state currently shows: *"Your tablemate set the split to X. You can claim any remaining items."*
+- `SplitSettingsModal` in the locked state currently shows: _"Your tablemate set the split to X. You can claim any remaining items."_
 - Add a secondary **"Reset split"** link below that message.
-- Tapping it opens a confirmation sheet: *"This will clear everyone's claims so the bill can be split a different way. Any paid splits prevent reset."*
+- Tapping it opens a confirmation sheet: _"This will clear everyone's claims so the bill can be split a different way. Any paid splits prevent reset."_
 - Backend enforcement is the ultimate guard — client confirmation is just UX politeness.
 
 ### Interactions with payment
@@ -373,12 +394,12 @@ After a successful DELETE, the next `POST /split` creates a fresh `splitState` w
 
 ### Summary
 
-| Action | Who can do it | Gate |
-|---|---|---|
-| Edit own items (itemized) | The owner of that split | Not yet paid + no overlap with others' claims |
-| Edit own amount (custom) | The owner of that split | Not yet paid |
-| Switch mode | No one directly — must Reset first | `allPaid === false` |
-| Reset split (DELETE) | Any session participant | `allPaid === false`, with explicit client confirmation |
+| Action                    | Who can do it                      | Gate                                                   |
+| ------------------------- | ---------------------------------- | ------------------------------------------------------ |
+| Edit own items (itemized) | The owner of that split            | Not yet paid + no overlap with others' claims          |
+| Edit own amount (custom)  | The owner of that split            | Not yet paid                                           |
+| Switch mode               | No one directly — must Reset first | `allPaid === false`                                    |
+| Reset split (DELETE)      | Any session participant            | `allPaid === false`, with explicit client confirmation |
 
 ---
 
@@ -397,6 +418,7 @@ Three options, in increasing complexity:
 **Recommendation: option 1** for v1. Safest and most transparent. UI affordance: a prominent "Claim the rest" button on the Pay Now bar that opens the itemized picker when any items are unclaimed. A later iteration can add option 3 as a setting.
 
 Backend contract:
+
 - `POST /payments/...` returns 409 with body `{ code: 'UNCLAIMED_ITEMS', remainingItemsCount: N }` when the session has itemized splits with unclaimed items.
 - `splitState.canPay: boolean` — derived field that's `true` iff the session is payable right now. Saves the client from computing.
 
@@ -415,30 +437,30 @@ Rules for what happens when session membership or order contents change after a 
 
 ### Participant joins after split exists
 
-| Mode | Behaviour |
-|---|---|
-| `equal` | New participant is **not auto-added** to `splits[]`. Existing shares are frozen. The new participant sees `splitState` as read-only with no slot for themselves. They can hit "Reset split" if all existing splits are unpaid. |
-| `custom` | Same — frozen. |
-| `itemized` | New participant can immediately claim any remaining items via `POST /split`. No rebalancing needed. |
+| Mode       | Behaviour                                                                                                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `equal`    | New participant is **not auto-added** to `splits[]`. Existing shares are frozen. The new participant sees `splitState` as read-only with no slot for themselves. They can hit "Reset split" if all existing splits are unpaid. |
+| `custom`   | Same — frozen.                                                                                                                                                                                                                 |
+| `itemized` | New participant can immediately claim any remaining items via `POST /split`. No rebalancing needed.                                                                                                                            |
 
 ### Participant leaves after claiming / committing
 
-| Scenario | Behaviour |
-|---|---|
-| Left, never committed a split | No change to `splitState`. |
-| Left, committed but unpaid, `equal`/`custom` | Their split stays with `sessionUserId` set to the departed user. Backend does not auto-delete. Requires Reset to reallocate. |
-| Left, committed but unpaid, `itemized` | Their items **go back to `remainingItems`** so the remaining participants can re-claim. Backend sets the departed user's split to deleted. |
-| Left, already paid | Split stays as `paid: true, paidBy: <user>` forever. Leaving is effectively checkout. |
+| Scenario                                     | Behaviour                                                                                                                                  |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Left, never committed a split                | No change to `splitState`.                                                                                                                 |
+| Left, committed but unpaid, `equal`/`custom` | Their split stays with `sessionUserId` set to the departed user. Backend does not auto-delete. Requires Reset to reallocate.               |
+| Left, committed but unpaid, `itemized`       | Their items **go back to `remainingItems`** so the remaining participants can re-claim. Backend sets the departed user's split to deleted. |
+| Left, already paid                           | Split stays as `paid: true, paidBy: <user>` forever. Leaving is effectively checkout.                                                      |
 
 ### Order mutation mid-split
 
 Staff-side changes to orders after a split exists are currently an undocumented path.
 
-| Mutation | Recommended backend behaviour |
-|---|---|
-| Item **added** to an order | Added to `remainingItems` (itemized) or added to `totalAmount` with a rebalance warning (`equal`/`custom`). In equal mode, amounts auto-recompute. In custom, bumps it into an "unbalanced" state — backend sets `splitState.unbalanced: true` and UI prompts the user to reconcile. |
-| Item **removed/refunded** and it was in a split | Backend removes from the split's `items[]`, recomputes that split's `amount`. If `paid: true`, do NOT modify — refund is handled separately. |
-| Quantity changed | Same reconciliation as add/remove by delta. |
+| Mutation                                        | Recommended backend behaviour                                                                                                                                                                                                                                                        |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Item **added** to an order                      | Added to `remainingItems` (itemized) or added to `totalAmount` with a rebalance warning (`equal`/`custom`). In equal mode, amounts auto-recompute. In custom, bumps it into an "unbalanced" state — backend sets `splitState.unbalanced: true` and UI prompts the user to reconcile. |
+| Item **removed/refunded** and it was in a split | Backend removes from the split's `items[]`, recomputes that split's `amount`. If `paid: true`, do NOT modify — refund is handled separately.                                                                                                                                         |
+| Quantity changed                                | Same reconciliation as add/remove by delta.                                                                                                                                                                                                                                          |
 
 This is backend logic, not client. The client's job is to honor whatever `splitState` says on next poll.
 
@@ -457,6 +479,7 @@ Every mutating request (`POST /split`, `DELETE /split`, `POST /payments/...`) MU
 Frontend behaviour: generate a fresh UUIDv4 per user action, attach on first attempt, reuse on retry.
 
 Without this, network retries after a timeout cause:
+
 - Duplicate splits
 - Double-charges on payment
 - Double-resets (harmless but noisy)
@@ -489,9 +512,11 @@ Invariants the backend must uphold and the client may rely on without recomputat
 ### Rounding
 
 For every split:
+
 ```
 amount === subtotal + tax + charges + tip   (exact, to 2 decimal places)
 ```
+
 Backend is responsible for consistent rounding. Client MUST NOT recompute from components; floating-point addition in JS drifts and produces off-by-one-cent bugs.
 
 Corollary: `Σ splits[i].amount + (any remainingItems allocation) === sessionTotal`.
@@ -521,11 +546,11 @@ Same rules as charges. Document in the response spec.
 
 ### Who can do what
 
-| Action | Required identity |
-|---|---|
-| `GET /session` | Any session participant (JWT `sessionUserId` must be in `session.participants[]`) |
-| `POST /split` with `sessionUserId: X` | Authenticated user's `sessionUserId` must equal X |
-| `DELETE /split` | Any session participant |
+| Action                                                   | Required identity                                                                                                                     |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /session`                                           | Any session participant (JWT `sessionUserId` must be in `session.participants[]`)                                                     |
+| `POST /split` with `sessionUserId: X`                    | Authenticated user's `sessionUserId` must equal X                                                                                     |
+| `DELETE /split`                                          | Any session participant                                                                                                               |
 | `POST /payments/...` with `sessionUserId: X, splitId: Y` | Authenticated user must be `sessionUserId: X` OR must be paying on behalf of (record as `paidBy: <caller>`) — depends on product call |
 
 **Critical:** a participant must not be able to POST a split with another participant's `sessionUserId`. The server validates this from the auth context, not the request body.

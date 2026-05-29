@@ -6,13 +6,13 @@ Bill splitting system for dividing the total among session participants. Splits 
 
 ## Split Modes
 
-| Mode | Label | Calculation | API Type | Status |
-|------|-------|-------------|----------|--------|
-| `even` | Split evenly | `total ÷ participants` | `equal` | Active (default) |
-| `all` | Pay for everyone | Current user = full total, others = 0 | `custom` | Active |
-| `self` | Pay for self | Current user = own items total, others = remainder ÷ others count | `participant` | Active |
-| `custom` | Custom split | Manual editable amounts per participant, validated to sum to total | `custom` | Active |
-| `items` | Pay for items | User manually selects which items to pay for via ItemizedPickerSheet | `itemized` | Active |
+| Mode     | Label            | Calculation                                                          | API Type      | Status           |
+| -------- | ---------------- | -------------------------------------------------------------------- | ------------- | ---------------- |
+| `even`   | Split evenly     | `total ÷ participants`                                               | `equal`       | Active (default) |
+| `all`    | Pay for everyone | Current user = full total, others = 0                                | `custom`      | Active           |
+| `self`   | Pay for self     | Current user = own items total, others = remainder ÷ others count    | `participant` | Active           |
+| `custom` | Custom split     | Manual editable amounts per participant, validated to sum to total   | `custom`      | Active           |
+| `items`  | Pay for items    | User manually selects which items to pay for via ItemizedPickerSheet | `itemized`    | Active           |
 
 ### Mode Details
 
@@ -47,6 +47,7 @@ itemizedSelections: Record<string, string[]>;   // participantId → itemKeys th
 ```
 
 Persisted to `localStorage`:
+
 - `morsel_split` — SplitBill state
 - `morsel_itemized_selections` — itemized item selections
 
@@ -58,33 +59,35 @@ The bill is fetched via `billService.getSessionBill(sessionId)` → `GET /orderi
 
 ### Server Sync
 
-When the user saves split settings, the split is synced to the server via `POST /ordering-session/session/{sessionId}/split`. This is **fire-and-forget** — if the API fails, the local split still works. The server response includes `paid` status per split, stored in `serverSplits`.
+When the user saves split settings, the split is synced to the server via `POST /ordering-session/session/{sessionId}/split`. `syncSplitToServer` **awaits** the POST and **rethrows** on failure. On success it stores the response (`paid` status per split) in `serverSplits` and calls `refreshSessionData()`. On failure `SplitSettingsModal` catches the error and shows "Couldn't save split — check your connection and try again.", keeping the modal open so the user can retry.
 
 **Mode → API type mapping:**
 
-| Client Mode | API `type` | Payload |
-|-------------|-----------|---------|
-| `even` | `equal` | `{ numberOfSplits: participants.length }` |
-| `all` | `custom` | `{ amounts: [total, 0, 0, ...] }` |
-| `self` | `participant` | `{}` (server calculates per-participant) |
-| `custom` | `custom` | `{ amounts: [share1, share2, ...] }` |
-| `items` | `itemized` | `{ itemIds: [[keys...], [keys...], ...] }` |
+Every mode sends `numberOfSplits` **and** `amounts`. Itemized additionally sends `itemIds` and `sessionUserId`.
+
+| Client Mode | API `type`    | Payload                                                                                     |
+| ----------- | ------------- | ------------------------------------------------------------------------------------------- |
+| `even`      | `equal`       | `{ numberOfSplits, amounts }`                                                               |
+| `all`       | `custom`      | `{ numberOfSplits, amounts }`                                                               |
+| `self`      | `participant` | `{ numberOfSplits, amounts }`                                                               |
+| `custom`    | `custom`      | `{ numberOfSplits, amounts }`                                                               |
+| `items`     | `itemized`    | `{ numberOfSplits, amounts, itemIds: [{ itemId, orderId, quantity }, ...], sessionUserId }` |
 
 ### Key Functions (SplitContext)
 
-| Function | Purpose |
-|----------|---------|
-| `setSplitMode(mode)` | Change the active split mode |
-| `calculateSplit(total, cart?)` | Recalculate all shares based on mode. Cart needed for `self` mode |
-| `updateShare(participantId, amount)` | Set a specific participant's share (used by custom and items modes) |
-| `addParticipant(participant)` | Add participant to split (deduplicated by id) |
-| `removeParticipant(participantId)` | Remove participant and their share |
-| `setSplitForTotal(total)` | Record which total the current shares are calculated for |
-| `validateSplitShares(total)` | Check if shares sum to total |
-| `clearSplit()` | Reset to empty even split |
-| `setItemizedSelection(participantId, itemIds)` | Set which items a participant chose to pay for |
-| `clearItemizedSelections()` | Clear all itemized selections |
-| `syncSplitToServer(sessionId)` | Sync current split to server (fire-and-forget) |
+| Function                                                                  | Purpose                                                                                          |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `setSplitMode(mode)`                                                      | Change the active split mode                                                                     |
+| `calculateSplit(total, cart?)`                                            | Recalculate all shares based on mode. Cart needed for `self` mode                                |
+| `updateShare(participantId, amount)`                                      | Set a specific participant's share (used by custom and items modes)                              |
+| `addParticipant(participant)`                                             | Add participant to split (deduplicated by id)                                                    |
+| `removeParticipant(participantId)`                                        | Remove participant and their share                                                               |
+| `setSplitForTotal(total)`                                                 | Record which total the current shares are calculated for                                         |
+| `validateSplitShares(total)`                                              | Check if shares sum to total                                                                     |
+| `clearSplit()`                                                            | Reset to empty even split                                                                        |
+| `setItemizedSelection(participantId, itemIds)`                            | Set which items a participant chose to pay for                                                   |
+| `clearItemizedSelections()`                                               | Clear all itemized selections                                                                    |
+| `syncSplitToServer(sessionId, mode, shares, participants): Promise<void>` | Sync split to server. Awaits the POST and rethrows on failure; on success refreshes session data |
 
 ---
 
@@ -102,6 +105,7 @@ Bottom-sheet modal for changing split mode and viewing/editing amounts.
 | `total?` | `number` | Override total (e.g. bill total with taxes/charges instead of cart total) |
 
 **Behavior:**
+
 - Uses **local state** (`localMode`, `localShares`) while editing — nothing commits to context until "Save" is clicked
 - Resets local state from context every time modal opens
 - Shows current mode at top with description + participant avatars with amounts
@@ -125,12 +129,14 @@ Bottom-sheet for selecting individual items to pay for (itemized mode).
 |------|------|-------------|
 | `isOpen` | `boolean` | Controls sheet visibility |
 | `onClose` | `() => void` | Close callback |
-| `onConfirm` | `() => void` | Confirm callback (after selections saved) |
+| `onConfirm` | `(shares: Record<string, number>) => void` | Confirm callback — receives the computed shares so the parent can update its local state |
 | `sessionId` | `string` | Current session ID |
 | `total` | `number` | Session total for remaining amount calculation |
 
 **Behavior:**
+
 - Flattens all orders from `sessionData.session.orders` into a single item list
+- Bill data (subtotal, taxes, charges, discount) read from the shared `useSessionBill()` cache — used for pro-rata tax/charges
 - Each item shows: name, unit price, checkbox/lock icon
 - Items with `quantity > 1` show a quantity stepper (select partial quantities)
 - Items claimed by other participants show as locked with claimer's name
@@ -143,7 +149,9 @@ Bottom-sheet for selecting individual items to pay for (itemized mode).
 |-------|--------|-------------|
 | `available` | White bg, empty checkbox | Tappable |
 | `selected` | Gray bg, black checkbox with check | Tappable to deselect |
-| `claimed` | Gray bg, lock icon, 60% opacity | Disabled |
+| `claimed` | Dimmed (60% opacity), orange "Claimed by {name}" badge | Disabled (qty stepper hidden) |
+| `paid` | Dimmed, green check badge, "Paid by {name}" | Disabled |
+| `mine (saved)` | Blue "Your saved selection" badge | Editable |
 
 ### `ParticipantsList`
 
@@ -155,7 +163,8 @@ Dark-themed card showing participant avatars, split amounts, and mode label.
 | `totalOverride?` | `number` | When set, used instead of `cart.total` for split calculations (e.g. bill total with taxes/charges) |
 
 **Data sources:**
-- Participants: Firebase real-time via `subscribeToParticipantsBySpace`, synced to `SplitContext`
+
+- Participants: `sessionData.session.participants` from the SessionContext `/session` REST poll (every 10s), synced to `SplitContext` (NOT Firebase — a TODO exists to switch later)
 - Amounts: `split.shares[participantId]` from `SplitContext`
 - Current user identified by `morsel_session_user_id` → shown as "You"
 - Split total: `totalOverride` (bill total) when provided, otherwise `cart.total`
@@ -165,10 +174,6 @@ Dark-themed card showing participant avatars, split amounts, and mode label.
 |----------|------|
 | `src/app/my-tab/page.tsx` | My Tab — passes `billTotal` from Bill API |
 | `src/components/order/PostOrderView.tsx` | Cart page after order placed — passes `billTotal` |
-
-### `SplitSection`
-
-Standalone split component — **dead code**, exported but never imported anywhere. Safe to delete.
 
 ---
 
@@ -204,9 +209,13 @@ SplitContext updated (setSplitMode + updateShare for each participant)
   ↓
 localStorage persisted automatically
   ↓
-syncSplitToServer(sessionId) fires in background
+await syncSplitToServer(sessionId, mode, shares, participants)
   → POST /ordering-session/session/{sessionId}/split
-  → Server stores split, response saved to serverSplits
+  ↓
+  ├── Success: response saved to serverSplits, refreshSessionData(), modal closes
+  └── Failure: error rethrown → modal catches, shows
+        "Couldn't save split — check your connection and try again."
+        and stays open for retry
   ↓
 ParticipantsList re-renders with new amounts
 ```
@@ -237,11 +246,10 @@ syncSplitToServer sends { type: "itemized", sessionUserId, itemIds: [...] }
 ### Participant Sync Flow
 
 ```
-Firebase RTDB participants update
+SessionContext /session REST poll (every 10s) updates participants
+  (NOT Firebase — a TODO exists to switch to Firebase later)
   ↓
-SessionContext receives new participants
-  ↓
-ParticipantsList.syncParticipantsWithSplit()
+ParticipantsList reads sessionData.session.participants
   ↓
   ├── Removes stale participants from SplitContext
   └── Adds new participants to SplitContext
@@ -256,6 +264,7 @@ UI updates
 ## Current User Identification
 
 The current user is identified by `morsel_session_user_id` from localStorage. This is used to:
+
 - Show "You" instead of guest name
 - Sort current user first in participant lists
 - Calculate "Pay for self" (own items total)
@@ -266,30 +275,30 @@ The current user is identified by `morsel_session_user_id` from localStorage. Th
 
 ## API Endpoints
 
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| `GET` | `/ordering-session/session/{sessionId}/bill` | Fetch bill total with taxes/charges |
-| `POST` | `/ordering-session/session/{sessionId}/split` | Sync split settings to server |
+| Method | Endpoint                                      | Purpose                             |
+| ------ | --------------------------------------------- | ----------------------------------- |
+| `GET`  | `/ordering-session/session/{sessionId}/bill`  | Fetch bill total with taxes/charges |
+| `POST` | `/ordering-session/session/{sessionId}/split` | Sync split settings to server       |
 
 ---
 
 ## Source Files
 
-| File | Role |
-|------|------|
-| `src/types/cart.ts` | `SplitBill`, `Participant` types |
-| `src/types/api/bill.ts` | `SessionBill`, `BillTax`, `BillCharge`, `SessionBillResponse` types |
-| `src/types/api/split.ts` | `SplitCalculateRequest`, `SplitCalculateResponse`, `SplitEntry`, `SplitItemDetail` types |
-| `src/services/bill.service.ts` | Fetches session bill from API (`getSessionBill`) |
-| `src/services/split.service.ts` | Syncs split to server (`calculateSplit`) |
-| `src/lib/api/endpoints.ts` | `endpoints.bill.getBySessionId`, `endpoints.split.calculate` |
-| `src/contexts/SplitContext.tsx` | State management, calculation logic, server sync, localStorage persistence |
-| `src/components/order/SplitSettingsModal.tsx` | Modal UI for mode selection and amount editing |
-| `src/components/order/ItemizedPickerSheet.tsx` | Item selection UI for itemized mode |
-| `src/components/session/ParticipantsList.tsx` | Participant card UI, Firebase sync, split recalculation trigger |
-| `src/components/order/PostOrderView.tsx` | Post-order bill display — renders dynamic tax/charge/discount lines |
-| `src/hooks/useOrdersPageState.ts` | Orders page state — fetches and polls bill data alongside session orders |
-| `src/components/cart/SplitSection.tsx` | Dead code (unused) |
-| `src/lib/split-utils.ts` | `isSplitApplicableForTotal()` — checks if shares match current total |
-| `src/lib/validation.ts` | `sanitizeSplitAmount()` — clamps and rounds share values |
-| `src/mocks/mockSplit.ts` | `calculateEvenSplit()`, `validateSplit()`, `generateMockParticipant()` |
+| File                                           | Role                                                                                     |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/types/cart.ts`                            | `SplitBill`, `Participant` types                                                         |
+| `src/types/api/bill.ts`                        | `SessionBill`, `BillTax`, `BillCharge`, `SessionBillResponse` types                      |
+| `src/types/api/split.ts`                       | `SplitCalculateRequest`, `SplitCalculateResponse`, `SplitEntry`, `SplitItemDetail` types |
+| `src/services/bill.service.ts`                 | Fetches session bill from API (`getSessionBill`)                                         |
+| `src/services/split.service.ts`                | Syncs split to server (`calculateSplit`)                                                 |
+| `src/lib/api/endpoints.ts`                     | `endpoints.bill.getBySessionId`, `endpoints.split.calculate`                             |
+| `src/contexts/SplitContext.tsx`                | State management, calculation logic, server sync, localStorage persistence               |
+| `src/components/order/SplitSettingsModal.tsx`  | Modal UI for mode selection and amount editing                                           |
+| `src/components/order/ItemizedPickerSheet.tsx` | Item selection UI for itemized mode                                                      |
+| `src/components/session/ParticipantsList.tsx`  | Participant card UI, participant sync from `/session` poll, split recalculation trigger  |
+| `src/components/order/PostOrderView.tsx`       | Post-order bill display — renders dynamic tax/charge/discount lines                      |
+| `src/hooks/useOrdersPageState.ts`              | Orders page state — fetches and polls bill data alongside session orders                 |
+| `src/hooks/useSessionBill.ts`                  | Shared bill cache — the source the itemized picker reads bill data from                  |
+| `src/lib/split-utils.ts`                       | `isSplitApplicableForTotal()` — checks if shares match current total                     |
+| `src/lib/validation.ts`                        | `sanitizeSplitAmount()` — clamps and rounds share values                                 |
+| `src/mocks/mockSplit.ts`                       | `calculateEvenSplit()`, `validateSplit()`, `generateMockParticipant()`                   |

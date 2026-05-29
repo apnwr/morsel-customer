@@ -42,7 +42,7 @@ Complete end-to-end flow from cart page through order placement to payment resul
                     |                  |
                     |        [User clicks "Pay Now"]
                     |                  |
-                    |         Simulate Payment (1.5s)
+                    |         Navigate to /payment (Peach checkout)
                     |                  |
                     |         +--------+--------+
                     |         |                 |
@@ -381,22 +381,29 @@ FLOW:
 ```
 [User clicks "Pay Now"]
   |
-  handlePayNow()  (PostOrderView)
+  handlePayNow()  (PostOrderView.tsx:192-198)
   |
-  +-- setIsProcessingPayment(true)
-  +-- await simulate(1500ms)
-  +-- onPaymentResult('success', totalWithTip, tipAmount)
+  +-- new URLSearchParams({ amount: totalWithTip, tip: tipAmount })
+  +-- router.push('/payment?amount=...&tip=...')
         |
-        Calls back to orders/page.tsx:
-          setPaymentResult('success')
-          setPaymentAmount(totalWithTip)
-          setPaymentTip(tipAmount)
+        /payment (src/app/payment/page.tsx) renders PeachCheckoutView
+          |
+          +-- usePeachCheckout drives the Peach embedded widget
+          +-- onCompleted → POST /payments/peach-payments/verify (synchronous)
+          |
+          +-- success → router.replace(
+                '/orders?paymentResult=success&amount=...&tip=...')
+          +-- failure → router.replace(
+                '/orders?paymentResult=failure&amount=...&tip=...')
 ```
 
 ### Payment Result Rendering
 
 ```
 orders/page.tsx
+  |
+  +-- paymentResult = searchParams.get('paymentResult')  (orders/page.tsx:25-26)
+  |     (set by the /payment redirect, not by an in-page handlePayNow callback)
   |
   +-- paymentResult !== null?
        |

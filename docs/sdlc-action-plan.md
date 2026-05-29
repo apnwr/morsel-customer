@@ -209,6 +209,8 @@ This is exploitable today.
 
 ## Task 5 — Architecture cleanup
 
+> Note: the line numbers / LOC cited below (`menu/page.tsx:70` & `:269` memo comparators; `CartContext.tsx` ~1,051 LOC) predate the May 20–28 churn and should be re-measured before acting.
+
 **Goal:** Reduce the structural debt that's making every feature take longer than it should.
 
 **Why:** The Architect and Frontend agents independently flagged the same five things: provider hell (8 levels), dual order state (`OrderContext` vs `SessionContext.orders`), over-memoization fighting the React Compiler, god files (5 over 600 LOC), and tsconfig that's strict-in-name-only. None of these is shipping-broken today, but each one will add hours to the next 10 PRs.

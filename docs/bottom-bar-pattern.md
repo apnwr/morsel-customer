@@ -14,7 +14,7 @@ Canonical approach for rendering fixed bottom CTAs and bars across the app. Ensu
   className="w-full h-[70px] box-content bg-black text-white ..."
   style={{
     bottom: 0,
-    paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
+    paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)",
   }}
 >
   ...content...
@@ -23,11 +23,11 @@ Canonical approach for rendering fixed bottom CTAs and bars across the app. Ensu
 
 Three load-bearing pieces:
 
-| Piece | Why |
-|---|---|
-| `bottom: 0` | The bar's bg extends to the **physical** viewport bottom — no transparent gap where page content or the page footer can bleed through |
-| `paddingBottom: max(env(safe-area-inset-bottom, 0px), 16px)` | Respects iOS home-indicator (~34px) when present; guarantees a 16px cushion on Android gesture-nav where `env()` returns 0 |
-| `box-content` | Padding is added **outside** the 70px content height instead of shrinking the tap area. Total bar height = 70px content + safe-area padding |
+| Piece                                                        | Why                                                                                                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bottom: 0`                                                  | The bar's bg extends to the **physical** viewport bottom — no transparent gap where page content or the page footer can bleed through       |
+| `paddingBottom: max(env(safe-area-inset-bottom, 0px), 16px)` | Respects iOS home-indicator (~34px) when present; guarantees a 16px cushion on Android gesture-nav where `env()` returns 0                  |
+| `box-content`                                                | Padding is added **outside** the 70px content height instead of shrinking the tap area. Total bar height = 70px content + safe-area padding |
 
 ### Why not Tailwind for the padding?
 
@@ -40,7 +40,7 @@ Three load-bearing pieces:
 If a bar has a conditional bottom element (e.g. `/menu`'s SearchBar, which only renders the Confirm Order CTA when the cart has items), put `paddingBottom` on **whichever element is currently last**:
 
 ```tsx
-const safeAreaPadding = 'max(env(safe-area-inset-bottom, 0px), 16px)';
+const safeAreaPadding = "max(env(safe-area-inset-bottom, 0px), 16px)";
 
 <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[30px] overflow-hidden">
   <div
@@ -58,7 +58,7 @@ const safeAreaPadding = 'max(env(safe-area-inset-bottom, 0px), 16px)';
       {/* CTA */}
     </button>
   )}
-</div>
+</div>;
 ```
 
 The bar's bg-color behind the safe-area zone is always the same color as the element absorbing it — no color mismatch.
@@ -67,14 +67,18 @@ The bar's bg-color behind the safe-area zone is always the same color as the ele
 
 ## 3. Where the pattern is used (as of 2026-04-18)
 
-| File | Bar | Pattern location |
-|---|---|---|
-| `src/components/menu/SearchBar.tsx` | Search + Menu + (optional Confirm Order) | Conditional `padding-bottom` on last visible child |
-| `src/components/cart/PreOrderView.tsx` | Place Order | On the button (wrapper stays `bottom: 0`) |
-| `src/components/order/PostOrderView.tsx` | Pay Now / Paid | On the button |
-| `src/components/order/PaymentResultView.tsx` | Get Receipt / Retry Payment | On both buttons |
-| `src/app/my-tab/page.tsx` | Pay Now | Directly on the fixed button (no wrapper) |
-| `src/components/order/ItemizedPickerSheet.tsx` | Pay Now (inside sheet) | On the button |
+| File                                           | Bar                                      | Pattern location                                                                                                                |
+| ---------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `src/components/menu/SearchBar.tsx`            | Search + Menu + (optional Confirm Order) | Conditional `padding-bottom` on last visible child ✅                                                                           |
+| `src/components/cart/PreOrderView.tsx`         | Place Order                              | ⚠️ **NON-CONFORMING** — `bottom-2`, no `box-content`, no safe-area `paddingBottom` (Anti-pattern A). `PreOrderView.tsx:359-380` |
+| `src/components/order/PostOrderView.tsx`       | Pay Now / Paid                           | ⚠️ **NON-CONFORMING** — fixed `bottom-2`, no safe-area padding. `PostOrderView.tsx:521-545`                                     |
+| `src/components/order/PaymentResultView.tsx`   | Get Receipt / Retry Payment              | On both buttons ✅                                                                                                              |
+| `src/app/my-tab/page.tsx`                      | Pay Now                                  | Directly on the fixed button (no wrapper) ✅                                                                                    |
+| `src/components/order/ItemizedPickerSheet.tsx` | Confirm Selection (inside sheet)         | ⚠️ **NON-CONFORMING** — `bottom-2`, lacks `box-content` / `paddingBottom`. `ItemizedPickerSheet.tsx:615-637`                    |
+
+### Known regressions (2026-05)
+
+The three ⚠️ rows above are **regressions to fix in code**, not a new accepted convention. Each uses `bottom-2` (lifting the bar ~8px off the viewport bottom) without `box-content` or the `paddingBottom: max(env(safe-area-inset-bottom, 0px), 16px)` cushion — a variant of Anti-pattern A. The canonical primitive in §1 still stands; `SearchBar.tsx`, `my-tab/page.tsx`, and `PaymentResultView.tsx` remain compliant.
 
 ---
 
@@ -115,7 +119,7 @@ style={{ bottom: 'max(env(safe-area-inset-bottom, 0px), 16px)' }}
 ### ❌ Anti-pattern D — `env(safe-area-inset-bottom, 0px)` without the `max(..., 16px)` fallback
 
 ```tsx
-paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+paddingBottom: "env(safe-area-inset-bottom, 0px)";
 ```
 
 **Problem:** Android Chrome gesture-nav returns `0` for this `env()` value, so the bar sits flush with the gesture pill and gets visually clipped. The `max(..., 16px)` guarantees a minimum cushion everywhere.
@@ -128,12 +132,12 @@ Any page rendering a fixed bottom bar needs enough `padding-bottom` on its conte
 
 Current conventions (tune when bar heights change):
 
-| Page | Bar height (content + max padding) | Page `pb-*` |
-|---|---|---|
-| `/menu` — cart empty | 60 + 34 = 94px | `pb-[100px]` |
-| `/menu` — cart has items | 60 + 70 + 34 = 164px | `pb-[170px]` |
-| `/cart` | 70 + 34 = 104px | (see `PreOrderView`) |
-| `/orders` pre/post pay | 70 + 34 = 104px | (see each view) |
+| Page                     | Bar height (content + max padding) | Page `pb-*`          |
+| ------------------------ | ---------------------------------- | -------------------- |
+| `/menu` — cart empty     | 60 + 34 = 94px                     | `pb-[100px]`         |
+| `/menu` — cart has items | 60 + 70 + 34 = 164px               | `pb-[170px]`         |
+| `/cart`                  | 70 + 34 = 104px                    | (see `PreOrderView`) |
+| `/orders` pre/post pay   | 70 + 34 = 104px                    | (see each view)      |
 
 The value needs to exceed the bar's iOS worst case (content height + ~34px for the home indicator).
 

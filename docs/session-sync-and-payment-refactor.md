@@ -2,6 +2,8 @@
 
 Single reference for all the changes shipped in this work cycle. Pairs with `itemized-split-and-payment-flow.md` (flow diagrams).
 
+> For the current preview-vs-active persistent-session model, see `session-flow.md`.
+
 ---
 
 ## Scope
@@ -18,22 +20,23 @@ Three intertwined problem areas tackled in one pass:
 
 ### New files
 
-| File | Purpose |
-|---|---|
-| `src/app/payment/page.tsx` | Dedicated payment route; handles query-param amount/tip, refresh-on-mount, server-share validation |
-| `src/components/payment/PeachCheckoutView.tsx` | Full-page Peach widget host (extracted from modal body) |
-| `docs/itemized-split-and-payment-flow.md` | Flow diagrams (ASCII) for sessions, splits, picker, payment |
-| `docs/session-sync-and-payment-refactor.md` | This file |
+| File                                           | Purpose                                                                                            |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `src/app/payment/page.tsx`                     | Dedicated payment route; handles query-param amount/tip, refresh-on-mount, server-share validation |
+| `src/components/payment/PeachCheckoutView.tsx` | Full-page Peach widget host (extracted from modal body)                                            |
+| `docs/itemized-split-and-payment-flow.md`      | Flow diagrams (ASCII) for sessions, splits, picker, payment                                        |
+| `docs/session-sync-and-payment-refactor.md`    | This file                                                                                          |
 
 ### Deleted files
 
-| File | Reason |
-|---|---|
+| File                                            | Reason                                             |
+| ----------------------------------------------- | -------------------------------------------------- |
 | `src/components/payment/PeachCheckoutModal.tsx` | Replaced by `PeachCheckoutView` + `/payment` route |
 
 ### Modified files (by area)
 
 **Payment flow**
+
 - `src/components/order/PostOrderView.tsx` — Pay Now → `router.push('/payment?…')`; server-first `userAmount`; modal state + `onPaymentResult` prop removed; `router.prefetch('/payment')` on mount
 - `src/app/orders/page.tsx` — hydrates `paymentResult/amount/tip` from query via lazy `useState`; strips query after
 - `src/app/my-tab/page.tsx` — Pay Now wired (was dead); server-first `payNowAmount`
@@ -43,23 +46,27 @@ Three intertwined problem areas tackled in one pass:
 - `.env.local` — flag enabled locally
 
 **Itemized split / SplitSettings**
+
 - `src/components/order/ItemizedPickerSheet.tsx` — reads `splitPaymentStatus` + `serverSplitConfig` from `SessionContext`; four row states (Available / Claimed by X / Paid by X / Your saved selection); save-time conflict refetch; rehydrates draft from server first
 - `src/components/order/SplitSettingsModal.tsx` — mode-switch locked when `serverSplitConfig.type` exists; itemized remains interactive; async save with error surface; pending/disabled button states
 - `src/contexts/SplitContext.tsx` — `syncSplitToServer` returns `Promise<void>` and rethrows on failure
 - `src/types/api/split.ts` — `SplitItemDetail` gains `orderId`/`variantIndex`; `SplitConfig.remainingItems` properly typed
 
 **State-sync (server-first reads)**
+
 - `src/components/session/ParticipantsList.tsx` — mode label + per-participant amount read from server first
 - `src/components/order/PaymentResultView.tsx` — participant shares + mode label server-first
 - `src/components/order/PostOrderView.tsx` — `userAmount` server-first
 - `src/app/my-tab/page.tsx` — `payNowAmount` server-first
 
 **Error surfacing / rollback**
+
 - `src/components/cart/TipSelector.tsx` — `syncError` state + inline message when tip POST fails
 - `src/contexts/CartContext.tsx` — `syncQueueWithAPI` returns success boolean; `addItem`/`removeItem`/`updateQuantity`/`clearCart` snapshot the previous cart and roll back on POST failure; exposes `cartSyncError` + `clearCartSyncError`
 - `src/components/layout/Header.tsx` — cart snackbar widened to accept `sync-error` variant, shows "Couldn't save — try again"
 
 **Session lifecycle**
+
 - `src/contexts/SessionContext.tsx` — `clearSession` now also clears `morsel_cart`, `morsel_kitchen_note`, `morsel_tip`, `morsel_menu_items_cache` so state doesn't leak across sessions
 
 ---
@@ -104,7 +111,7 @@ Three intertwined problem areas tackled in one pass:
 
 ## UX risk review
 
-Honest answer: **yes, there are a few places the new behavior is visibly different from the old one.** None of them regress correctness; a few change the *feel* of edge cases. Calling them out so there are no surprises.
+Honest answer: **yes, there are a few places the new behavior is visibly different from the old one.** None of them regress correctness; a few change the _feel_ of edge cases. Calling them out so there are no surprises.
 
 ### Risks I'd actually watch
 

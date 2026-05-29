@@ -2,29 +2,30 @@
 
 ## Status
 
-| Milestone | Status |
-|-----------|--------|
-| Types, service, endpoints | Done |
-| SDK loader (prefetch + lazy load) | Done |
-| State machine hook (`usePeachCheckout`) | Done |
-| Checkout modal (`PeachCheckoutModal`) | Done |
-| Integration into orders page (`PostOrderView`) | Done |
-| Success/failure screens (`PaymentResultView`) | Done (existing, no changes needed) |
-| Test page (`/test-payment`) | Done |
-| Peach sandbox credentials stored via Secrets API | **Blocked — needs Peach sandbox credentials** |
-| End-to-end live test | **Blocked — waiting on credentials** |
+| Milestone                                                       | Status                                        |
+| --------------------------------------------------------------- | --------------------------------------------- |
+| Types, service, endpoints                                       | Done                                          |
+| SDK loader (prefetch + lazy load)                               | Done                                          |
+| State machine hook (`usePeachCheckout`)                         | Done                                          |
+| Checkout view (`PeachCheckoutView`, full-page route `/payment`) | Done                                          |
+| Integration into orders page (`PostOrderView`)                  | Done                                          |
+| Success/failure screens (`PaymentResultView`)                   | Done (existing, no changes needed)            |
+| Test page (`/test-payment`)                                     | Done                                          |
+| Peach sandbox credentials stored via Secrets API                | **Blocked — needs Peach sandbox credentials** |
+| End-to-end live test                                            | **Blocked — waiting on credentials**          |
 
 ### What's Blocking
 
 The backend returns `"Peach credentials not found in Secret Manager"` when calling `POST /payments/peach-payments/embedded`. This means Peach sandbox credentials have not been stored yet.
 
 **To unblock**, a business admin needs to:
+
 1. Get sandbox credentials from [Peach Payments sandbox dashboard](https://sandbox-dashboard.peachpayments.com)
 2. Store them via the Secrets API:
+
 ```bash
 curl -X POST https://us-central1-morsel-db7d8.cloudfunctions.net/app/api/v1/business/secrets \
   -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer <firebase-jwt>' \
   -d '{
     "name": "PEACH_PAYMENTS_KEYS",
     "ciphertext": "{\"entityId\":\"<your-entity-id>\",\"clientSecret\":\"<your-client-secret>\",\"clientId\":\"<your-client-id>\",\"merchantId\":\"<your-merchant-id>\"}",
@@ -84,10 +85,14 @@ User on /orders page (PostOrderView)
   │ useEffect → prefetchSDK()  (preloads Peach script on page mount)
   │
   ├─ Taps "Pay Now"
-  │   → setIsCheckoutOpen(true)
-  │   → PeachCheckoutModal slides up (bottom sheet, lazy-loaded)
+  │   → handlePayNow() builds URLSearchParams({ amount, tip })
+  │   → router.push('/payment?amount=...&tip=...')  (PostOrderView.tsx:192-198)
   │
-  ├─ Modal lifecycle:
+  ├─ /payment (src/app/payment/page.tsx)
+  │   → validates amount/session (redirects to /orders if missing)
+  │   → renders PeachCheckoutView
+  │
+  ├─ PeachCheckoutView lifecycle:
   │   creating    → skeleton loader ("Preparing checkout...")
   │   loading-sdk → skeleton loader ("Loading payment form...")
   │   ready       → Peach widget renders in container
@@ -98,20 +103,17 @@ User on /orders page (PostOrderView)
   │   cancelled   → "Payment Cancelled" + "Try Again"
   │   expired     → "Checkout Expired" + "Try Again"
   │
-  ├─ On success:
-  │   → Modal closes
-  │   → orders/page.tsx sets paymentResult='success'
-  │   → Renders PaymentResultView (success screen)
-  │   → "Get Receipt" button
+  ├─ On terminal result, payment/page.tsx redirects:
+  │   router.replace('/orders?paymentResult=success|failure&amount=...&tip=...')
   │
-  ├─ On failure (verify returned failed):
-  │   → Modal closes
-  │   → orders/page.tsx sets paymentResult='failure'
-  │   → Renders PaymentResultView (failure screen)
-  │   → "Retry Payment" → resets to PostOrderView → "Pay Now" again
+  ├─ orders/page.tsx reads the query param (orders/page.tsx:25-36):
+  │   → paymentResult='success' → Renders PaymentResultView (success screen)
+  │       → "Get Receipt" button
+  │   → paymentResult='failure' → Renders PaymentResultView (failure screen)
+  │       → "Retry Payment" → resets to PostOrderView → "Pay Now" again
   │
-  └─ On cancel/close modal:
-      → Modal closes, stays on PostOrderView
+  └─ On cancel/back:
+      → router.back() returns to PostOrderView
       → User can tap "Pay Now" again (fresh checkoutId)
 ```
 
@@ -124,6 +126,7 @@ User on /orders page (PostOrderView)
 Creates a Peach embedded checkout session for payment. Backend retrieves Peach credentials from stored business secrets, calls Peach API, and returns `checkoutId`, `entityId`, and `transactionId`.
 
 **Request:**
+
 ```json
 {
   "sessionId": "string (required) — Ordering session ID",
@@ -133,6 +136,7 @@ Creates a Peach embedded checkout session for payment. Backend retrieves Peach c
 ```
 
 **Response (200):**
+
 ```json
 {
   "checkout": {
@@ -145,10 +149,11 @@ Creates a Peach embedded checkout session for payment. Backend retrieves Peach c
 ```
 
 **Errors:**
+
 - `400` — Invalid request parameters
 - `404` — Session, order, or transaction not found
 
-**Auth:** Bearer token (Firebase JWT)
+**Auth:** None sent by the client (only `Content-Type: application/json`); the spec declares `bearerAuth` but it is not enforced and the app sends no token.
 
 ---
 
@@ -159,6 +164,7 @@ Creates a Peach embedded checkout session for payment. Backend retrieves Peach c
 Verifies the status of a Peach embedded checkout and settles the transaction if successful. On success: marks split as paid (if applicable), updates order statuses, and sends receipt.
 
 **Request:**
+
 ```json
 {
   "checkoutId": "string (required) — Peach checkout ID to verify",
@@ -171,6 +177,7 @@ Verifies the status of a Peach embedded checkout and settles the transaction if 
 ```
 
 **Response (200):**
+
 ```json
 {
   "success": true,
@@ -181,10 +188,11 @@ Verifies the status of a Peach embedded checkout and settles the transaction if 
 ```
 
 **Errors:**
+
 - `400` — Missing checkoutId or invalid parameters
 - `404` — Transaction or checkout not found
 
-**Auth:** Bearer token (Firebase JWT)
+**Auth:** None sent by the client (only `Content-Type: application/json`); the spec declares `bearerAuth` but it is not enforced and the app sends no token.
 
 ---
 
@@ -195,6 +203,7 @@ Verifies the status of a Peach embedded checkout and settles the transaction if 
 Stores encrypted credentials for a business. The platform stores ciphertext as-is and does not decrypt. Used by business admins to configure Peach Payments credentials.
 
 **Request:**
+
 ```json
 {
   "name": "PEACH_PAYMENTS_KEYS",
@@ -206,6 +215,7 @@ Stores encrypted credentials for a business. The platform stores ciphertext as-i
 **Response:** `201` — Secret stored successfully
 
 **Errors:**
+
 - `400` — Missing required fields
 - `401` — Unauthorized
 - `403` — Forbidden
@@ -223,6 +233,7 @@ Stores encrypted credentials for a business. The platform stores ciphertext as-i
 Retrieves stored ciphertext for a secret. Used by the backend server-side to get Peach credentials when processing payments.
 
 **Response (200):**
+
 ```json
 {
   "secret": {
@@ -262,41 +273,45 @@ Retrieves stored ciphertext for a secret. Used by the backend server-side to get
 
 ### Files
 
-| File | Purpose |
-|------|---------|
-| `src/types/api/payment.ts` | Request/response types + checkout state machine types |
-| `src/lib/peach-payments/types.ts` | TypeScript declarations for Peach SDK global `Checkout` object |
-| `src/lib/peach-payments/sdk-loader.ts` | Lazy SDK loader (`prefetchSDK`, `loadSDK`, `resetSDKLoader`) |
-| `src/services/payment.service.ts` | API service for create + verify endpoints |
-| `src/hooks/usePeachCheckout.ts` | State machine hook managing full checkout lifecycle |
-| `src/components/payment/CheckoutSkeleton.tsx` | Loading skeleton while SDK loads |
-| `src/components/payment/PeachCheckoutModal.tsx` | Bottom-sheet modal rendering the Peach widget |
-| `src/components/order/PostOrderView.tsx` | Orders page — "Pay Now" opens `PeachCheckoutModal` |
-| `src/app/test-payment/page.tsx` | Test page with mock scenarios (delete before production) |
+| File                                           | Purpose                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------------------ |
+| `src/types/api/payment.ts`                     | Request/response types + checkout state machine types                    |
+| `src/lib/peach-payments/types.ts`              | TypeScript declarations for Peach SDK global `Checkout` object           |
+| `src/lib/peach-payments/sdk-loader.ts`         | Lazy SDK loader (`prefetchSDK`, `loadSDK`, `resetSDKLoader`)             |
+| `src/services/payment.service.ts`              | API service for create + verify endpoints                                |
+| `src/hooks/usePeachCheckout.ts`                | State machine hook managing full checkout lifecycle                      |
+| `src/components/payment/CheckoutSkeleton.tsx`  | Loading skeleton while SDK loads                                         |
+| `src/components/payment/PeachCheckoutView.tsx` | Full-page view rendering the Peach widget                                |
+| `src/app/payment/page.tsx`                     | `/payment` route — validates amount/session, renders `PeachCheckoutView` |
+| `src/components/order/PostOrderView.tsx`       | Orders page — "Pay Now" pushes `/payment?amount=...&tip=...`             |
+| `src/app/test-payment/page.tsx`                | Test page with mock scenarios (delete before production)                 |
 
 ### Modified Files
 
-| File | Change |
-|------|--------|
-| `src/lib/api/endpoints.ts` | Added `payment` endpoint group |
-| `src/lib/config.ts` | Added `peachPayments` config block |
-| `src/components/order/PostOrderView.tsx` | Replaced simulated payment with `PeachCheckoutModal` |
-| `docs/api-docs.yaml` | Added Payments + Secrets API specs |
+| File                                     | Change                                                    |
+| ---------------------------------------- | --------------------------------------------------------- |
+| `src/lib/api/endpoints.ts`               | Added `payment` endpoint group                            |
+| `src/lib/config.ts`                      | Added `peachPayments` config block                        |
+| `src/components/order/PostOrderView.tsx` | Replaced simulated payment with `router.push('/payment')` |
+| `docs/api-docs.yaml`                     | Added Payments + Secrets API specs                        |
 
 ### Entity ID Resolution
 
 The `key` parameter in `Checkout.initiate()` is resolved in this order:
+
 1. **`entityId` from create checkout response** — per-business, from stored secrets (preferred)
 2. **`NEXT_PUBLIC_PEACH_PAYMENTS_ENTITY_KEY` env var** — global fallback for development/testing
 
 ### State Machine
 
 ```
-idle → creating → ready → rendered → verifying → success
-                                   → cancelled
-                                   → expired
-                   ↓                → failed
-                 error              → error
+idle → creating → loading-sdk → ready → rendered → verifying → success
+                                                 → cancelled
+                                                 → expired
+                   ↓                              → failed
+                 error                            → error
+
+(SDK load runs in parallel with create via Promise.all — usePeachCheckout.ts:217-224)
 
 Any terminal state → idle (via retry, creates NEW checkoutId)
 ```

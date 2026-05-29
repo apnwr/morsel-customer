@@ -34,27 +34,38 @@ Scope: the refactor covered by the `/payment` page, the itemized picker cross-de
 
 ## 2. Split modes — decision tree
 
+`serverSplitType` is **derived** in `SessionContext.tsx:73-77` from `serverSplitConfig.type`. The mode label everywhere reads `serverSplitType`, not `serverSplitConfig` directly (`SplitSettingsModal.tsx:124-126`).
+
+The lock is gated on two extra dimensions — whether the local user is the split **initiator**, and whether **anyone has paid**:
+
 ```
                        user opens SplitSettingsModal
                                     │
                     ┌───────────────┴───────────────┐
-         serverSplitConfig == null           serverSplitConfig.type set
-         (no one set a mode yet)                      │
-                    │                   ┌─────────────┼─────────────┐
-                    │                  'itemized'                 other
-                    │                   │                           │
-             FREE CHOICE          PICKER AVAILABLE              READ-ONLY
-             (all 5 modes          (claim remaining              (assigned
-              selectable)           items only)                   share only)
-                    │                   │                           │
-                    ▼                   ▼                           ▼
-              Save → POST        Pick → POST /split          Close button
-              /split             (your own splitId)          (no Save)
+          serverSplitType == null           serverSplitType set
+          (no one set a mode yet)                    │
+                    │             ┌──────────────────┴──────────────────┐
+                    │       isInitiator && !anyonePaid          !isInitiator || anyonePaid
+                    │       (NOT locked)                        (serverModeLocked = true)
+                    │             │                  ┌──────────────────┼──────────────┐
+                    │             │             'itemized'                          other
+                    │             │                  │                                │
+             FREE CHOICE     FREE CHOICE        PICKER AVAILABLE                  READ-ONLY
+             (all 5 modes    initiator can      (claim remaining                 (assigned
+              selectable)    still flip mode     items only)                      share only)
+                    │         until 1st pay)          │                                │
+                    ▼             ▼                   ▼                                ▼
+              Save → POST    Save → POST        Pick → POST /split               Close button
+              /split         /split             (your own splitId)               (no Save)
 ```
 
-Option 4C, implemented in `SplitSettingsModal.tsx`:
+Implemented in `SplitSettingsModal.tsx:103-110`:
 
-- `serverModeLocked = !!serverSplitConfig?.type`
+- `isInitiator = !!initiatorId && initiatorId === currentSessionUserId`
+- `anyonePaid = sortedSplits.some(s => s.paid)`
+- `serverModeLocked = !!serverSplitType && (!isInitiator || anyonePaid)`
+  - The **initiator CAN change mode** while no one has paid (e.g. items → even).
+  - After any `split.paid`, the mode freezes for **everyone**, initiator included.
 - Mode-switching buttons hidden when locked
 - When `serverIsItemized`, a "Pick items to pay for" button still opens `ItemizedPickerSheet`
 - Primary button label flips from "Save" → "Close" when locked **and** not itemized
@@ -250,19 +261,19 @@ Key inversion: before this work, "what others have claimed" was read from local 
 
 ## 8. Files touched by this refactor
 
-| File | What changed |
-|---|---|
-| `src/components/payment/PeachCheckoutView.tsx` | new full-page checkout (replaces modal) |
-| `src/app/payment/page.tsx` | new route hosting the view |
-| `src/components/order/PostOrderView.tsx` | Pay Now → router.push('/payment'); server-first userAmount |
-| `src/app/orders/page.tsx` | hydrates paymentResult from query; strips query after |
-| `src/app/my-tab/page.tsx` | wires Pay Now button (was dead) |
-| `src/components/order/ItemizedPickerSheet.tsx` | server claims + conflict check + row states |
-| `src/components/order/SplitSettingsModal.tsx` | mode lock when server split active |
-| `src/hooks/usePeachCheckout.ts` | trustClientResultCode override (dev) |
-| `src/lib/config.ts` | `NEXT_PUBLIC_PEACH_TRUST_CLIENT` flag |
-| `src/types/api/split.ts` | SplitItemDetail gains orderId/variantIndex; remainingItems typed |
-| `src/components/payment/PeachCheckoutModal.tsx` | deleted |
+| File                                            | What changed                                                     |
+| ----------------------------------------------- | ---------------------------------------------------------------- |
+| `src/components/payment/PeachCheckoutView.tsx`  | new full-page checkout (replaces modal)                          |
+| `src/app/payment/page.tsx`                      | new route hosting the view                                       |
+| `src/components/order/PostOrderView.tsx`        | Pay Now → router.push('/payment'); server-first userAmount       |
+| `src/app/orders/page.tsx`                       | hydrates paymentResult from query; strips query after            |
+| `src/app/my-tab/page.tsx`                       | wires Pay Now button (was dead)                                  |
+| `src/components/order/ItemizedPickerSheet.tsx`  | server claims + conflict check + row states                      |
+| `src/components/order/SplitSettingsModal.tsx`   | mode lock when server split active                               |
+| `src/hooks/usePeachCheckout.ts`                 | trustClientResultCode override (dev)                             |
+| `src/lib/config.ts`                             | `NEXT_PUBLIC_PEACH_TRUST_CLIENT` flag                            |
+| `src/types/api/split.ts`                        | SplitItemDetail gains orderId/variantIndex; remainingItems typed |
+| `src/components/payment/PeachCheckoutModal.tsx` | deleted                                                          |
 
 ---
 

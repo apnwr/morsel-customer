@@ -9,14 +9,14 @@ End-to-end walkthrough of the *"Peach credentials not found in Secret Manager"* 
 
 ## 1. UI Symptom
 
-Clicking **Pay Now** on the order screen opens the Peach checkout bottom sheet, which immediately transitions to an error state:
+Clicking **Pay Now** on the order screen navigates to the full-page `/payment` route (Peach checkout), which immediately transitions to an error state:
 
 > **Something Went Wrong**
 > Peach credentials not found in Secret Manager
 
 This message is surfaced verbatim from the backend. The UI itself works correctly — it is faithfully showing an upstream error.
 
-**Rendered by:** `src/components/payment/PeachCheckoutModal.tsx` when `usePeachCheckout` state transitions to `status: 'error'`.
+**Rendered by:** `src/components/payment/PeachCheckoutView.tsx` error branch (`:87-116`, rendered via `showRetry`/`getErrorConfig` `:187-215`) when `usePeachCheckout` state transitions to `status: 'error'`.
 
 ---
 
@@ -45,7 +45,7 @@ Content-Type: application/json
 The request itself is well-formed:
 - Matches the spec at `docs/api-docs.yaml:2607` (`/payments/peach-payments/embedded`).
 - Matches the client's `CreateEmbeddedCheckoutRequest` type (`src/types/api/payment.ts`).
-- Matches the payload produced in `usePeachCheckout.startCheckout()` (`src/hooks/usePeachCheckout.ts:161-168`).
+- Matches the payload produced in `usePeachCheckout.startCheckout()` (`src/hooks/usePeachCheckout.ts:217-224`).
 
 No auth header is sent; the endpoint does not currently enforce `bearerAuth` despite declaring it in the spec.
 
@@ -140,11 +140,11 @@ Verified against source:
 
 | Check | Location | Result |
 |---|---|---|
-| Request shape matches spec | `src/hooks/usePeachCheckout.ts:161-168` vs `api-docs.yaml:2607-2629` | ✅ Match |
+| Request shape matches spec | `src/hooks/usePeachCheckout.ts:217-224` vs `api-docs.yaml:2607-2629` | ✅ Match |
 | `sessionId` + `sessionUserId` sent correctly | `usePeachCheckout` options | ✅ |
-| Error surfaced (not swallowed) | `usePeachCheckout.ts:190-193` | ✅ State transitions to `error` with backend message |
-| UI renders error message | `PeachCheckoutModal` reads `state.error` | ✅ |
-| `entityId` consumed from response | `usePeachCheckout.ts:85,176` | ✅ Used as `key` in `Checkout.initiate()` |
+| Error surfaced (not swallowed) | `usePeachCheckout.ts:246-249` (startCheckout catch) + `:184-188` (SDK onError) | ✅ State transitions to `error`/`failed` with backend message |
+| UI renders error message | `PeachCheckoutView` reads `state.error` | ✅ |
+| `entityId` consumed from response | `usePeachCheckout.ts:127` | ✅ Used as `key` in `Checkout.initiate()` |
 
 The request went out correctly, the response was a legitimate backend error, and the UI relayed it accurately.
 
@@ -217,7 +217,7 @@ None of this is required, but worth considering:
 
 Current UI shows the raw backend string. For patrons, *"Peach credentials not found in Secret Manager"* is meaningless.
 
-**Suggested mapping** in `PeachCheckoutModal`:
+**Suggested mapping** in `PeachCheckoutView` (`getErrorConfig`):
 
 | Backend message contains | Show to user |
 |---|---|
@@ -251,4 +251,4 @@ After seeding, confirm end-to-end with:
 - `docs/api-docs.yaml` — full OpenAPI spec for `/payments/peach-payments/*` and `/business/secrets`
 - `docs/api-docs.md` — endpoint cheatsheet (Payments - Peach, Secrets sections)
 - `src/hooks/usePeachCheckout.ts` — client state machine
-- `src/components/payment/PeachCheckoutModal.tsx` — UI surface for this error
+- `src/components/payment/PeachCheckoutView.tsx` — UI surface for this error

@@ -8,6 +8,37 @@ Format: `[TYPE] description` where TYPE is ADD, CHANGE, FIX, or REMOVE.
 
 ## Unreleased
 
+### Docs corrections — split flow accuracy pass (2026-05-29)
+
+- [DOCS] `docs/split-flow.md` — participant sync is the SessionContext `/session` REST poll, not Firebase; itemized picker fetches only `getSessionById()` (bill from `useSessionBill()` cache, no `Promise.all`); save flow `await`s + rethrows (not fire-and-forget); per-mode payloads all send `numberOfSplits` + `amounts` (itemized adds `itemIds[]` + `sessionUserId`)
+- [DOCS] `docs/split-settings.md` — rewrote Mode→API payload table; corrected sync to awaits/rethrows-with-retry; fixed `syncSplitToServer` signature; removed dead `SplitSection`; `onConfirm` typed `(shares) => void`; participants from `/session` poll not Firebase; added picker "Paid by"/"Your saved selection" states + `useSessionBill` as bill source
+- [DOCS] `docs/split-api-drift.md` — flipped resolved type gaps in `src/types/api/split.ts` to ✅ with line refs; bumped verified stamp to 2026-05-29; refreshed stale code line refs; noted §4 not re-verified
+- [DOCS] `docs/itemized-split-and-payment-flow.md` — corrected §2 mode-lock formula to `!!serverSplitType && (!isInitiator || anyonePaid)`; standardized on derived `serverSplitType`
+- [DOCS] `docs/backend-split-schema-proposal.md` — added 2026-05-29 status header (all→custom shipped client-side; serverModeLocked shipped; §2 "pure cleanup" claim now false due to `refreshSplit()` reads; `participant` collapse still open)
+
+### Running bill & UI (commits 2acf201 2026-05-20, 810d4a3 2026-05-21)
+
+- [ADD] `TotalBillCard` — running-bill pill showing a locale-aware amount + `ChevronRight`, consumed by `Header` (`Header.tsx:14,233`). FLAG: file/component name mismatch — the component is `TotalBillCard` but lives in `src/components/layout/RunningBill.tsx`
+- [CHANGE] `Button` styles refactor (`src/components/ui/Button.tsx`); animation tweaks (`src/lib/animations.ts`); `SearchBar`, `PostOrderView`, `TipSelector`, `PreOrderView` updates
+- [ADD] `bill.service.ts` + `src/types/api/bill.ts` additions
+- [CHANGE] CSS variable naming standardization in `src/app/globals.css`
+
+### Item ownership guard (commit 810d4a3, 2026-05-21)
+
+- [ADD] `src/components/menu/OwnershipBlockedSheet.tsx` + `src/hooks/useCartOwnershipGuard.ts` — block editing items added by other participants
+- [CHANGE] `MenuItem.tsx` + `VariationSelectionModal.tsx` reworked for the ownership guard
+
+### Split payments & persistent sessions (deepak-new, 2026-05-23→28)
+
+- [ADD] `src/types/api/session.ts` — TypeScript interfaces for ordering-session API models/requests (2026-05-23)
+- [ADD] Split payment management system — `SplitContext` + `SessionContext`, split modal/UI components, navigation flows; bill-splitting multi-mode UI with backend synchronization (2026-05-23→26)
+- [CHANGE] `SessionContext` reworked for PERSISTENT session management (`src/contexts/SessionContext.tsx`) — preview (ephemeral) vs active (localStorage-persisted) session model; uses `STORAGE_KEYS` + `SESSION_SCOPED_KEYS` + `SPLIT_INITIATOR_PREFIX` (`storage-keys.ts`) (2026-05-28)
+- [ADD] Order + payment UI components — `src/app/payment/page.tsx`, `src/app/orders/page.tsx`, `SplitSettingsModal.tsx`, `ParticipantsList.tsx`
+
+### Locale (previously undocumented)
+
+- [ADD] `LocaleProvider` for currency/timezone (`src/contexts/LocaleContext.tsx`), wired into `layout.tsx:48`
+
 ### Performance — Tranche 1 (from `docs/client-improvement-plan.md`)
 
 - [ADD] `src/lib/storage-keys.ts` — single source of truth for `morsel_*` localStorage keys with `STORAGE_KEYS` map and `SESSION_SCOPED_KEYS` list (1.6)

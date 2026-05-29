@@ -20,8 +20,12 @@ Visual flowcharts for the bill splitting system.
                                    v
                      +---------------------------+
                      | ParticipantsList mounts   |
-                     | Firebase syncs            |
-                     | participants to context   |
+                     | SessionContext /session   |
+                     | REST poll (every 10s)     |
+                     | syncs participants ->     |
+                     | SplitContext              |
+                     | (NOT Firebase — TODO       |
+                     |  to switch later)         |
                      +-------------+-------------+
                                    |
                                    v
@@ -137,11 +141,14 @@ Visual flowcharts for the bill splitting system.
                                    |
                                    v
                      +---------------------------+
-                     | Fetch in parallel:        |
-                     | Promise.all([             |
-                     |   getSessionById(),       |
-                     |   getSessionBill()        |
-                     | ])                        |
+                     | Fetch session detail:     |
+                     |   getSessionById()        |
+                     | (ItemizedPickerSheet      |
+                     |  :81-85)                  |
+                     |                           |
+                     | Bill is NOT fetched here  |
+                     | — read from the shared    |
+                     | useSessionBill() cache    |
                      +-------------+-------------+
                                    |
                                    v
@@ -264,39 +271,47 @@ Visual flowcharts for the bill splitting system.
                               +------------------+------------------+
                               |                  |                  |
                               v                  v                  v
-                    +------------------+  +------------+  +------------------+
-                    | even             |  | self       |  | items            |
-                    | { type: "equal", |  | { type:    |  | { type:          |
-                    |   numberOfSplits:|  | "partici-  |  |   "itemized",    |
-                    |   2 }            |  |  pant" }   |  |   itemIds:       |
-                    +------------------+  +------------+  |   ["k1","k2"] }  |
-                              |                  |        +------------------+
-                    +------------------+                           |
-                    | all / custom     |                           |
-                    | { type: "custom",|                           |
-                    |   amounts:       |                           |
-                    |   [80, 0] }      |                           |
-                    +------------------+                           |
-                              |                  |                 |
-                              +--------+---------+---------+-------+
+                    +------------------+  +------------+  +------------------------+
+                    | even             |  | self       |  | items                  |
+                    | { type:"equal",  |  | { type:    |  | { type:"itemized",     |
+                    |   numberOfSplits,|  | "partici-  |  |   numberOfSplits,      |
+                    |   amounts }      |  |  pant",    |  |   amounts,             |
+                    +------------------+  |  numberOf- |  |   itemIds:[{itemId,    |
+                              |           |  Splits,   |  |     orderId,quantity}],|
+                    +------------------+  |  amounts } |  |   sessionUserId }      |
+                    | all / custom     |  +------------+  +------------------------+
+                    | { type:"custom", |        |                  |
+                    |   numberOfSplits,|        |                  |
+                    |   amounts }      |        |                  |
+                    +------------------+        |                  |
+                              |                 |                  |
+                              +--------+--------+---------+--------+
+                                       |
+              (ALL modes send numberOfSplits + amounts; itemized
+               additionally sends itemIds[] + sessionUserId)
                                        |
                                        v
                          +---------------------------+
-                         | POST /ordering-session/   |
-                         | session/{id}/split         |
-                         | (fire-and-forget)          |
+                         | await POST                |
+                         | /ordering-session/        |
+                         | session/{id}/split        |
+                         | (syncSplitToServer AWAITS  |
+                         |  and RETHROWS on failure)  |
                          +-------------+-------------+
                                        |
                               +--------+--------+
                               |                 |
                               v                 v
-                     +--------------+  +--------------+
-                     | Success:     |  | Failure:     |
-                     | serverSplits |  | logged,      |
-                     | updated      |  | local split  |
-                     | (has paid    |  | still works  |
-                     |  status)     |  |              |
-                     +--------------+  +--------------+
+                     +-----------------+  +-----------------------+
+                     | Success:        |  | Failure (rethrown):   |
+                     | setServerSplits |  | SplitSettingsModal    |
+                     | + refreshSession|  | catches, shows        |
+                     | Data()          |  | "Couldn't save split  |
+                     |                 |  | — check your          |
+                     |                 |  | connection and try    |
+                     |                 |  | again." Modal STAYS   |
+                     |                 |  | OPEN for retry.       |
+                     +-----------------+  +-----------------------+
 ```
 
 ---
@@ -343,7 +358,9 @@ Visual flowcharts for the bill splitting system.
      +-------------------+------------------------------------------+
      |                   |                                          |
      | ParticipantsList  | Calls calculateSplit() on re-render      |
-     |                   | Syncs Firebase participants to context   |
+     |                   | Syncs participants from SessionContext   |
+     |                   | /session REST poll into SplitContext     |
+     |                   | (NOT Firebase — TODO to switch later)    |
      |                   | Opens SplitSettingsModal                 |
      |                   |                                          |
      | SplitContext      | calculateSplit():                        |

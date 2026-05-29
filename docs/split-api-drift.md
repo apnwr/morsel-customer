@@ -2,7 +2,7 @@
 
 Known contract mismatches between the client TS types and the actual server response for split-related APIs. **No runtime blocker today** — everything the client currently reads exists on the server. This document captures the gaps so future features can be built on accurate types.
 
-Last verified: 2026-04-18 against live session `1xslNJINX5ruEey1FIAJ`.
+Last verified: 2026-05-29 against live session `1xslNJINX5ruEey1FIAJ`.
 
 ---
 
@@ -21,77 +21,87 @@ Relevant TS types: `src/types/api/split.ts`, `src/types/api/session.ts`.
 
 Client sends exactly what server expects.
 
-| Field | Client sends | Server accepts |
-|---|---|---|
-| `type` | ✅ | ✅ |
-| `numberOfSplits` | ✅ | ✅ |
-| `amounts[]` | ✅ | ✅ |
-| `itemIds[]` (`{itemId, orderId, quantity}`) | ✅ | ✅ |
-| `sessionUserId` (itemized only) | ✅ | ✅ |
+| Field                                       | Client sends | Server accepts |
+| ------------------------------------------- | ------------ | -------------- |
+| `type`                                      | ✅           | ✅             |
+| `numberOfSplits`                            | ✅           | ✅             |
+| `amounts[]`                                 | ✅           | ✅             |
+| `itemIds[]` (`{itemId, orderId, quantity}`) | ✅           | ✅             |
+| `sessionUserId` (itemized only)             | ✅           | ✅             |
 
 ---
 
 ## 2. POST `/split` — Response drift
 
+> **Update 2026-05-29:** Most gaps cataloged below are now RESOLVED in `src/types/api/split.ts`. The "In TS type" column reflects the current types; line refs point at the resolving declarations. Fields marked present-in-TS-but-not-consumed are typed but no component reads them yet (see note after the §3 table).
+
 ### Root `data`
-| Field | In TS type | Server returns | Consumed in UI |
-|---|---|---|---|
-| `total` | ✅ | ✅ | ✅ |
-| `splits[]` | ✅ | ✅ | ✅ |
-| `allPaid` | ✅ | ✅ | Derived locally |
-| `remainingTotal` | ❌ | ✅ | ❌ |
-| `totalPaid` | ❌ | ✅ | ❌ |
+
+| Field            | In TS type            | Server returns | Consumed in UI  |
+| ---------------- | --------------------- | -------------- | --------------- |
+| `total`          | ✅                    | ✅             | ✅              |
+| `splits[]`       | ✅                    | ✅             | ✅              |
+| `allPaid`        | ✅                    | ✅             | Derived locally |
+| `remainingTotal` | ✅ (split.ts:104-107) | ✅             | ❌              |
+| `totalPaid`      | ✅ (split.ts:104-107) | ✅             | ❌              |
 
 ### `splits[]` entry (`SplitEntry`)
-| Field | In TS | Server | Consumed |
-|---|---|---|---|
-| `index`, `amount`, `sessionUserId`, `paid`, `paidBy`, `paidAt`, `method` | ✅ | ✅ | partial |
-| `splitId` | ❌ | ✅ | ❌ — needed for checkout `splitIdentifier` |
-| `tax`, `charges`, `tip` | ❌ | ✅ | ❌ — per-split breakdown |
-| `items[]` | ✅ | ✅ | ❌ |
+
+| Field                                                                    | In TS               | Server | Consumed                                  |
+| ------------------------------------------------------------------------ | ------------------- | ------ | ----------------------------------------- |
+| `index`, `amount`, `sessionUserId`, `paid`, `paidBy`, `paidAt`, `method` | ✅                  | ✅     | partial                                   |
+| `splitId`                                                                | ✅ (split.ts:59)    | ✅     | ❌ — present-in-TS, not yet consumed      |
+| `type`                                                                   | ✅ (split.ts:61)    | ✅     | ❌ — present-in-TS, not yet consumed      |
+| `tax`, `charges`, `tip`                                                  | ✅ (split.ts:65-69) | ✅     | ❌ — present-in-TS, not yet consumed      |
+| `items[]`                                                                | ✅                  | ✅     | ✅ (ItemizedPickerSheet claims-by-others) |
 
 ### `splits[].items[]` (`SplitItemDetail`)
-| Field | In TS | Server | Status |
-|---|---|---|---|
-| `itemId`, `name`, `quantity`, `unitPrice` | ✅ | ✅ | OK |
-| `totalPrice` | ✅ | ❌ | **Rename mismatch — server sends `itemTotal`** |
-| `itemTotal` | ❌ | ✅ | Missing |
-| `variantIndex`, `variantPrice`, `addonsTotalPrice`, `orderId` | ❌ | ✅ | Missing |
-| `variantName` | `string?` | `string \| null` | Relax to `string \| null` |
+
+| Field                                                                   | In TS                             | Server           | Status                    |
+| ----------------------------------------------------------------------- | --------------------------------- | ---------------- | ------------------------- |
+| `itemId`, `name`, `quantity`, `unitPrice`                               | ✅                                | ✅               | OK                        |
+| `itemTotal`                                                             | ✅ (split.ts:41)                  | ✅               | Resolved                  |
+| `totalPrice`                                                            | ✅ (split.ts:43, legacy)          | —                | Kept as back-compat alias |
+| `variantIndex`, `variantPrice`, `addOns`, `addonsTotalPrice`, `orderId` | ✅ (split.ts:44-50)               | ✅               | Resolved                  |
+| `variantName`                                                           | ✅ `string \| null` (split.ts:45) | `string \| null` | Resolved                  |
 
 ---
 
 ## 3. GET session — `splitConfig` drift
 
-Current type has: `type`, `numberOfSplits`, `amounts`, `itemIds` (**as `string[]`**), `itemizedSplit`, `remainingItems` (**as `any[]`**).
+Most of these are now resolved in `SplitConfig` (`src/types/api/split.ts`).
 
-| Server field | In TS | Notes |
-|---|---|---|
-| `type`, `numberOfSplits`, `amounts`, `itemizedSplit` | ✅ | OK |
-| `itemIds` | ⚠️ wrong shape | Type says `string[]`, server sends `{itemId, orderId, quantity}[]` |
-| `remainingItems` | ⚠️ `any[]` | Array of `SessionOrderItem`-shaped items + `orderId` |
-| `sessionUserId` | ❌ | Who initiated the itemized split |
-| `splitTaxes: { [index]: number }` | ❌ | Per-split tax map |
-| `splitCharges: { [index]: number }` | ❌ | Per-split charges map |
-| `splitTips: { [index]: number }` | ❌ | Per-split tip map |
+| Server field                                         | In TS                                                               | Notes                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------ |
+| `type`, `numberOfSplits`, `amounts`, `itemizedSplit` | ✅                                                                  | OK                                         |
+| `itemIds`                                            | ✅ union `{itemId, orderId, quantity}[] \| string[]` (split.ts:119) | Resolved — typed as the object-array union |
+| `remainingItems`                                     | ✅ `SplitRemainingItem[]` (split.ts:121, type at 82-94)             | Resolved — proper type replaces `any[]`    |
+| `sessionUserId`                                      | ✅ (split.ts:124)                                                   | Who initiated the itemized split           |
+| `splitTaxes: { [index]: number }`                    | ✅ (split.ts:126)                                                   | Per-split tax map                          |
+| `splitCharges: { [index]: number }`                  | ✅ (split.ts:127)                                                   | Per-split charges map                      |
+| `splitTips: { [index]: number }`                     | ✅ (split.ts:128)                                                   | Per-split tip map                          |
 
 ---
 
 ## 4. GET session — collateral drift (not split-core, but surfaced during review)
 
+> **Note (2026-05-29):** the §4 session-type additions below were NOT re-verified in this pass. The ✅/❌ marks here may be stale.
+
 ### `SessionDetail`
-| Server field | In TS | Notes |
-|---|---|---|
-| `tips: []` | ❌ | Session-level tip records |
-| `discount: null` | ❌ | Session-level discount |
-| `sessionCharges[]` | ❌ | Charge definitions (service %, state %, etc.) |
-| `sessionTips: { [userId]: {amount, timestamp} }` | ❌ | Per-participant tip map |
+
+| Server field                                     | In TS | Notes                                         |
+| ------------------------------------------------ | ----- | --------------------------------------------- |
+| `tips: []`                                       | ❌    | Session-level tip records                     |
+| `discount: null`                                 | ❌    | Session-level discount                        |
+| `sessionCharges[]`                               | ❌    | Charge definitions (service %, state %, etc.) |
+| `sessionTips: { [userId]: {amount, timestamp} }` | ❌    | Per-participant tip map                       |
 
 ### `SessionOrderItem`
-| Server field | In TS | Notes |
-|---|---|---|
-| `variantName` | ❌ | Display-critical for variants |
-| `addOns[]` | ❌ | Defined on `SessionQueueItem` but not `SessionOrderItem` |
+
+| Server field  | In TS | Notes                                                    |
+| ------------- | ----- | -------------------------------------------------------- |
+| `variantName` | ❌    | Display-critical for variants                            |
+| `addOns[]`    | ❌    | Defined on `SessionQueueItem` but not `SessionOrderItem` |
 
 ---
 
@@ -99,13 +109,13 @@ Current type has: `type`, `numberOfSplits`, `amounts`, `itemIds` (**as `string[]
 
 Grep-verified consumers of the server response:
 
-| Consumer | Fields read | All present? |
-|---|---|---|
-| `SplitContext.tsx:117-124` (hydration) | `index`, `amount`, `sessionUserId` | ✅ |
-| `SplitContext.tsx:110` | `serverSplitConfig.type` | ✅ |
-| `SessionContext.tsx:215-216` (`isParticipantPaid`) | `sessionUserId`, `paidBy`, `paid` | ✅ |
-| `PostOrderView.tsx:179,184` | `paid`, `sessionUserId` | ✅ |
-| `PaymentResultView.tsx:50-51` | `paid` | ✅ |
+| Consumer                                                  | Fields read                        | All present? |
+| --------------------------------------------------------- | ---------------------------------- | ------------ |
+| `SplitContext.tsx:112-153` (hydration)                    | `index`, `amount`, `sessionUserId` | ✅           |
+| `SessionContext.tsx:73-77` (`serverSplitType` derivation) | `serverSplitConfig.type`           | ✅           |
+| `SessionContext.tsx:237-242` (`isParticipantPaid`)        | `sessionUserId`, `paidBy`, `paid`  | ✅           |
+| `PostOrderView.tsx:179,184`                               | `paid`, `sessionUserId`            | ✅           |
+| `PaymentResultView.tsx:50-51`                             | `paid`                             | ✅           |
 
 Every field the client reads today exists in the response. Extra server fields are silently ignored by TS at runtime. `serverSplits` state is set but not currently read by any component.
 
@@ -114,6 +124,7 @@ Every field the client reads today exists in the response. Extra server fields a
 ## 6. Decision buckets
 
 ### Bucket A — Type-only patch (safe, ~30 lines, zero runtime risk)
+
 1. `SplitConfig.itemIds` → `{itemId, orderId, quantity}[]`
 2. Add `SplitConfig.sessionUserId`, `splitTaxes`, `splitCharges`, `splitTips`
 3. Replace `SplitConfig.remainingItems: any[]` with a proper type
@@ -124,16 +135,18 @@ Every field the client reads today exists in the response. Extra server fields a
 8. Add `remainingTotal`, `totalPaid` to `SplitCalculateResponse.data`
 
 ### Bucket B — Features the typed fields unlock
-| Feature | Requires |
-|---|---|
-| "X is splitting the bill" banner | `splitConfig.sessionUserId` |
-| "Remaining items to pay" list | `splitConfig.remainingItems` (already on server) |
+
+| Feature                              | Requires                                                           |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| "X is splitting the bill" banner     | `splitConfig.sessionUserId`                                        |
+| "Remaining items to pay" list        | `splitConfig.remainingItems` (already on server)                   |
 | Per-split tax/charges/tip in receipt | `splits[].tax/charges/tip` + `splitConfig.splitTaxes/Charges/Tips` |
-| Reuse server charges in bill UI | `sessionCharges[]` (could retire `bill.service` dependency) |
-| Per-participant tip display | `sessionTips` |
-| Checkout via `splitIdentifier` | `splits[].splitId` |
+| Reuse server charges in bill UI      | `sessionCharges[]` (could retire `bill.service` dependency)        |
+| Per-participant tip display          | `sessionTips`                                                      |
+| Checkout via `splitIdentifier`       | `splits[].splitId`                                                 |
 
 ### Bucket C — Currently safe to ignore
+
 `tips: []`, `discount: null` — empty in observed responses, no known consumer.
 
 ---
@@ -141,20 +154,30 @@ Every field the client reads today exists in the response. Extra server fields a
 ## 7. Sample payloads (reference)
 
 ### Request
+
 ```json
 {
   "type": "itemized",
   "numberOfSplits": 2,
   "amounts": [702, 28.06],
   "itemIds": [
-    { "itemId": "hxIKB0fdo5ePE9WNbzT6", "orderId": "ompoYW9EUkSy2wbc5gdd", "quantity": 1 },
-    { "itemId": "FicZp7n9f0XoYTEIojsO", "orderId": "ompoYW9EUkSy2wbc5gdd", "quantity": 1 }
+    {
+      "itemId": "hxIKB0fdo5ePE9WNbzT6",
+      "orderId": "ompoYW9EUkSy2wbc5gdd",
+      "quantity": 1
+    },
+    {
+      "itemId": "FicZp7n9f0XoYTEIojsO",
+      "orderId": "ompoYW9EUkSy2wbc5gdd",
+      "quantity": 1
+    }
   ],
   "sessionUserId": "12a0abe0-ebc0-4092-9172-a33fc396069a"
 }
 ```
 
 ### Response (trimmed)
+
 ```json
 {
   "data": {
@@ -197,19 +220,26 @@ Every field the client reads today exists in the response. Extra server fields a
 ```
 
 ### Session `splitConfig` snapshot
+
 ```json
 {
   "type": "itemized",
   "numberOfSplits": 2,
   "amounts": [702, 28.06],
   "itemIds": [
-    { "itemId": "hxIKB0fdo5ePE9WNbzT6", "orderId": "ompoYW9EUkSy2wbc5gdd", "quantity": 1 }
+    {
+      "itemId": "hxIKB0fdo5ePE9WNbzT6",
+      "orderId": "ompoYW9EUkSy2wbc5gdd",
+      "quantity": 1
+    }
   ],
   "sessionUserId": "12a0abe0-ebc0-4092-9172-a33fc396069a",
   "itemizedSplit": true,
-  "remainingItems": [ /* SessionOrderItem-like + orderId */ ],
-  "splitTaxes":   { "0": 202 },
+  "remainingItems": [
+    /* SessionOrderItem-like + orderId */
+  ],
+  "splitTaxes": { "0": 202 },
   "splitCharges": { "0": 100 },
-  "splitTips":    { "0": 0 }
+  "splitTips": { "0": 0 }
 }
 ```

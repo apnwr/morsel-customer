@@ -1,5 +1,7 @@
 # Changelog
 
+> Frozen Feb 2026. Superseded by `docs/CHANGELOG.md` — see that file for all changes after the PROJECT_FLOW consolidation (payment route, bill-splitting, persistent sessions, Tranche-1 perf work, etc.).
+
 All notable changes on this branch are documented here.
 
 ---

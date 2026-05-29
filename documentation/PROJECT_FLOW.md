@@ -1,6 +1,9 @@
 # MORSEL Customer - Project Flow Documentation
 
+> ⚠️ **STALE (last updated 2026-02-01).** Significant drift since. For current behavior see `docs/` — especially `session-flow.md`, `itemized-split-and-payment-flow.md`, `session-sync-and-payment-refactor.md`, `two-page-cart-orders-architecture.md`, and `docs/CHANGELOG.md` (the live changelog). The sections below are retained for historical context; key facts corrected inline below.
+
 ## Table of Contents
+
 1. [Project Overview](#project-overview)
 2. [Tech Stack](#tech-stack)
 3. [Project Structure](#project-structure)
@@ -23,6 +26,7 @@
 **MORSEL Customer** is a modern food ordering application for restaurant customers. The tagline "Enjoy every meal, not the math" captures its focus on simplifying restaurant ordering and bill splitting.
 
 ### Key Features
+
 - QR code-based table/space identification
 - Multi-participant shared ordering session
 - Real-time cart synchronization across participants
@@ -34,15 +38,15 @@
 
 ## Tech Stack
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Next.js | 16.0.8 | App Router, client-side components |
-| React | 19.2.0 | UI framework |
-| TypeScript | 5 | Type safety |
-| Tailwind CSS | 4 | Styling |
-| Firebase | - | Real-time database & anonymous auth |
-| Framer Motion | 12.23.24 | Animations |
-| Lucide React | - | Icons |
+| Technology    | Version  | Purpose                             |
+| ------------- | -------- | ----------------------------------- |
+| Next.js       | 16.0.8   | App Router, client-side components  |
+| React         | 19.2.0   | UI framework                        |
+| TypeScript    | 5        | Type safety                         |
+| Tailwind CSS  | 4        | Styling                             |
+| Firebase      | -        | Real-time database & anonymous auth |
+| Framer Motion | 12.23.24 | Animations                          |
+| Lucide React  | -        | Icons                               |
 
 ---
 
@@ -196,11 +200,13 @@ src/
 > back button issues where pressing back would show login again and create duplicate participants.
 
 #### Step 1: Home Page (`/`)
+
 - Displays animated "morsel" logo
 - Shows QR code scan prompt
 - If active session exists in localStorage, redirects to `/menu`
 
 #### Step 2: Space Page with Login Modal (`/space/[spaceId]`)
+
 ```
 User scans QR code
        ↓
@@ -243,7 +249,9 @@ router.replace('/menu')  ← Uses replace to prevent back button issues
 ```
 
 #### Login Page (`/login`) - Redirect Guard
+
 The `/login` page now acts as a safety guard:
+
 - If user has active session → redirects to `/menu`
 - If user has preview session → redirects back to `/space/[spaceId]`
 - If no session → redirects to `/` (home)
@@ -255,6 +263,7 @@ The `/login` page now acts as a safety guard:
 **Route**: `/menu`
 
 #### Menu Loading Flow
+
 ```
 Page mounts
        ↓
@@ -274,6 +283,7 @@ Enable search functionality
 ```
 
 #### Adding Item to Cart Flow
+
 ```
 User clicks menu item
        ↓
@@ -312,6 +322,7 @@ Other participants' carts update in real-time
 **Route**: `/cart`
 
 #### Pre-Order View (Cart exists, no order placed)
+
 ```
 Display Participants Card (dark theme):
   - Participant avatars, names, split amounts (top)
@@ -342,6 +353,7 @@ Fixed bottom bar: "Place Order" + amount (rounded-t-[30px], no arrow)
 ```
 
 #### Order Placement Flow
+
 ```
 User clicks "Place Order"
        ↓
@@ -359,6 +371,7 @@ Switch to Post-Order View
 ```
 
 #### Post-Order View
+
 ```
 Display order confirmation
        ↓
@@ -379,6 +392,7 @@ Options:
 **Route**: `/my-tab`
 
 #### Tab View Flow
+
 ```
 Load current user's ordered items
        ↓
@@ -398,22 +412,25 @@ Show participant list with amounts
 ```
 
 #### Payment Flow
+
+> Corrected (2026-05-29): the modal-based `PaymentModal` + `PUT /session/{id}/end` flow below is obsolete. Checkout now navigates to the dedicated `/payment` route hosting `PeachCheckoutView`. `payment.service.ts:24` calls `createEmbeddedCheckout` (`POST /payments/peach-payments/embedded`) and `payment.service.ts:37` calls `verifyPayment` (`POST /payments/peach-payments/verify`).
+
 ```
 User clicks "Pay Now"
        ↓
-Opens PaymentModal
+Navigate to /payment route (amount/tip via query params)
        ↓
-Select payment method
+PeachCheckoutView hosts the embedded widget
        ↓
-Confirm payment
+paymentService.createEmbeddedCheckout()  // POST /payments/peach-payments/embedded
        ↓
-API Call: PUT /session/{sessionId}/end
+User completes payment in the Peach widget
        ↓
-Clear all localStorage
+paymentService.verifyPayment()           // POST /payments/peach-payments/verify
        ↓
-Show success message
+On success: split marked paid, order status updated, receipt sent
        ↓
-Redirect to home
+Show success / failure result view
 ```
 
 ---
@@ -424,30 +441,31 @@ Redirect to home
 
 ### Session Endpoints
 
-| Method | Endpoint | Purpose | Request Body | Response |
-|--------|----------|---------|--------------|----------|
-| GET | `/ordering-session/space/{spaceId}` | Get session preview by QR code | - | `{ space, business, session? }` |
-| POST | `/ordering-session/start` | Create or join session | `{ spaceId, guestName }` | `{ data: Session }` |
-| GET | `/ordering-session/session/{sessionId}` | Get full session details | - | `{ data: Session }` |
-| PUT | `/ordering-session/session/{sessionId}/end` | End session after payment | `{ sessionUserId, reason }` | `{ success: true }` |
+| Method | Endpoint                                    | Purpose                        | Request Body                | Response                        |
+| ------ | ------------------------------------------- | ------------------------------ | --------------------------- | ------------------------------- |
+| GET    | `/ordering-session/space/{spaceId}`         | Get session preview by QR code | -                           | `{ space, business, session? }` |
+| POST   | `/ordering-session/start`                   | Create or join session         | `{ spaceId, guestName }`    | `{ data: Session }`             |
+| GET    | `/ordering-session/session/{sessionId}`     | Get full session details       | -                           | `{ data: Session }`             |
+| PUT    | `/ordering-session/session/{sessionId}/end` | End session after payment      | `{ sessionUserId, reason }` | `{ success: true }`             |
 
 ### Menu Endpoints
 
-| Method | Endpoint | Purpose | Request Body | Response |
-|--------|----------|---------|--------------|----------|
-| GET | `/business/menus/active/{businessId}` | Fetch all active menus with items | - | `{ data: MenuWithItems[] }` |
-| GET | `/items/business/{businessId}` | Fetch all items for business | - | `{ data: MenuItem[] }` |
+| Method | Endpoint                              | Purpose                           | Request Body | Response                    |
+| ------ | ------------------------------------- | --------------------------------- | ------------ | --------------------------- |
+| GET    | `/business/menus/active/{businessId}` | Fetch all active menus with items | -            | `{ data: MenuWithItems[] }` |
+| GET    | `/items/business/{businessId}`        | Fetch all items for business      | -            | `{ data: MenuItem[] }`      |
 
 ### Order Endpoints
 
-| Method | Endpoint | Purpose | Request Body | Response |
-|--------|----------|---------|--------------|----------|
-| POST | `/ordering-session/session/{sessionId}/queue` | Sync cart queue (upsert) | `{ sessionUserId, items[] }` | `{ message, queue }` |
-| POST | `/ordering-session/session/{sessionId}/queue/confirm` | Confirm and place order | `{ sessionUserId, paymentType }` | `{ data: Order }` |
+| Method | Endpoint                                              | Purpose                  | Request Body                     | Response             |
+| ------ | ----------------------------------------------------- | ------------------------ | -------------------------------- | -------------------- |
+| POST   | `/ordering-session/session/{sessionId}/queue`         | Sync cart queue (upsert) | `{ sessionUserId, items[] }`     | `{ message, queue }` |
+| POST   | `/ordering-session/session/{sessionId}/queue/confirm` | Confirm and place order  | `{ sessionUserId, paymentType }` | `{ data: Order }`    |
 
 ### Request/Response Examples
 
 #### Start Session
+
 ```typescript
 // Request
 POST /ordering-session/start
@@ -477,6 +495,7 @@ POST /ordering-session/start
 ```
 
 #### Update Queue
+
 ```typescript
 // Request
 POST /ordering-session/session/{sessionId}/queue
@@ -510,6 +529,7 @@ POST /ordering-session/session/{sessionId}/queue
 ```
 
 #### Confirm Order
+
 ```typescript
 // Request
 POST /ordering-session/session/{sessionId}/queue/confirm
@@ -539,23 +559,25 @@ POST /ordering-session/session/{sessionId}/queue/confirm
 
 ## State Management
 
-The application uses React Context API for state management with 6 context providers.
+The application uses React Context API for state management with 8 context providers (corrected 2026-05-29 — was 7 and omitted `LocaleProvider`; Session/Restaurant order was also wrong).
 
 ### Provider Hierarchy
 
 ```
 FirebaseAuthProvider
-└── SessionProvider
-    └── RestaurantProvider
-        └── ThemeProvider
-            └── CartProvider
-                └── OrderProvider
-                    └── SplitProvider
-                        └── {children}
-                        └── DebugPanelWrapper
+└── LocaleProvider
+    └── SessionProvider
+        └── RestaurantProvider
+            └── ThemeProvider
+                └── CartProvider
+                    └── OrderProvider
+                        └── SplitProvider
+                            └── Initializer
+                            └── {children}
+                            └── DebugPanelWrapper
 ```
 
-**Source**: `src/app/layout.tsx`
+**Source**: `src/app/layout.tsx:47-65`
 
 ### SessionContext
 
@@ -581,6 +603,7 @@ FirebaseAuthProvider
 | `isSessionExpired()` | Check expiry timestamp |
 
 **Real-time Sync**:
+
 - Firebase listener: `subscribeToParticipantsBySpace()`
 - Fallback: Polling every 10 seconds
 
@@ -608,6 +631,7 @@ FirebaseAuthProvider
 | `syncCartFromQueue()` | Fetch shared queue from API |
 
 **Key Logic**:
+
 - Each item tagged with `sessionUserId` (tracks who added it)
 - Only syncs current user's items to API (prevents overwriting others)
 - Merges ALL participants' items for display
@@ -615,6 +639,7 @@ FirebaseAuthProvider
 - Caches menu items with customOptions for restoration
 
 **Real-time Sync**:
+
 - Firebase listener: `subscribeToOrderQueue()`
 - Fallback: Polling every 15 seconds
 
@@ -692,17 +717,25 @@ FirebaseAuthProvider
 
 ## Routing Structure
 
-| Route | File | Purpose | Guards |
-|-------|------|---------|--------|
-| `/` | `app/page.tsx` | Home - QR scan prompt | None |
-| `/space/[spaceId]` | `app/space/[spaceId]/page.tsx` | QR result + LoginModal (join session) | Redirects to /menu if active session |
-| `/login` | `app/login/page.tsx` | Redirect guard (legacy) | Redirects based on session state |
-| `/menu` | `app/menu/page.tsx` | Browse menu, add items | Session + Restaurant |
-| `/cart` | `app/cart/page.tsx` | View cart, place order | Session |
-| `/order-summary` | `app/order-summary/page.tsx` | Order summary & payment | Active order |
-| `/order-status` | `app/order-status/page.tsx` | Redirects to `/cart` | None |
-| `/order-status/[orderId]` | `app/order-status/[orderId]/page.tsx` | Track specific order | None |
-| `/my-tab` | `app/my-tab/page.tsx` | View personal tab & split | Session |
+> Corrected (2026-05-29): 15 actual routes below; the deleted `/order-summary` entry was removed.
+
+| Route                     | File                                  |
+| ------------------------- | ------------------------------------- |
+| `/`                       | `app/page.tsx`                        |
+| `/menu`                   | `app/menu/page.tsx`                   |
+| `/cart`                   | `app/cart/page.tsx`                   |
+| `/orders`                 | `app/orders/page.tsx`                 |
+| `/payment`                | `app/payment/page.tsx`                |
+| `/my-tab`                 | `app/my-tab/page.tsx`                 |
+| `/login`                  | `app/login/page.tsx`                  |
+| `/success`                | `app/success/page.tsx`                |
+| `/failure`                | `app/failure/page.tsx`                |
+| `/confirmation-order`     | `app/confirmation-order/page.tsx`     |
+| `/order-status`           | `app/order-status/page.tsx`           |
+| `/order-status/[orderId]` | `app/order-status/[orderId]/page.tsx` |
+| `/area/[areaId]`          | `app/area/[areaId]/page.tsx`          |
+| `/space/[spaceId]`        | `app/space/[spaceId]/page.tsx`        |
+| `/test-payment`           | `app/test-payment/page.tsx`           |
 
 ---
 
@@ -710,70 +743,72 @@ FirebaseAuthProvider
 
 ### Layout Components
 
-| Component | File | Purpose |
-|-----------|------|---------|
-| `Header` | `components/layout/Header.tsx` | Sticky top bar with logo, cart icon, navigation |
-| `ThemeProvider` | `components/layout/ThemeProvider.tsx` | Theme context (dark/light mode) |
-| `DebugPanel` | `components/layout/DebugPanel.tsx` | Development-only debug info |
+| Component       | File                                  | Purpose                                         |
+| --------------- | ------------------------------------- | ----------------------------------------------- |
+| `Header`        | `components/layout/Header.tsx`        | Sticky top bar with logo, cart icon, navigation |
+| `ThemeProvider` | `components/layout/ThemeProvider.tsx` | Theme context (dark/light mode)                 |
+| `DebugPanel`    | `components/layout/DebugPanel.tsx`    | Development-only debug info                     |
 
 ### Menu Components
 
-| Component | File | Purpose |
-|-----------|------|---------|
-| `MenuAccordion` | `components/menu/MenuAccordion.tsx` | Collapsible category section |
-| `MenuItem` | `components/menu/MenuItem.tsx` | Individual item card |
-| `SearchBar` | `components/menu/SearchBar.tsx` | Sticky search bar at bottom |
-| `CustomizationModal` | `components/order/CustomizationModal.tsx` | Customization options form |
+| Component            | File                                      | Purpose                      |
+| -------------------- | ----------------------------------------- | ---------------------------- |
+| `MenuAccordion`      | `components/menu/MenuAccordion.tsx`       | Collapsible category section |
+| `MenuItem`           | `components/menu/MenuItem.tsx`            | Individual item card         |
+| `SearchBar`          | `components/menu/SearchBar.tsx`           | Sticky search bar at bottom  |
+| `CustomizationModal` | `components/order/CustomizationModal.tsx` | Customization options form   |
 
 ### Cart Components
 
-| Component | File | Purpose |
-|-----------|------|---------|
-| `PreOrderView` | `components/cart/PreOrderView.tsx` | Cart page before order (participants, items, kitchen note, bill, place order) |
-| `CartItem` | `components/cart/CartItem.tsx` | Individual item with quantity controls, dietary indicator, participant badge |
-| `BillSection` | `components/cart/BillSection.tsx` | Itemized bill: totals, taxes, delivery, packing, grand total, My Share |
-| `DeleteConfirmationModal` | `components/cart/DeleteConfirmationModal.tsx` | Confirm item removal when quantity reaches 0 |
+| Component                 | File                                          | Purpose                                                                       |
+| ------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------- |
+| `PreOrderView`            | `components/cart/PreOrderView.tsx`            | Cart page before order (participants, items, kitchen note, bill, place order) |
+| `CartItem`                | `components/cart/CartItem.tsx`                | Individual item with quantity controls, dietary indicator, participant badge  |
+| `BillSection`             | `components/cart/BillSection.tsx`             | Itemized bill: totals, taxes, delivery, packing, grand total, My Share        |
+| `DeleteConfirmationModal` | `components/cart/DeleteConfirmationModal.tsx` | Confirm item removal when quantity reaches 0                                  |
 
 ### Session Components
 
-| Component | File | Purpose |
-|-----------|------|---------|
+| Component          | File                                      | Purpose                                                                     |
+| ------------------ | ----------------------------------------- | --------------------------------------------------------------------------- |
 | `ParticipantsList` | `components/session/ParticipantsList.tsx` | Dark card with participant avatars/amounts, split mode label, Change button |
-| `LoginModal` | `components/session/LoginModal.tsx` | Bottom sheet login form (name, dining type) |
-| `OrderTabs` | `components/session/OrderTabs.tsx` | Switch between multiple orders |
+| `LoginModal`       | `components/session/LoginModal.tsx`       | Bottom sheet login form (name, dining type)                                 |
+| `OrderTabs`        | `components/session/OrderTabs.tsx`        | Switch between multiple orders                                              |
 
 ### Order Components
 
-| Component | File | Purpose |
-|-----------|------|---------|
-| `PostOrderView` | `components/order/PostOrderView.tsx` | Order status after confirmation |
-| `OrderTimer` | `components/order/OrderTimer.tsx` | Countdown timer |
-| `PaymentModal` | `components/order/PaymentModal.tsx` | Payment method selection |
-| `SplitSettingsModal` | `components/order/SplitSettingsModal.tsx` | Bill split configuration |
+| Component            | File                                      | Purpose                         |
+| -------------------- | ----------------------------------------- | ------------------------------- |
+| `PostOrderView`      | `components/order/PostOrderView.tsx`      | Order status after confirmation |
+| `OrderTimer`         | `components/order/OrderTimer.tsx`         | Countdown timer                 |
+| `PaymentModal`       | `components/order/PaymentModal.tsx`       | Payment method selection        |
+| `SplitSettingsModal` | `components/order/SplitSettingsModal.tsx` | Bill split configuration        |
 
 ### UI Components
 
-| Component | File | Purpose |
-|-----------|------|---------|
-| `Button` | `components/ui/Button.tsx` | Reusable button with variants |
-| `Avatar` | `components/ui/Avatar.tsx` | User avatar with initials |
-| `Badge` | `components/ui/Badge.tsx` | Tag/label component |
-| `Modal` | `components/ui/Modal.tsx` | Base modal container |
-| `LoadingSpinner` | `components/ui/LoadingSpinner.tsx` | Loading indicator |
+| Component        | File                               | Purpose                       |
+| ---------------- | ---------------------------------- | ----------------------------- |
+| `Button`         | `components/ui/Button.tsx`         | Reusable button with variants |
+| `Avatar`         | `components/ui/Avatar.tsx`         | User avatar with initials     |
+| `Badge`          | `components/ui/Badge.tsx`          | Tag/label component           |
+| `Modal`          | `components/ui/Modal.tsx`          | Base modal container          |
+| `LoadingSpinner` | `components/ui/LoadingSpinner.tsx` | Loading indicator             |
 
 ---
 
 ## Services Layer
+
+> Corrected (2026-05-29): there are now **8 services** under `src/services/` — `session`, `order`, `menu`, `bill`, `payment`, `receipt`, `split`, `tip` (`*.service.ts`). Only the first three are detailed below; the rest were added during the split-payment / refactor work.
 
 ### Session Service
 
 **File**: `/src/services/session.service.ts`
 
 ```typescript
-sessionService.getSessionBySpaceId(spaceId)  // GET /space/{spaceId}
-sessionService.startSession(data)             // POST /start
-sessionService.getSessionById(sessionId)      // GET /session/{sessionId}
-sessionService.endSession(sessionId, data)    // PUT /session/{sessionId}/end
+sessionService.getSessionBySpaceId(spaceId); // GET /space/{spaceId}
+sessionService.startSession(data); // POST /start
+sessionService.getSessionById(sessionId); // GET /session/{sessionId}
+sessionService.endSession(sessionId, data); // PUT /session/{sessionId}/end
 ```
 
 ### Order Service
@@ -781,8 +816,8 @@ sessionService.endSession(sessionId, data)    // PUT /session/{sessionId}/end
 **File**: `/src/services/order.service.ts`
 
 ```typescript
-orderService.updateQueue(sessionId, payload)    // POST /session/{sessionId}/queue
-orderService.confirmOrder(sessionId, payload)   // POST /session/{sessionId}/queue/confirm
+orderService.updateQueue(sessionId, payload); // POST /session/{sessionId}/queue
+orderService.confirmOrder(sessionId, payload); // POST /session/{sessionId}/queue/confirm
 ```
 
 ### Menu Service
@@ -790,9 +825,9 @@ orderService.confirmOrder(sessionId, payload)   // POST /session/{sessionId}/que
 **File**: `/src/services/menu.service.ts`
 
 ```typescript
-menuService.getMenuByBusinessId(businessId)     // GET /menus/active/{businessId}
-menuService.getItemsByBusinessId(businessId)    // GET /items/business/{businessId}
-menuService.getMenusWithItems(businessId)       // Returns menus with populated items
+menuService.getMenuByBusinessId(businessId); // GET /menus/active/{businessId}
+menuService.getItemsByBusinessId(businessId); // GET /items/business/{businessId}
+menuService.getMenusWithItems(businessId); // Returns menus with populated items
 ```
 
 ### API Client
@@ -848,26 +883,26 @@ menuService.getMenusWithItems(businessId)       // Returns menus with populated 
 
 ```typescript
 interface Session {
-  id: string
-  spaceId: string
-  businessId: string
-  status: 'active' | 'completed' | 'cancelled'
-  participants: SessionParticipant[]
-  orders: string[] | SessionOrder[]
-  expiresAt?: string
+  id: string;
+  spaceId: string;
+  businessId: string;
+  status: "active" | "completed" | "cancelled";
+  participants: SessionParticipant[];
+  orders: string[] | SessionOrder[];
+  expiresAt?: string;
 }
 
 interface SessionParticipant {
-  sessionUserId: string
-  guestName: string
-  patronId?: string
-  joinedAt?: Timestamp
+  sessionUserId: string;
+  guestName: string;
+  patronId?: string;
+  joinedAt?: Timestamp;
 }
 
 interface SessionOrderQueue {
-  sessionUserId: string
-  items: SessionQueueItem[]
-  updatedAt: Timestamp
+  sessionUserId: string;
+  items: SessionQueueItem[];
+  updatedAt: Timestamp;
 }
 ```
 
@@ -877,22 +912,22 @@ interface SessionOrderQueue {
 
 ```typescript
 interface Order {
-  id: string
-  sessionId: string
-  sessionUserId: string
-  guestName?: string
-  items: OrderItem[]
-  total: number
-  payment: { type: 'cash' | 'card' | 'upi', paid: boolean }
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed'
+  id: string;
+  sessionId: string;
+  sessionUserId: string;
+  guestName?: string;
+  items: OrderItem[];
+  total: number;
+  payment: { type: "cash" | "card" | "upi"; paid: boolean };
+  status: "pending" | "confirmed" | "preparing" | "ready" | "completed";
 }
 
 interface QueueItem {
-  itemId: string
-  quantity: number
-  variantIndex?: number
-  addOns?: OrderItemAddon[]
-  spiceLevel?: string
+  itemId: string;
+  quantity: number;
+  variantIndex?: number;
+  addOns?: OrderItemAddon[];
+  spiceLevel?: string;
 }
 ```
 
@@ -902,29 +937,29 @@ interface QueueItem {
 
 ```typescript
 interface MenuWithItems {
-  id: string
-  name: string
-  items: MenuItem[]
-  sections?: Section[]
-  visibility: 'active' | 'inactive'
+  id: string;
+  name: string;
+  items: MenuItem[];
+  sections?: Section[];
+  visibility: "active" | "inactive";
 }
 
 interface MenuItem {
-  id: string
-  name: string
-  price: number
-  description: string
-  variants?: Variant[]
-  addons: Addon[]
-  spiceLevelEnabled?: boolean
-  spiceLevels?: string[]
+  id: string;
+  name: string;
+  price: number;
+  description: string;
+  variants?: Variant[];
+  addons: Addon[];
+  spiceLevelEnabled?: boolean;
+  spiceLevels?: string[];
 }
 
 interface Addon {
-  name: string
-  minOptions: number
-  maxOptions: number
-  options: AddonOption[]
+  name: string;
+  minOptions: number;
+  maxOptions: number;
+  options: AddonOption[];
 }
 ```
 
@@ -934,26 +969,26 @@ interface Addon {
 
 ```typescript
 interface Cart {
-  items: CartItem[]
-  subtotal: number
-  tax: number  // Always 0 (inclusive pricing)
-  total: number
+  items: CartItem[];
+  subtotal: number;
+  tax: number; // Always 0 (inclusive pricing)
+  total: number;
 }
 
 interface CartItem {
-  id: string
-  menuItem: MenuItem
-  quantity: number
-  customizations: Customization[]
-  itemTotal: number
-  sessionUserId?: string  // Tracks who added item
-  spiceLevel?: string
+  id: string;
+  menuItem: MenuItem;
+  quantity: number;
+  customizations: Customization[];
+  itemTotal: number;
+  sessionUserId?: string; // Tracks who added item
+  spiceLevel?: string;
 }
 
 interface Customization {
-  optionId: string
-  choiceId: string
-  priceModifier: number
+  optionId: string;
+  choiceId: string;
+  priceModifier: number;
 }
 ```
 
@@ -990,6 +1025,7 @@ User adds item     →    syncQueueWithAPI()    →   subscribeToOrderQueue()
 | `subscribeToParticipantsBySpace()` | Real-time participant updates | Polling every 10s |
 
 **Flow**:
+
 ```
 1. Try Firebase subscription
    ↓
@@ -1002,18 +1038,18 @@ User adds item     →    syncQueueWithAPI()    →   subscribeToOrderQueue()
 
 ## LocalStorage Keys
 
-| Key | Type | Purpose |
-|-----|------|---------|
-| `morsel_session_data` | Session | Active session persistence |
-| `morsel_session_user_id` | string | Identify current user (UUID) |
-| `morsel_active_order_id` | string | Track active order tab |
-| `morsel_customer_name` | string | Remember guest name |
-| `morsel_auth_method` | 'guest' \| 'google' \| 'apple' | Auth method used |
-| `morsel_restaurant_context` | RestaurantContext | Space/business info |
-| `morsel_cart` | Cart | Cart state persistence |
-| `morsel_split` | SplitBill | Bill split settings |
-| `morsel_order_${orderId}` | Order | Confirmed order details |
-| `morsel_menu_items_cache` | Map<itemId, MenuItem> | Cache for customOptions |
+| Key                         | Type                           | Purpose                      |
+| --------------------------- | ------------------------------ | ---------------------------- |
+| `morsel_session_data`       | Session                        | Active session persistence   |
+| `morsel_session_user_id`    | string                         | Identify current user (UUID) |
+| `morsel_active_order_id`    | string                         | Track active order tab       |
+| `morsel_customer_name`      | string                         | Remember guest name          |
+| `morsel_auth_method`        | 'guest' \| 'google' \| 'apple' | Auth method used             |
+| `morsel_restaurant_context` | RestaurantContext              | Space/business info          |
+| `morsel_cart`               | Cart                           | Cart state persistence       |
+| `morsel_split`              | SplitBill                      | Bill split settings          |
+| `morsel_order_${orderId}`   | Order                          | Confirmed order details      |
+| `morsel_menu_items_cache`   | Map<itemId, MenuItem>          | Cache for customOptions      |
 
 ---
 
@@ -1038,24 +1074,28 @@ NEXT_PUBLIC_FIREBASE_APP_ID=
 ## Special Features
 
 ### Multi-Participant Ordering
+
 - Multiple customers at same table share a session
 - Each can order independently
 - Shared cart view shows all items
 - Items tagged with who added them
 
 ### Bill Splitting
+
 - 4 modes: even, self, all, custom
 - Real-time recalculation
 - Validates shares sum to total
 - Syncs with API participants
 
 ### Spice Level Selection
+
 - Per-item spice level selector (if enabled)
 - Stored in cart items
 - Synced with queue to API
 - Retrieved when reconstructing cart
 
 ### Order Tracking
+
 - Post-order view with countdown timer
 - Status updates from Firebase real-time DB
 - Multiple order tabs (switch between orders)
@@ -1081,10 +1121,10 @@ NEXT_PUBLIC_FIREBASE_APP_ID=
 
 The application follows the industry standard pricing model used by Zomato, Swiggy, UberEats, and DoorDash:
 
-| Type | Display | Example | Behavior |
-|------|---------|---------|----------|
-| **Variants** (Size, Type) | Flat/absolute price | `Small - $10.00`, `Large - $15.00` | Replaces base price |
-| **Add-ons** (Toppings, Extras) | Incremental price | `Extra Cheese - +$2.00` | Adds to base price |
+| Type                           | Display             | Example                            | Behavior            |
+| ------------------------------ | ------------------- | ---------------------------------- | ------------------- |
+| **Variants** (Size, Type)      | Flat/absolute price | `Small - $10.00`, `Large - $15.00` | Replaces base price |
+| **Add-ons** (Toppings, Extras) | Incremental price   | `Extra Cheese - +$2.00`            | Adds to base price  |
 
 ### Price Calculation Flow
 
@@ -1116,4 +1156,4 @@ The application follows the industry standard pricing model used by Zomato, Swig
 
 ---
 
-*Last updated: 2026-02-01*
+_Last updated: 2026-05-29 (STALE banner + targeted inline corrections only; not a full rewrite — original content dated 2026-02-01)_

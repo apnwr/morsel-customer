@@ -1,5 +1,7 @@
 # Client Improvement Plan — Performance & Robustness
 
+> **Status (2026-05-29):** Tranche 1 COMPLETE (shipped — see `docs/CHANGELOG.md` entries tagged 1.1–1.6: page-visibility polling, debounced cart sync, bill cache (`src/lib/bill-cache.ts` + `src/hooks/useSessionBill.ts`), MenuItem `imageLoading` drop, throttled cart write, storage-keys registry (`src/lib/storage-keys.ts`)). Tranches 2–4 not yet started.
+
 Date: 2026-04-26
 
 Plan for incremental improvements to the customer client. Grouped into shippable tranches; ordered by ROI. None of these require backend changes except where called out (Tranche 4).
@@ -33,7 +35,7 @@ Hot files (line counts) for grounding:
 
 ## Tranche 1 — High-impact, near-zero risk (ship first, ~1 day)
 
-### 1.1 Pause polling when the page is hidden
+### 1.1 Pause polling when the page is hidden ✅ DONE
 
 - **Where:** `SessionContext.tsx` — the 10s `setInterval` in `setupPolling`.
 - **What:** Wrap the interval with the Page Visibility API. Skip the fetch when `document.hidden`. On `visibilitychange → visible`, fire an immediate poll then resume the interval.
@@ -41,7 +43,7 @@ Hot files (line counts) for grounding:
 - **Impact:** Server load down 40–60% per session. Battery friendlier. Faster cold-tab response on focus.
 - **Risk:** Near-zero. Worst case: one extra second of stale data when returning to the tab.
 
-### 1.2 Debounce `syncQueueWithAPI` (cart sync)
+### 1.2 Debounce `syncQueueWithAPI` (cart sync) ✅ DONE
 
 - **Where:** `CartContext.tsx` — `addItem`, `removeItem`, `updateQuantity`, `clearCart` fire immediately.
 - **What:** Coalesce calls within 250–400ms into a single POST. The API takes the **full filtered cart**, so the latest call subsumes earlier ones.
@@ -53,7 +55,7 @@ Hot files (line counts) for grounding:
   - Session end
 - **Note:** Keep the mutation counter — the latest debounced call's snapshot is the one that matters.
 
-### 1.3 Cache `bill` per session+orders fingerprint
+### 1.3 Cache `bill` per session+orders fingerprint ✅ DONE
 
 - **Where:** `billService.getSessionBill` — called from `PostOrderView`, `MyTab`, `ItemizedPickerSheet`, `PaymentResultView`.
 - **What:** Memoize by `(sessionId, ordersFingerprint, tipsFingerprint)` in an in-memory map (or a small `BillContext` / `useSessionBill()` hook). Use the session response's `updatedAt` as part of the key for free invalidation.
@@ -61,7 +63,7 @@ Hot files (line counts) for grounding:
 - **Impact:** 50–70% fewer bill GETs. Picker open latency drops noticeably.
 - **Risk:** Low if invalidation is keyed correctly.
 
-### 1.4 Drop the per-row `imageLoading` state in `MenuItem`
+### 1.4 Drop the per-row `imageLoading` state in `MenuItem` ✅ DONE
 
 - **Where:** `MenuItem.tsx`.
 - **What:** Replace `useState` + manual `onLoad` skeleton with Next/Image's built-in `placeholder="empty"` + CSS fade, or `placeholder="blur"` if backend can supply blurDataURL.
@@ -69,7 +71,7 @@ Hot files (line counts) for grounding:
 - **Impact:** Fewer re-renders during menu scroll/load. Mid-tier Android improvement most visible.
 - **Risk:** Tiny visual diff possible — A/B in dev.
 
-### 1.5 Throttle `setInStorage(STORAGE_KEY, cart)` writes
+### 1.5 Throttle `setInStorage(STORAGE_KEY, cart)` writes ✅ DONE
 
 - **Where:** `CartContext.tsx` — the `useEffect` that writes JSON.stringify(cart) on every change.
 - **What:** rAF-coalesce or 200ms throttle. Add `pagehide` listener to flush before tab close.
@@ -77,7 +79,7 @@ Hot files (line counts) for grounding:
 - **Impact:** Smoother taps on low-end Android.
 - **Risk:** Need flush-on-`pagehide` or risk losing the last edit on force-kill. Trivial.
 
-### 1.6 Centralize localStorage keys in a registry (paired with 1.5)
+### 1.6 Centralize localStorage keys in a registry (paired with 1.5) ✅ DONE
 
 - **Where:** Strings scattered across `SessionContext.clearSession`, `CartContext`, `TipSelector`, etc.
 - **What:** Single `src/lib/storage-keys.ts` exporting typed constants. `clearSession` iterates the registry rather than listing keys inline.
@@ -139,7 +141,7 @@ Hot files (line counts) for grounding:
 ### 3.2 Narrow context consumers — split `SessionContext` value
 
 - **Where:** `SessionContext.tsx`.
-- **What:** Today every `useSession()` consumer re-renders when *anything* in the session changes. Split into:
+- **What:** Today every `useSession()` consumer re-renders when _anything_ in the session changes. Split into:
   - `SessionMetadataContext` (id, businessId, spaceId, expiresAt) — changes rarely
   - `SessionParticipantsContext` (participants, isParticipantPaid)
   - `SessionSplitContext` (splitPaymentStatus, serverSplitConfig, serverSplitType)
@@ -193,7 +195,8 @@ Hot files (line counts) for grounding:
 
 ## Recommended PR sequencing
 
-**PR 1 — Tranche 1 (low-risk perf wins):**
+**PR 1 — Tranche 1 (low-risk perf wins):** ✅ SHIPPED (2026-05-29)
+
 - 1.1 Page-visibility-aware polling
 - 1.2 Debounce cart sync
 - 1.3 Bill cache
@@ -202,17 +205,20 @@ Hot files (line counts) for grounding:
 - 1.6 Storage-key registry
 
 **PR 2 — Tranche 2 (correctness hardening):**
+
 - 2.1 Refactor SplitContext hydration
 - 2.2 Tip-sync mutation counter
 - 2.3 `/payment` loading-until-hydrated
 - 2.4 Drop pre-commit picker fetch
 
 **PR 3 — Tranche 3 (architectural):**
+
 - 3.1 Split CartContext
 - 3.2 Split SessionContext
 - 3.4 Type-ify loose response shapes
 
 **Defer:**
+
 - 3.3 (waiting on backend proposal §2)
 - 4.x (bigger initiatives, gated on team capacity)
 

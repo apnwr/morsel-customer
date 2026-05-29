@@ -7,10 +7,12 @@ Complete flow from QR scan to payment in the morsel-customer app.
 ## Phase 1: QR Scan → Login
 
 ### Home (`/`)
+
 - Branding page with "Scan QR code from your table" prompt
 - If active session exists in localStorage → auto-redirects to `/menu`
 
 ### Space Page (`/space/{spaceId}`)
+
 - URL comes from QR code on the table
 - Calls `GET /ordering-session/space/{spaceId}` → receives space, business, and existing session (if any)
 - Stores result as **preview session** (ephemeral, not persisted)
@@ -18,6 +20,7 @@ Complete flow from QR scan to payment in the morsel-customer app.
 - Opens **LoginModal** bottom sheet
 
 ### LoginModal
+
 - Name input only
 - On "Continue as Guest":
   1. Calls `POST /ordering-session/start` with `{ spaceId, guestName }`
@@ -31,6 +34,7 @@ Complete flow from QR scan to payment in the morsel-customer app.
   6. Navigates to `/menu` (replace, prevents back button issues)
 
 ### Login Guard (`/login`)
+
 - Safety redirect: active session → `/menu`, preview session → `/space/{spaceId}`, nothing → `/`
 
 ---
@@ -38,6 +42,7 @@ Complete flow from QR scan to payment in the morsel-customer app.
 ## Phase 2: Menu Browsing (`/menu`)
 
 ### Page Load
+
 - Guards: `useRequireRestaurantContext()` + `useSessionValidation()`
 - Fetches menus: `GET /business/menus/active/{businessId}`
 - Two rendering paths:
@@ -47,6 +52,7 @@ Complete flow from QR scan to payment in the morsel-customer app.
 - Real-time Firebase listener for participants
 
 ### Adding an Item
+
 1. Tap item → opens **CustomizationModal**
 2. Modal shows: image, description, allergens, dietary info, price
 3. Customization options:
@@ -61,6 +67,7 @@ Complete flow from QR scan to payment in the morsel-customer app.
    - Firebase broadcasts update to all participants
 
 ### Search
+
 - Prefix-based search across all items
 - Deferred value for responsive typing
 - Shows "No items found" empty state when no matches
@@ -71,33 +78,38 @@ Complete flow from QR scan to payment in the morsel-customer app.
 
 ### Pre-Order View (cart has items, no order placed yet)
 
-| Section | Description |
-|---------|-------------|
-| Order banner | "View Ordered Items →" link (if previous orders exist) |
-| Bill card | Subtotal, taxes, fees, grand total, "My Share" |
-| Participants card | Avatars with split amounts, split mode label, "Change" button |
-| Cart items | **My Items** section + **Others' Items** grouped by participant |
-| Kitchen note | Optional text input, persists to localStorage |
-| Tip selector | 0%, 10%, 20% presets + custom |
-| Place Order button | Fixed bottom bar |
+| Section            | Description                                                     |
+| ------------------ | --------------------------------------------------------------- |
+| Order banner       | "View Ordered Items →" link (if previous orders exist)          |
+| Bill card          | Subtotal, taxes, fees, grand total, "My Share"                  |
+| Participants card  | Avatars with split amounts, split mode label, "Change" button   |
+| Cart items         | **My Items** section + **Others' Items** grouped by participant |
+| Kitchen note       | Optional text input, persists to localStorage                   |
+| Tip selector       | 0%, 10%, 20% presets + custom                                   |
+| Place Order button | Fixed bottom bar                                                |
 
 ### Item Controls
+
 - Quantity +/- buttons (own items only)
 - Delete with confirmation modal
 - Others' items shown read-only with participant badge
 
 ### Place Order Flow
+
 1. Final cart sync → `POST /session/{sessionId}/queue`
 2. Confirm order → `POST /session/{sessionId}/queue/confirm` with `{ sessionUserId, paymentType }`
 3. Backend creates Order from queue, sets status to confirmed
 4. Cart cleared, order stored locally with timestamp
-5. View switches to Post-Order
+5. `router.push('/orders?orderId=...')` (`useCartPageState.ts:137`)
 
-### Post-Order View (after order placed)
+> **Two-page split:** `/cart` is now the pre-order queue **only** — there is no in-place "Post-Order View" on `/cart`. After placing an order the user is navigated to the separate `/orders` route. Flow: `/cart` (PreOrderView / queue) → place order → `/orders` (PostOrderView).
+
+### Post-Order View (now lives at `/orders`)
+
 - **OrderTabs**: switch between multiple orders
 - **Status banner**: countdown timer + current status (pending → confirmed → preparing → ready → completed)
 - **Order items list**: read-only
-- **Actions**: "Order More Food" → `/menu`, "View my tab / Pay Now" → `/my-tab`
+- **Pay Now**: routes directly to `/payment?amount=...&tip=...` (`PostOrderView.tsx:192-198`), **not** to `/my-tab`
 
 ---
 
@@ -105,14 +117,15 @@ Complete flow from QR scan to payment in the morsel-customer app.
 
 ### Split Modes (managed by SplitContext)
 
-| Mode | Logic |
-|------|-------|
-| **Even** (default) | Total ÷ participants |
-| **Pay for Self** | Current user pays own items total, remainder split evenly among others |
-| **Pay for Everyone** | Current user pays full bill, others $0 |
-| **Custom** | Manual amounts per participant, validated to sum to total |
+| Mode                 | Logic                                                                  |
+| -------------------- | ---------------------------------------------------------------------- |
+| **Even** (default)   | Total ÷ participants                                                   |
+| **Pay for Self**     | Current user pays own items total, remainder split evenly among others |
+| **Pay for Everyone** | Current user pays full bill, others $0                                 |
+| **Custom**           | Manual amounts per participant, validated to sum to total              |
 
 ### Page Layout
+
 - Table label (e.g. "Table 5")
 - ParticipantsList dark card with avatars, amounts, split mode
 - SplitSettingsModal for changing mode
@@ -120,10 +133,13 @@ Complete flow from QR scan to payment in the morsel-customer app.
 - Fixed "Pay Now" bar with user's owed amount
 
 ### Payment Flow
-1. "Pay Now" → PaymentModal (method selection)
-2. Calls `PUT /ordering-session/session/{sessionId}/end` with `{ sessionUserId, reason: 'completed' }`
-3. Clears all localStorage keys
-4. Redirects to `/`
+
+There is no `PaymentModal` and no direct `PUT /session/{id}/end` on Pay Now. Payment goes through the dedicated `/payment` route:
+
+1. "Pay Now" (from `/orders` PostOrderView or `/my-tab`) → `router.push('/payment?amount=...&tip=...')`
+2. `/payment` (`app/payment/page.tsx`) runs the Peach payment SDK; on completion it routes back to `/orders?paymentResult=success|failure&amount=...&tip=...` (`payment/page.tsx:103-105`)
+3. `/orders` renders `PaymentResultView` for the result screen (success / failure + retry)
+4. Session end happens **only** on "back to menu" from the result screen: `endSession('completed')` then `/menu` (`orders/page.tsx:52-55`; `SessionContext.tsx:339-363`) — which calls the end API and clears local data
 
 ---
 
@@ -142,6 +158,7 @@ All local data cleared → Back to home
 ```
 
 ### Session States
+
 - **active** — ordering in progress
 - **completed** — payment done, session ended
 - **expired** — 4-hour timeout (default)
@@ -162,25 +179,28 @@ All local data cleared → Back to home
 
 ## Real-Time Sync
 
-| Data | Firebase Listener | Polling Fallback |
-|------|-------------------|------------------|
+| Data                                   | Firebase Listener                        | Polling Fallback             |
+| -------------------------------------- | ---------------------------------------- | ---------------------------- |
 | Session info + participants + timezone | `subscribeToSessionInfo` (60s full node) | `getSessionById()` every 10s |
-| Order queue (cart items) | `subscribeToOrderQueue` | `getSessionById()` every 15s |
-| Participants (bill split UI) | `subscribeToParticipantsBySpace` | `getSessionById()` every 10s |
+| Order queue (cart items)               | `subscribeToOrderQueue`                  | `getSessionById()` every 15s |
+| Participants (bill split UI)           | `subscribeToParticipantsBySpace`         | `getSessionById()` every 10s |
 
 ---
 
 ## Route Map
 
-| Route | Purpose | Guards |
-|-------|---------|--------|
-| `/` | Home — QR scan prompt | Redirects if active session |
-| `/space/[spaceId]` | QR result + login | Redirects if active session |
-| `/login` | Redirect safety guard | Based on session state |
-| `/menu` | Browse menu, add items | RestaurantContext + SessionValidation |
-| `/cart` | Cart, place order, track orders | SessionValidation |
-| `/my-tab` | Bill splitting + payment | SessionValidation |
-| `/order-status/[orderId]` | Legacy redirect → `/cart` | None |
+| Route                     | Purpose                                                               | Guards                                        |
+| ------------------------- | --------------------------------------------------------------------- | --------------------------------------------- |
+| `/`                       | Home — QR scan prompt                                                 | Redirects if active session                   |
+| `/space/[spaceId]`        | QR result + login                                                     | Redirects if active session                   |
+| `/login`                  | Redirect safety guard                                                 | Based on session state                        |
+| `/menu`                   | Browse menu, add items                                                | RestaurantContext + SessionValidation         |
+| `/area/[areaId]`          | Area-flow entry (single participant, no split)                        | —                                             |
+| `/cart`                   | Cart / pre-order queue, place order                                   | RestaurantContext + SessionValidation         |
+| `/orders`                 | Unified placed-orders view (PostOrderView) + payment result           | RestaurantContext + SessionValidation         |
+| `/payment`                | Peach payment SDK; back to `/orders?paymentResult=...`                | Redirects to `/orders` if no sessionId/amount |
+| `/my-tab`                 | Bill splitting + Pay Now → `/payment`                                 | RestaurantContext + SessionValidation         |
+| `/order-status/[orderId]` | Legacy redirect → `/cart?orderId=...` (`order-status/page.tsx:13,23`) | None                                          |
 
 ---
 
@@ -201,16 +221,18 @@ FirebaseAuthProvider
 
 ## localStorage Keys
 
-| Key | Contents | Set When |
-|-----|----------|----------|
-| `morsel_session_data` | Full session object | User joins session |
-| `morsel_session_user_id` | Current user's UUID | User joins session |
-| `morsel_customer_name` | Guest name | Login |
-| `morsel_auth_method` | guest / google / apple | Login |
-| `morsel_restaurant_context` | Business, branch, space info | Login |
-| `morsel_cart` | Cart items array | Item added/removed |
-| `morsel_active_order_id` | Currently viewed order tab | Order placed |
-| `morsel_order_{orderId}` | Individual order details | Order placed |
-| `morsel_split` | Split mode + shares | Split changed |
-| `morsel_kitchen_note` | Kitchen instructions text | User types note |
-| `morsel_menu_items_cache` | Menu items with customOptions | Menu loaded |
+| Key                         | Contents                                         | Set When           |
+| --------------------------- | ------------------------------------------------ | ------------------ |
+| `morsel_session_data`       | Full session object                              | User joins session |
+| `morsel_session_user_id`    | Current user's UUID                              | User joins session |
+| `morsel_customer_name`      | Guest name                                       | Login              |
+| `morsel_auth_method`        | guest / google / apple                           | Login              |
+| `morsel_restaurant_context` | Business, branch, space info                     | Login              |
+| `morsel_cart`               | Cart items array                                 | Item added/removed |
+| `morsel_active_order_id`    | Currently viewed order tab                       | Order placed       |
+| `morsel_order_{orderId}`    | Individual order details                         | Order placed       |
+| `morsel_split`              | Split mode + shares                              | Split changed      |
+| `morsel_kitchen_note`       | Kitchen instructions text                        | User types note    |
+| `morsel_menu_items_cache`   | Menu items with customOptions                    | Menu loaded        |
+| `morsel_flow_type`          | `'space'` or `'area'` (`useFlowType.ts:12`)      | Flow entry         |
+| `morsel_area_id`            | Area ID for area flow (`useCartPageState.ts:65`) | Area QR scan       |

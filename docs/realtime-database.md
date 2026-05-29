@@ -90,11 +90,11 @@ activeSessionsBySpace/
 
 ## Active Listeners
 
-| # | Listener | Firebase Path | Consumer | What It Syncs |
-|---|----------|---------------|----------|---------------|
-| 1 | `subscribeToSessionInfo` | `activeSessionsBySpace/{spaceId}/{sessionId}/sessionInfo` | `SessionContext.tsx` | Full sessionInfo — updates participants, participantsCount, and applies `timezone`/`currency` to `LocaleContext` (falls back to `Indian/Mauritius` if missing) |
-| 2 | `subscribeToParticipantsBySpace` | `activeSessionsBySpace/{spaceId}/{sessionId}/sessionInfo/participants` | `ParticipantsList.tsx` | Updates participant avatars/names in the bill split UI, syncs with `SplitContext` |
-| 3 | `subscribeToOrderQueue` | `activeSessionsBySpace/{spaceId}/{sessionId}/sessionInfo/orderQueue` | `CartContext.tsx` | Syncs queued items from all participants into the shared cart view |
+| #   | Listener                | Firebase Path                                                        | Consumer                     | What It Syncs                                                      |
+| --- | ----------------------- | -------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------ |
+| 1   | `subscribeToOrderQueue` | `activeSessionsBySpace/{spaceId}/{sessionId}/sessionInfo/orderQueue` | `CartContext.tsx` (line 477) | Syncs queued items from all participants into the shared cart view |
+
+This is the only live Firebase listener in the app. `SessionContext` and `ParticipantsList` use REST polling, not Firebase.
 
 ---
 
@@ -109,39 +109,44 @@ Firebase SDK triggers onValue callback
         ▼
 Listener parses data (handles array/object format)
         │
-        ├──► SessionContext — updates participants + localStorage + applies timezone/currency to LocaleContext
-        ├──► ParticipantsList — updates split UI, syncs to SplitContext
         └──► CartContext — processes orderQueue into cart items
                 │
                 ▼
         React re-renders affected components
 ```
 
+> `SessionContext` (participants, split config, timezone/currency) and
+> `ParticipantsList` (split UI) do **not** consume Firebase — they read from
+> `SessionContext`'s 10s REST poll. See the polling table below.
+
 ---
 
-## Fallback: REST API Polling
+## REST API Polling
 
-When Firebase is unavailable (feature flag off, auth failure, listener error):
+`CartContext` polls only as a **fallback** when Firebase is unavailable (feature
+flag off, auth failure, listener error). `SessionContext` polls **unconditionally**
+— it has no Firebase path. `ParticipantsList` does not poll at all; it reads the
+data `SessionContext` already polled.
 
-| Consumer | Polling Interval | API Endpoint |
-|----------|-----------------|--------------|
-| `CartContext` | Every 15 seconds | `GET /ordering-session/session/{sessionId}` (extracts `orderQueue`) |
-| `ParticipantsList` | Every 10 seconds | `GET /ordering-session/session/{sessionId}` (extracts `participants`) |
-| `SessionContext` | On-demand (window focus, manual refresh) | `GET /ordering-session/session/{sessionId}` |
+| Consumer           | Polling Interval                                                                                          | API Endpoint                                                                                |
+| ------------------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `CartContext`      | Every 15 seconds (fallback only; `QUEUE_SYNC_INTERVAL=15000`, `CartContext.tsx:19`)                       | `GET /ordering-session/session/{sessionId}` (extracts `orderQueue`)                         |
+| `SessionContext`   | Every 10 seconds, **always** (no Firebase path), paused when the tab is hidden (`SessionContext.tsx:461`) | `GET /ordering-session/session/{sessionId}` (participants, split config, timezone/currency) |
+| `ParticipantsList` | None — reads the data `SessionContext` polls; no interval, no Firebase import (`ParticipantsList.tsx:56`) | —                                                                                           |
 
 ---
 
 ## Source Files
 
-| File | Role |
-|------|------|
-| `src/lib/firebase/config.ts` | Firebase app init, anonymous auth, feature flag |
-| `src/lib/firebase/realtime.service.ts` | All `subscribeTo*` listener functions, connection state management |
-| `src/lib/firebase/index.ts` | Re-exports for consumers |
-| `src/components/providers/FirebaseAuthProvider.tsx` | App-level auth initialization on boot |
-| `src/contexts/SessionContext.tsx` | Consumes `subscribeToSessionInfo` (full sessionInfo including timezone/currency) |
-| `src/contexts/CartContext.tsx` | Consumes `subscribeToOrderQueue` |
-| `src/components/session/ParticipantsList.tsx` | Consumes `subscribeToParticipantsBySpace` |
+| File                                                | Role                                                                                               |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `src/lib/firebase/config.ts`                        | Firebase app init, anonymous auth, feature flag                                                    |
+| `src/lib/firebase/realtime.service.ts`              | All `subscribeTo*` listener functions, connection state management                                 |
+| `src/lib/firebase/index.ts`                         | Re-exports for consumers                                                                           |
+| `src/components/providers/FirebaseAuthProvider.tsx` | App-level auth initialization on boot                                                              |
+| `src/contexts/SessionContext.tsx`                   | REST polling of session data (participants, split config, timezone/currency); no Firebase listener |
+| `src/contexts/CartContext.tsx`                      | Consumes `subscribeToOrderQueue` (the only live listener)                                          |
+| `src/components/session/ParticipantsList.tsx`       | Reads polled session data from `SessionContext`; no Firebase import                                |
 
 ---
 
@@ -149,35 +154,36 @@ When Firebase is unavailable (feature flag off, auth failure, listener error):
 
 Defined in `src/types/api/session.ts`:
 
-| Type | Used For |
-|------|----------|
-| `SessionParticipant` | `{ sessionUserId, guestName, patronId?, joinedAt? }` |
-| `SessionOrderQueue` | `{ sessionUserId, items: SessionQueueItem[], updatedAt }` |
-| `SessionQueueItem` | Individual item in a queue (itemId, name, qty, variant, addons, prices) |
-| `SessionDetail` | Full session shape returned by API and assembled from Firebase data |
-| `RealtimeSessionData` | Legacy Firebase shape (object format with Record types) — deprecated |
+| Type                  | Used For                                                                |
+| --------------------- | ----------------------------------------------------------------------- |
+| `SessionParticipant`  | `{ sessionUserId, guestName, patronId?, joinedAt? }`                    |
+| `SessionOrderQueue`   | `{ sessionUserId, items: SessionQueueItem[], updatedAt }`               |
+| `SessionQueueItem`    | Individual item in a queue (itemId, name, qty, variant, addons, prices) |
+| `SessionDetail`       | Full session shape returned by API and assembled from Firebase data     |
+| `RealtimeSessionData` | Legacy Firebase shape (object format with Record types) — deprecated    |
 
 ---
 
 ## Timezone / Currency Handling
 
-- `sessionInfo.timezone` and `sessionInfo.currency` are read from the real-time DB by `subscribeToSessionInfo`
+- `timezone` and `currency` arrive via the REST API (`GET /ordering-session/session/{sessionId}`), which `SessionContext` polls; they are applied through `refreshSessionData()` / the poll handler, **not** via `subscribeToSessionInfo` (which never runs)
 - On every update, `SessionContext` calls `setLocale({ timezone, currency })` on `LocaleContext`
-- If `timezone` is **missing** from the DB, falls back to `DEFAULT_TIMEZONE` = `"Indian/Mauritius"`
+- The `Indian/Mauritius` default applies via `LocaleContext` initialization — `useState(DEFAULT_TIMEZONE)` (`LocaleContext.tsx:37`) — so the app has a timezone before any session loads
 - If `currency` is **missing**, locale keeps its current value unchanged
-- The REST API (`GET /ordering-session/session/{sessionId}`) also returns `timezone`/`currency` and applies them via `refreshSessionData()` — this serves as a secondary source when Firebase is disabled
 
 ---
 
 ## Deprecated / Dead Code
 
-| Function | Path | Status |
-|----------|------|--------|
-| `subscribeToSession` | `sessions/{sessionId}` | Deprecated — legacy path, not consumed |
-| `subscribeToSessionBySpace` | `activeSessionsBySpace/{spaceId}/sessionInfo` | Exported but not consumed (replaced by `subscribeToSessionInfo` which takes both spaceId + sessionId) |
-| `subscribeToOrderQueueBySpace` | `activeSessionsBySpace/{spaceId}/sessionInfo/orderQueue` | Exported but not consumed |
-| `subscribeToParticipants` | `sessions/{sessionId}/participants` | Legacy path, no longer consumed |
-| `RealtimeSessionData` interface | — | Legacy shape, not used by active listeners |
+| Function                         | Path                                                                   | Status                                                                                                          |
+| -------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `subscribeToSession`             | `sessions/{sessionId}`                                                 | Deprecated — legacy path, not consumed                                                                          |
+| `subscribeToSessionInfo`         | `activeSessionsBySpace/{spaceId}/{sessionId}/sessionInfo`              | Exported but not consumed — SessionContext uses REST polling (defined `realtime.service.ts:403`)                |
+| `subscribeToParticipantsBySpace` | `activeSessionsBySpace/{spaceId}/{sessionId}/sessionInfo/participants` | Exported but not consumed — ParticipantsList reads polled data, no Firebase (defined `realtime.service.ts:760`) |
+| `subscribeToSessionBySpace`      | `activeSessionsBySpace/{spaceId}/sessionInfo`                          | Exported but not consumed (replaced by `subscribeToSessionInfo` which takes both spaceId + sessionId)           |
+| `subscribeToOrderQueueBySpace`   | `activeSessionsBySpace/{spaceId}/sessionInfo/orderQueue`               | Exported but not consumed                                                                                       |
+| `subscribeToParticipants`        | `sessions/{sessionId}/participants`                                    | Legacy path, no longer consumed                                                                                 |
+| `RealtimeSessionData` interface  | —                                                                      | Legacy shape, not used by active listeners                                                                      |
 
 ---
 
