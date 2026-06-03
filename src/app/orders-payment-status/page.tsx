@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { Suspense, useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
@@ -8,10 +8,13 @@ import { useOrdersPageState } from "@/hooks/useOrdersPageState";
 import { useSession } from "@/contexts/SessionContext";
 import { Header } from "@/components/layout/Header";
 import { PostOrderView } from "@/components/order/PostOrderView";
+import { PaymentResultView } from "@/components/order/PaymentResultView";
 import { Footer } from "@/components/layout/Footer";
 import OrdersLoading from "./loading";
 
-function OrdersPage() {
+export const dynamic = 'force-dynamic';
+
+function OrdersPaymentPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const restaurantContext = useRequireRestaurantContext();
@@ -39,6 +42,15 @@ function OrdersPage() {
     isLoading,
   } = useOrdersPageState();
 
+  const handleBackToMenu = useCallback(async () => {
+    await endSession('completed');
+    router.push('/menu');
+  }, [endSession, router]);
+
+  const handleRetryPayment = useCallback(() => {
+    setPaymentResult(null);
+  }, []);
+
   // Redirect to /cart if no orders exist
   useEffect(() => {
     if (!isLoading && allOrderIds.length === 0) {
@@ -55,31 +67,20 @@ function OrdersPage() {
     return <OrdersLoading />;
   }
 
-  return (
-    <div className="min-h-screen bg-[#F7F8F8] overflow-x-hidden">
-      <Header
-        showTimer={false}
-        showCart={false}
-        showFilters={false}
-        onRightIconClick={() => router.push("/menu")}
-        centerLabel="Order Placed"
+  if (paymentResult) {
+
+    return (
+      <PaymentResultView
+        result={paymentResult}
+        amount={paymentAmount}
+        bill={bill}
+        tipAmount={paymentTip}
+        onBackToMenu={handleBackToMenu}
+        onRetryPayment={handleRetryPayment}
       />
-
-      {orderData ? (
-        <PostOrderView
-          key={orderData.id}
-          orderId={orderData.id}
-          orderData={orderData}
-          bill={bill}
-        />
-      ) : (
-        <OrdersLoading />
-      )}
-
-      <Footer />
-    </div>
-  );
+    );
+  }
+  return null
 }
 
-
-export default OrdersPage
+export default OrdersPaymentPage

@@ -37,7 +37,7 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
   const { formatPrice } = useLocale();
   const pathname = usePathname();
   const isCartPage = pathname === '/cart';
-  const isOrdersPage = pathname === '/orders';
+  const isOrdersPage = pathname === '/orders' || pathname === "/orders-payment-status";
   const { cart, lastCartAction, clearLastCartAction, cartSyncError, clearCartSyncError } = useCart();
   const [snackbar, setSnackbar] = useState<
     | { type: 'added' | 'removed'; count: number }

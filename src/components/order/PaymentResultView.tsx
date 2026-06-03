@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, XCircle, Star, Settings, Download, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Star, Settings, Download, Loader2, Bell } from 'lucide-react';
 import { useLocale } from '@/contexts/LocaleContext';
 import { useSession } from '@/contexts/SessionContext';
+import { useSplit } from '@/contexts/SplitContext';
+import { SplitSettingsModal } from '@/components/order/SplitSettingsModal';
 import { useFlowType } from '@/hooks/useFlowType';
 import { Avatar } from '@/components/ui/Avatar';
 import { Footer } from '@/components/layout/Footer';
@@ -13,6 +15,7 @@ import { getFromStorage } from '@/mocks/mockStorage';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { receiptService } from '@/services/receipt.service';
 import type { SessionBill } from '@/types/api/bill';
+import type { Participant } from '@/types/cart';
 
 const GOOGLE_REVIEWS_URL = 'https://maps.app.goo.gl/cyKBZ3Yn5qnS5c947';
 
@@ -37,6 +40,10 @@ export function PaymentResultView({
   const { formatPrice } = useLocale();
   const { sessionData, splitPaymentStatus, serverSplitType, isParticipantPaid } = useSession();
   const flowType = useFlowType();
+  const { split, addParticipant, removeParticipant } = useSplit();
+
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [remindingStatus, setRemindingStatus] = useState<Record<string, 'idle' | 'loading' | 'done'>>({});
 
   const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
   const isSuccess = result === 'success';
@@ -60,6 +67,34 @@ export function PaymentResultView({
     });
   }, [apiParticipants, currentSessionUserId]);
 
+  // Sync session participants into SplitContext
+  useEffect(() => {
+    if (!apiParticipants || apiParticipants.length === 0) return;
+
+    const apiParticipantIds = new Set(apiParticipants.map(p => p.sessionUserId));
+
+    // Remove stale participants from split
+    split.participants.forEach(p => {
+      if (!apiParticipantIds.has(p.id)) {
+        removeParticipant(p.id);
+      }
+    });
+
+    // Add new participants to split
+    apiParticipants.forEach(apiP => {
+      const existsInSplit = split.participants.some(p => p.id === apiP.sessionUserId);
+      if (!existsInSplit) {
+        const newParticipant: Participant = {
+          id: apiP.sessionUserId,
+          name: apiP.guestName,
+          avatar: '',
+          isMock: false,
+        };
+        addParticipant(newParticipant);
+      }
+    });
+  }, [apiParticipants, split.participants, addParticipant, removeParticipant]);
+
   // Server-first: resolve a participant's amount from splitPaymentStatus (cross-device truth).
   // Fallback to even split across API participants; ignore local split.shares (per-device stale).
   const getParticipantAmount = (sessionUserId: string): number => {
@@ -74,6 +109,53 @@ export function PaymentResultView({
       return Math.round((billTotalWithoutTip / count) * 100) / 100;
     }
     return 0;
+  };
+
+  // Calculate total session bill, total collected, total pending, and progress percentage
+  const totalSessionBill = useMemo(() => {
+    if (sortedParticipants.length > 0) {
+      return sortedParticipants.reduce((sum, p) => sum + getParticipantAmount(p.sessionUserId), 0);
+    }
+    return billTotalWithoutTip;
+  }, [sortedParticipants, getParticipantAmount, billTotalWithoutTip]);
+
+  const totalCollected = useMemo(() => {
+    return sortedParticipants.reduce((sum, p) => {
+      if (isParticipantPaid(p.sessionUserId)) {
+        return sum + getParticipantAmount(p.sessionUserId);
+      }
+      return sum;
+    }, 0);
+  }, [sortedParticipants, isParticipantPaid, getParticipantAmount]);
+
+  const totalPending = useMemo(() => {
+    return Math.max(0, totalSessionBill - totalCollected);
+  }, [totalSessionBill, totalCollected]);
+
+  const collectedPercentage = useMemo(() => {
+    return totalSessionBill > 0 ? (totalCollected / totalSessionBill) * 100 : 0;
+  }, [totalCollected, totalSessionBill]);
+
+  // Separate pending and paid participants
+  const pendingParticipants = useMemo(() => {
+    return sortedParticipants.filter(p => !isParticipantPaid(p.sessionUserId));
+  }, [sortedParticipants, isParticipantPaid]);
+
+  const paidParticipants = useMemo(() => {
+    return sortedParticipants.filter(p => isParticipantPaid(p.sessionUserId));
+  }, [sortedParticipants, isParticipantPaid]);
+
+  const handleRemindParticipant = (sessionUserId: string) => {
+    if (remindingStatus[sessionUserId] === 'loading' || remindingStatus[sessionUserId] === 'done') return;
+
+    setRemindingStatus(prev => ({ ...prev, [sessionUserId]: 'loading' }));
+
+    setTimeout(() => {
+      setRemindingStatus(prev => ({ ...prev, [sessionUserId]: 'done' }));
+      setTimeout(() => {
+        setRemindingStatus(prev => ({ ...prev, [sessionUserId]: 'idle' }));
+      }, 2000);
+    }, 1000);
   };
 
   // Show participants card only in space flow with 2+ participants
@@ -202,175 +284,109 @@ export function PaymentResultView({
 
         {/* Participants Card — space flow only, 2+ participants */}
         {showParticipantsCard && (
-          <div className="mb-6 rounded-[30px] bg-black p-5">
-            {/* Participant Avatars Row */}
-            <div className="flex items-start gap-5 overflow-x-auto pb-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              {sortedParticipants.map(participant => {
-                const paid = isParticipantPaid(participant.sessionUserId);
-                const isYou = participant.sessionUserId === currentSessionUserId;
-                const displayName = isYou ? 'You' : participant.guestName;
-                const shareAmount = getParticipantAmount(participant.sessionUserId);
+          <div className="mb-6 rounded-[24px] bg-black p-6 text-white shadow-xl">
+            {/* Total Session Bill Header */}
+            <h2 className="text-[22px] font-extrabold tracking-tight mb-2">
+              Total Session Bill: {formatPrice(totalSessionBill)}
+            </h2>
 
-                return (
-                  <div key={participant.sessionUserId} className="flex flex-col items-center gap-2 min-w-[60px] flex-shrink-0">
-                    {/* Avatar with Paid overlay */}
-                    <div className="relative">
-                      <div className={paid ? 'opacity-40' : ''}>
-                        <Avatar
-                          name={participant.guestName}
-                          className="w-[50px] h-[50px]"
-                        />
-                      </div>
-                      {paid && (
-                        <span
-                          className="absolute inset-0 flex items-center justify-center text-[18px] text-white"
-                          style={{ fontFamily: 'Lato, sans-serif', fontWeight: 900 }}
-                        >
-                          Paid
-                        </span>
-                      )}
-                    </div>
+            {/* Participants Count and Mode */}
+            <div className="flex flex-wrap items-center gap-2 mb-4 text-[13px] text-gray-300 font-medium">
+              <span>Participants ({sortedParticipants.length})</span>
+              <span>[{getModeLabel()}]</span>
+            </div>
 
-                    {/* Name */}
-                    <span className="text-xs font-black text-center text-white leading-tight">
-                      {displayName}
-                    </span>
+            {/* Progress Bar (Collected / Pending) */}
+            {/* <div className="w-full h-[7px] rounded-full overflow-hidden flex bg-[#E05252] mb-3 relative">
+              <div
+                className="bg-[#3CD070] h-full transition-all duration-500 ease-out"
+                style={{ width: `${collectedPercentage}%` }}
+              />
+            </div> */}
 
-                    {/* Amount */}
-                    <span
-                      className={`text-lg font-black text-center text-white leading-tight ${paid ? 'line-through opacity-70' : ''}`}
-                    >
-                      {formatPrice(shareAmount)}
-                    </span>
+            {/* Session Status Summary */}
+            {/* <div className="text-[13px] text-gray-400 font-semibold mb-6">
+              <div>Session status • Split {pendingParticipants.length} pending</div>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="text-[#3CD070] font-bold">{formatPrice(totalCollected)} Collected</span>
+                <span className="text-gray-500 font-normal">•</span>
+                <span className="text-[#E05252] font-bold">{formatPrice(totalPending)} Pending</span>
+              </div>
+            </div> */}
+
+            {/* Lists: PENDING & PAID */}
+            <div className="space-y-6">
+              {/* PENDING list */}
+              <div>
+                <div className="flex items-center gap-1.5 text-[11px] font-black tracking-wider text-gray-400 uppercase mb-3">
+                  <span>Pending ({pendingParticipants.length})</span>
+                </div>
+                {pendingParticipants.length > 0 ? (
+                  <div className="divide-y divide-white/5">
+                    {pendingParticipants.map(participant => {
+                      const isYou = participant.sessionUserId === currentSessionUserId;
+                      const displayName = isYou ? 'You' : participant.guestName;
+                      const shareAmount = getParticipantAmount(participant.sessionUserId);
+                      const remindState = remindingStatus[participant.sessionUserId] || 'idle';
+
+                      return (
+                        <div key={participant.sessionUserId} className="flex items-center justify-between py-3">
+                          <div className="flex items-center gap-3">
+                            <Avatar name={participant.guestName} className="w-9 h-9 border border-white/10" />
+                            <span className="font-semibold text-[15px]">{displayName}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-[15px]">{formatPrice(shareAmount)}</span>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded border border-[#E05252]/20 bg-[#E05252]/10 text-[#E05252]">
+                              Pending
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                ) : (
+                  <div className="text-[13px] text-gray-500 py-1">No pending payments</div>
+                )}
+              </div>
 
-            {/* Split Mode Label + Change */}
-            <div className="flex items-center gap-3 mb-1">
-              <h3 className="font-bold text-xl leading-tight text-white">
-                {getModeLabel()}
-              </h3>
-              <span className="flex items-center gap-1.5 bg-white/20 rounded-full px-3 py-1.5 text-xs font-bold text-white">
-                <Settings className="w-3.5 h-3.5" />
-                Change
-              </span>
-            </div>
+              {/* PAID list */}
+              <div>
+                <div className="text-[11px] font-black tracking-wider text-gray-400 uppercase mb-3">
+                  Paid ({paidParticipants.length})
+                </div>
+                {paidParticipants.length > 0 ? (
+                  <div className="divide-y divide-white/5">
+                    {paidParticipants.map(participant => {
+                      const isYou = participant.sessionUserId === currentSessionUserId;
+                      const displayName = isYou ? 'You' : participant.guestName;
+                      const shareAmount = getParticipantAmount(participant.sessionUserId);
 
-            {/* Description */}
-            <p className="text-xs text-white/80 leading-relaxed">
-              The bill is going to be {getModeLabel().toLowerCase()}, click on this card to change these settings.
-            </p>
+                      return (
+                        <div key={participant.sessionUserId} className="flex items-center justify-between py-3">
+                          <div className="flex items-center gap-3">
+                            <Avatar name={participant.guestName} className="w-9 h-9 border border-white/10" />
+                            <span className="font-semibold text-[15px]">{displayName}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-[15px]">{formatPrice(shareAmount)}</span>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded border border-[#3CD070]/20 bg-[#3CD070]/10 text-[#3CD070]">
+                              Paid
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-[13px] text-gray-500 py-1">No paid payments yet</div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Bill Section */}
-        {showBillSection && (
-          <div className="mb-6">
-            <h3
-              className="text-black text-[20px] leading-[1.22] font-bold mb-3"
-              style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
-            >
-              {billSectionTitle}
-            </h3>
-            <div className="flex flex-col gap-2 w-full border-2 border-[#ECECEC] rounded-[20px] bg-white p-4">
-              {/* Items total */}
-              <div className="flex items-center justify-between w-full">
-                <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                  Items total
-                </span>
-                <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                  {formatPrice(bill?.subtotal ?? billTotalWithoutTip)}
-                </span>
-              </div>
 
-              {/* Individual tax lines — skip zero-amount entries; a 0.00 row carries no info. */}
-              {bill?.taxes && Object.entries(bill.taxes)
-                .filter(([, tax]) => tax.amount > 0)
-                .map(([taxId, tax]) => (
-                  <div key={taxId} className="flex items-center justify-between w-full">
-                    <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                      {tax.name} ({tax.percentage}%)
-                    </span>
-                    <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                      {formatPrice(tax.amount)}
-                    </span>
-                  </div>
-                ))}
-
-              {/* Individual charge lines — same zero-amount filter. */}
-              {bill?.charges && Object.entries(bill.charges)
-                .filter(([, charge]) => charge.amount > 0)
-                .map(([chargeId, charge]) => (
-                  <div key={chargeId} className="flex items-center justify-between w-full">
-                    <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                      {charge.name}
-                    </span>
-                    <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                      {formatPrice(charge.amount)}
-                    </span>
-                  </div>
-                ))}
-
-              {/* Discount */}
-              {(bill?.totalDiscount ?? 0) > 0 && (
-                <div className="flex items-center justify-between w-full">
-                  <span className="text-green-700 text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                    Discount
-                  </span>
-                  <span className="text-green-700 text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                    -{formatPrice(bill?.totalDiscount ?? 0)}
-                  </span>
-                </div>
-              )}
-
-              {/* Tip */}
-              <div className="flex items-center justify-between w-full">
-                <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                  Tip
-                </span>
-                <span className="text-black text-[12px] font-normal" style={{ fontFamily: 'Lato, sans-serif' }}>
-                  {formatPrice(tipAmount)}
-                </span>
-              </div>
-
-              {/* Grand total */}
-              <div className="flex items-center justify-between w-full pt-2 border-t border-gray-200">
-                <span
-                  className="text-black text-[16px] font-medium"
-                  style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
-                >
-                  Grand total
-                </span>
-                <span
-                  className="text-black text-[16px] font-medium"
-                  style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 500 }}
-                >
-                  {formatPrice(billTotalWithoutTip + tipAmount)}
-                </span>
-              </div>
-
-              {/* My Share */}
-              {/* {sortedParticipants.length > 1 && (
-                <div className="flex items-center justify-between w-full pt-2 border-t border-gray-200">
-                  <span
-                    className="text-black text-[16px] font-bold"
-                    style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
-                  >
-                    My Share
-                  </span>
-                  <span
-                    className="text-black text-[20px] font-bold"
-                    style={{ fontFamily: 'Helvetica Neue, sans-serif', fontWeight: 700 }}
-                  >
-                    {formatPrice(amount)}
-                  </span>
-                </div>
-              )} */}
-            </div>
-          </div>
-        )}
       </div>
 
       <Footer />

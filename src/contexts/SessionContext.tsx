@@ -314,7 +314,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           splitInitiator: response.data.splitInitiator,
           status: response.data.status,
           splitConfig: response.data.splitConfig,
-          splits: response.data.splits
+          splits: response.data.splits,
+          payments: response.data.payments || [],
+          remainingTotal: response.data?.remainingTotal,
         },
         participantsCount: response.data.participants.length,
       };
@@ -415,7 +417,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             splitInitiator: response.data.splitInitiator,
             status: response.data.status,
             splitConfig: response.data.splitConfig,
-            splits: response.data.splits
+            splits: response.data.splits,
+            payments: response.data.payments || [],
+            remainingTotal: response.data?.remainingTotal,
           },
           participantsCount: latestParticipants.length,
         };
