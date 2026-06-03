@@ -106,7 +106,7 @@ function PaymentPageContent() {
         amount: String(amount),
         tip: String(tipAmount),
       });
-      router.replace(`/orders?${params.toString()}`);
+      router.replace(`/orders-payment-status?${params.toString()}`);
     },
     [amount, tipAmount]
   );

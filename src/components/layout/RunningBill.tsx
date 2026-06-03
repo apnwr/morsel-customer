@@ -1,6 +1,9 @@
 import React from "react";
 import { ChevronRight } from "lucide-react";
 import { useLocale } from "@/contexts/LocaleContext";
+import { useSession } from "@/contexts";
+import { useSessionBill } from "@/hooks/useSessionBill";
+import usePaymentInfo from "@/hooks/usePaymentInfo";
 
 type TotalBillCardProps = {
     amount: number | string;
@@ -13,7 +16,10 @@ const TotalBillCard: React.FC<TotalBillCardProps> = ({
     onClick,
     disabled = false,
 }) => {
-    const {formatPrice} = useLocale();
+    const { formatPrice } = useLocale();
+    const { isPaymentDone } = usePaymentInfo();
+
+    if (isPaymentDone) return null
     return (
         <button
             onClick={onClick}

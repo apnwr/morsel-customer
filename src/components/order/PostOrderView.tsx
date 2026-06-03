@@ -24,7 +24,7 @@ import type { Order as APIOrder, OrderItem } from '@/types/api/order';
 import type { SessionBill } from '@/types/api/bill';
 import { Button } from '../ui';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useSplit } from '@/contexts';
+import usePaymentInfo from '@/hooks/usePaymentInfo';
 
 // Helper function to get dietary type from stored dietary data
 const getDietaryTypeFromStoredData = (storedDietary: { allergens?: string[]; dietary?: string[] } | undefined) => {
@@ -92,6 +92,7 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
       kitchenNote: storedOrder?._kitchenNote || '',
     };
   }, [orderId]);
+  const { isPaymentDone } = usePaymentInfo()
 
   // Track remaining time for countdown. Use _placedAt only when > 0 (ours); orders from API use _placedAt=0, so no countdown.
   const [remainingTime, setRemainingTime] = useState(() => {
@@ -158,6 +159,7 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
 
   // Check if current user's split is paid
   const isCurrentUserPaid = currentSessionUserId ? isParticipantPaid(currentSessionUserId) : false;
+
 
   // Prefetch SDK + route so /payment opens instantly
   useEffect(() => {
@@ -517,10 +519,9 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
           </div>
         </div>
       </div>
-
       {/* Fixed Pay Now CTA */}
       <div
-        className="fixed left-0 right-0 bottom-2 overflow-hidden flex justify-center"
+        className="max-w-2xl mx-auto fixed left-0 right-0 bottom-2 overflow-hidden flex justify-center"
         style={{
           transform: 'translateZ(0)',
           WebkitTransform: 'translateZ(0)',
@@ -529,20 +530,21 @@ export function PostOrderView({ orderId, orderData, bill }: PostOrderViewProps) 
         }}
       >
         <Button
-          onClick={isCurrentUserPaid ? undefined : handlePayNow}
-          disabled={isCurrentUserPaid || totalWithTip <= 0}
-          className={`w-full mx-1 justify-between text-[20px] font-medium ${isCurrentUserPaid
+          onClick={isCurrentUserPaid || isPaymentDone ? undefined : handlePayNow}
+          disabled={isCurrentUserPaid || isPaymentDone || totalWithTip <= 0}
+          className={`w-full mx-1 justify-between text-[20px] font-medium ${isCurrentUserPaid || isPaymentDone
             ? 'bg-green-600 text-white'
             : 'bg-brand text-white disabled:opacity-85'
             }`}>
           <span className="flex-shrink-0">
-            {isCurrentUserPaid ? 'Paid' : 'Pay Now'}
+            {isCurrentUserPaid || isPaymentDone ? 'Paid' : 'Pay Now'}
           </span>
           <span className="flex-shrink-0">
             {formatPrice(totalWithTip)}
           </span>
         </Button>
       </div>
+
     </>
   );
 }

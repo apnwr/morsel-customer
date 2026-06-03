@@ -72,6 +72,22 @@ export interface SessionTips {
   amount: number;
 }
 
+export interface Payments {
+  paidBy: any
+  method: string
+  tipAmount: number
+  status: string
+  amount: number
+  meta: unknown
+  paidAt: {
+    _seconds: number
+    _nanoseconds: number
+  }
+  mode: string
+  gatewayTransactionId: string
+  currency: string
+  paymentId: string
+}
 export interface Session {
   id: string;
   spaceId: string;
@@ -86,6 +102,8 @@ export interface Session {
   splitInitiator?: string | null;
   splitConfig?: SplitConfig | null;
   splits?: SplitEntry[] | null;
+  payments: Payments[];
+  remainingTotal?: number;
 }
 
 export interface OrderingSessionData {
@@ -182,10 +200,11 @@ export interface SessionDetail {
   /** Split configuration (type, itemIds, etc.) */
   splitConfig?: import('./split').SplitConfig;
   /** Payment records for the session */
-  payments?: any[];
+  payments?: Payments[];
   updatedAt: Timestamp;
   sessionTips?: Record<string, SessionTips>;
   splitInitiator?: string | null;
+  remainingTotal?: number;
 }
 
 export interface SessionDetailResponse {
