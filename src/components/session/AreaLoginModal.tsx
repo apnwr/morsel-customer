@@ -90,6 +90,7 @@ export function AreaLoginModal({ isOpen, areaId, previewSession }: AreaLoginModa
           orders: (session.orders || []).map((o: any) => typeof o === 'string' ? o : o.orderId),
           createdAt: session.createdAt,
           expiresAt: session.expiresAt,
+          payments: []
         },
         participantsCount: 1,
       });
