@@ -18,6 +18,7 @@ export interface SplitCalculateRequest {
   itemIds?: Array<{ itemId: string; orderId: string; quantity: number }>;
   /** sessionUserId of the participant performing the split (used for 'itemized' type) */
   sessionUserId?: string;
+  sessionUserIds?: string[];
 }
 
 /**

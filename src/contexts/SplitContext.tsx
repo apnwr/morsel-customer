@@ -380,6 +380,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
 
     // Always send numberOfSplits and amounts. itemIds only for 'itemized' (flat array).
     const amounts = participants.map((p) => shares[p.id] || 0);
+    const sessionUserIds = participants.map((p) => p.id);
 
     let payload: SplitCalculateRequest;
 
@@ -440,6 +441,8 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         };
     }
 
+    payload.sessionUserIds = sessionUserIds;
+
     try {
       if (currentSessionUserId && !sessionData?.session?.splitInitiator) {
         payload.sessionUserId = currentSessionUserId;
@@ -496,6 +499,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
           type: serverSplitConfig.type,
           numberOfSplits: serverSplitConfig.numberOfSplits,
           amounts: serverSplitConfig.amounts,
+          sessionUserIds: split.participants.map((p) => p.id),
           ...(serverSplitConfig.type === 'itemized' && serverSplitConfig.itemIds ? { itemIds: serverSplitConfig.itemIds } as any : {}),
         }
         if (currentSessionUserId && !sessionData?.session?.splitInitiator) {
@@ -511,7 +515,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     }
-  }, [sessionId, serverSplitConfig, currentSessionUserId, sessionData?.session?.splitInitiator]);
+  }, [sessionId, serverSplitConfig, currentSessionUserId, sessionData?.session?.splitInitiator, split.participants]);
 
   const value: SplitState = {
     split,
