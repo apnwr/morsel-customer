@@ -17,6 +17,7 @@ import { ItemizedPickerSheet } from '@/components/order/ItemizedPickerSheet';
 import { useOrder } from '@/contexts';
 import { SplitEntry, SplitType } from '@/types/api/split';
 import { Participant } from '@/types';
+import { LoadingScreen } from '../ui/LoadingScreen';
 
 interface SplitSettingsModalProps {
   isOpen: boolean;
@@ -42,7 +43,8 @@ function getParticipantShares(spilts: SplitEntry[] | undefined | null, participa
     participants.forEach((p) => {
       const serverEntry = spilts.find((s) => s.sessionUserId === p.id);
       const amount =
-        serverEntry && typeof serverEntry.amount === 'number' ? serverEntry.amount : 0;
+        serverEntry && typeof serverEntry.amount === 'number' ? serverEntry.tip ?
+          serverEntry.amount - serverEntry.tip : serverEntry.amount : 0;
       shares[p.id] = amount.toFixed(2);
     });
     return shares;
@@ -72,6 +74,7 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
   // (display, strip-on-edit, and the invisible width-spacer below).
   const currencySymbol = getCurrencySymbol(currency);
   const [showItemizedPicker, setShowItemizedPicker] = useState(false);
+  const [isSplitLoading, setIsSplitLoading] = useState(false);
   const sessionId = sessionData?.session?.id;
 
   // Get current user's sessionUserId to show "You" instead of name
@@ -185,8 +188,10 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
       });
       if (sessionSplitType && Object.values(sharesSnapshot).length > 0 && Object.values(sharesSnapshot).some(item => item > 0)) {
         hasSyncServerRef.current = true;
+        setIsSplitLoading(true)
         setTimeout(() => {
-          syncSplitToServer(sessionId, sessionSplitType, sharesSnapshot, split.participants);
+          syncSplitToServer(sessionId, sessionSplitType, sharesSnapshot, split.participants)
+            .finally(() => setIsSplitLoading(false));
         }, 200)
       }
     }
@@ -364,6 +369,10 @@ export function SplitSettingsModal({ isOpen, onClose, total }: SplitSettingsModa
             animate="visible"
             exit="exit"
           />
+          {
+            isSplitLoading &&
+            <LoadingScreen />
+          }
 
           {/* Modal content - bottom sheet style */}
           <motion.div

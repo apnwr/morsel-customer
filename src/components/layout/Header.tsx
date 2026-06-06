@@ -35,9 +35,11 @@ interface HeaderProps {
 export function Header({ showTimer = false, showCart = true, showFilters = false, showOrderTabs = false, tabs: propTabs, orderIds = [], activeOrderId = null, onTabClick, onRightIconClick, centerLabel }: HeaderProps) {
   const router = useRouter();
   const { formatPrice } = useLocale();
+  const { anyonePaidIfSplit } = useSession();
   const pathname = usePathname();
   const isCartPage = pathname === '/cart';
-  const isOrdersPage = pathname === '/orders' || pathname === "/orders-payment-status";
+  const isOrdersPage = ['/orders'].includes(pathname);
+  const hideMenuFor = ["/orders-payment-status"].includes(pathname) || anyonePaidIfSplit;
   const { cart, lastCartAction, clearLastCartAction, cartSyncError, clearCartSyncError } = useCart();
   const [snackbar, setSnackbar] = useState<
     | { type: 'added' | 'removed'; count: number }
@@ -219,24 +221,29 @@ export function Header({ showTimer = false, showCart = true, showFilters = false
               )}
             </div>
 
-            {isCartPage || isOrdersPage ? (
-              <button
-                onClick={onRightIconClick}
-                className="shrink-0 px-5 h-[44px] flex items-center justify-center rounded-full bg-brand text-white text-[14px] font-bold"
-                style={{ fontFamily: 'Lato, sans-serif' }}
-                aria-label="Menu"
-              >
-                Menu
-              </button>
-            ) : (
-              bill && bill?.subtotal > 0 && (
-                <TotalBillCard
-                  amount={bill ? bill.subtotal : 0}
-                  onClick={() => router.push('/orders')} />
-              )
+            {
+              !hideMenuFor &&
+              (
+                isCartPage || isOrdersPage ? (
+                  <button
+                    onClick={onRightIconClick}
+                    className="shrink-0 px-5 h-[44px] flex items-center justify-center rounded-full bg-brand text-white text-[14px] font-bold"
+                    style={{ fontFamily: 'Lato, sans-serif' }}
+                    aria-label="Menu"
+                  >
+                    Menu
+                  </button>
+                ) : (
+                  bill && bill?.subtotal > 0 && (
+                    <TotalBillCard
+                      amount={bill ? bill.subtotal : 0}
+                      onClick={() => router.push('/orders')} />
+                  )
 
-            )
+                )
+              )
             }
+
             {/* Center element: centerLabel when provided, "Cart" on cart/orders page, cart pill elsewhere */}
             {/* {centerLabel ? (
               <div className="shrink-0 h-[59px] flex items-center justify-center">

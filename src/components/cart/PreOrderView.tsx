@@ -44,7 +44,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
   const router = useRouter();
   const { formatPrice } = useLocale();
   const { cart: liveCart, updateQuantity, removeItem, addItem } = useCart();
-  const { sessionData } = useSession();
+  const { sessionData, anyonePaidIfSplit, currentSessionUserId } = useSession();
 
   // Freeze the cart state while placing an order to prevent the UI from
   // flashing empty if the cart is cleared before navigation completes.
@@ -59,9 +59,6 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
   const [isBillExpanded, setIsBillExpanded] = useState(true);
   const [isClient, setIsClient] = useState(false);
   const [itemToCustomize, setItemToCustomize] = useState<CartItemType | null>(null);
-
-  // Current user's session ID
-  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
   // My items vs others' items
   const myItems = useMemo(
@@ -368,7 +365,7 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
       >
         <Button
           onClick={onPlaceOrder}
-          disabled={isPlacingOrder || myItems.length === 0}
+          disabled={isPlacingOrder || myItems.length === 0 || anyonePaidIfSplit}
           className="w-full justify-between mx-1 text-[20px] font-medium">
           <span className="flex-shrink-0">
             {isPlacingOrder ? 'Placing order...' : 'Place Order'}

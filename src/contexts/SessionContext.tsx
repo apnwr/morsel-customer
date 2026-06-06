@@ -45,10 +45,12 @@ interface SessionState {
   isSessionActive: () => boolean;
   isSessionExpired: () => boolean;
   isUserParticipant: () => boolean;
-  isParticipantPaid: (sessionUserId: string) => boolean;
+  isParticipantPaid: (sessionUserId?: string) => boolean;
   validateSession: () => { isValid: boolean; reason?: string };
   refreshSessionData: () => Promise<void>;
   endSession: (reason?: 'completed' | 'timeout' | 'left' | 'cancelled') => Promise<void>;
+  currentSessionUserId?: string;
+  anyonePaidIfSplit: boolean;
 }
 
 const SessionContext = createContext<SessionState | undefined>(undefined);
@@ -181,6 +183,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem(key);
         }
       }
+      localStorage.clear();
     } catch (error) {
       console.error('[SessionContext] Error clearing session data:', error);
     }
@@ -234,7 +237,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [sessionData]);
 
   // Check if a participant's split has been marked as paid
-  const isParticipantPaid = useCallback((sessionUserId: string): boolean => {
+  const isParticipantPaid = useCallback((sessionUserId?: string): boolean => {
     if (!splitPaymentStatus) return false;
     return splitPaymentStatus.some(
       s => (s.sessionUserId === sessionUserId || s.paidBy === sessionUserId) && s.paid
@@ -345,7 +348,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
 
     // Get sessionUserId from localStorage
-    const sessionUserId = localStorage.getItem(STORAGE_KEYS.SESSION_USER_ID);
+    const sessionUserId = getFromStorage(STORAGE_KEYS.SESSION_USER_ID) as string
     if (!sessionUserId) {
       console.warn('[SessionContext] Cannot end session: no sessionUserId found');
       // Still clear local data even if we can't call API
@@ -497,6 +500,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_sessionId, _spaceId]);
 
+  const currentSessionUserId = useMemo(() => getFromStorage<string>(STORAGE_KEY_USER_ID) as string, []);
+
+  const anyonePaidIfSplit = useMemo(() => ((sessionData?.participantsCount && sessionData?.participantsCount > 1) && splitPaymentStatus?.some((s) => s.paid)) || false, [splitPaymentStatus]);
+
   const value: SessionState = useMemo(() => ({
     previewSession,
     setPreviewSession,
@@ -517,6 +524,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     validateSession,
     refreshSessionData,
     endSession,
+    currentSessionUserId,
+    anyonePaidIfSplit
   }), [previewSession, setPreviewSession, sessionData, setSessionData, clearSession, activeOrderId, setActiveOrderId, clearActiveOrder, splitPaymentStatus, serverSplitConfig, serverSplitType, isLoading, isSessionActive, isSessionExpired, isUserParticipant, isParticipantPaid, validateSession, refreshSessionData, endSession]);
 
   return (
