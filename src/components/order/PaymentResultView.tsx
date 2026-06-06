@@ -14,6 +14,7 @@ import { Header } from '@/components/layout/Header';
 import { getFromStorage } from '@/mocks/mockStorage';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { receiptService } from '@/services/receipt.service';
+import { sessionService } from '@/services/session.service';
 import type { SessionBill } from '@/types/api/bill';
 import type { Participant } from '@/types/cart';
 
@@ -38,15 +39,40 @@ export function PaymentResultView({
 }: PaymentResultViewProps) {
   const router = useRouter();
   const { formatPrice } = useLocale();
-  const { sessionData, splitPaymentStatus, serverSplitType, isParticipantPaid } = useSession();
+  const { sessionData, splitPaymentStatus, serverSplitType, isParticipantPaid, endSession } = useSession();
   const flowType = useFlowType();
   const { split, addParticipant, removeParticipant } = useSplit();
 
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [remindingStatus, setRemindingStatus] = useState<Record<string, 'idle' | 'loading' | 'done'>>({});
+  const [timeLeft, setTimeLeft] = useState(60);
 
   const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
-  const isSuccess = result === 'success';
+  const noOfParticipant = sessionData?.participantsCount || 0
+  const isSuccess = result === 'success'
+  const isSessionCompleted = result === 'success' && (noOfParticipant === 1 ? true :
+    (noOfParticipant > 1 && sessionData?.session?.remainingTotal === 0) ? true : false);
+
+
+  // Countdown timer for 30 seconds on successful payment
+  useEffect(() => {
+    if (!isSessionCompleted) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+
+          endSession("completed").finally(() => {
+            router.push('/');
+          });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isSessionCompleted, currentSessionUserId, endSession]);
   const isAreaFlow = flowType === 'area';
 
   // Bill total WITHOUT tips — tip is shown separately and added per participant
@@ -221,14 +247,14 @@ export function PaymentResultView({
         showTimer={false}
         showCart={false}
         showFilters={false}
-        onRightIconClick={() => router.push('/menu')}
+        onRightIconClick={onBackToMenu}
         centerLabel={isSuccess ? 'Payment Done' : 'Payment Failed'}
       />
 
       {/* Content — matches PostOrderView layout: max-w-2xl mx-auto p-4 px-4 */}
       <div className="max-w-2xl mx-auto p-4 px-4 bg-[#F7F8F8]">
         {/* Payment Banner */}
-        <div className="mb-6 w-full bg-[#FF2F55] rounded-[12px] flex flex-col gap-[8px] items-center px-[20px] py-[24px]">
+        <div className="mb-6 w-full bg-[#FF2F55] rounded-[12px] flex flex-col gap-[8px] items-center px-[10px] py-[20px]">
           <div className="flex items-center gap-[16px]">
             <span
               className="text-[32px] text-white"
@@ -248,6 +274,14 @@ export function PaymentResultView({
           >
             {isSuccess ? 'Payment Successful.' : 'Payment Failed.'}
           </p>
+          {isSessionCompleted && (
+            <p
+              className="text-[14px] font-bold text-white text-center tracking-[0.32px] mt-1"
+              style={{ fontFamily: 'Helvetica Neue, sans-serif' }}
+            >
+              Session automatically ends in {timeLeft}s
+            </p>
+          )}
         </div>
 
         {/* Google Reviews (success only) */}

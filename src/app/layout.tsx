@@ -54,7 +54,7 @@ export default function RootLayout({
                       <SplitProvider>
                         <Initializer />
                         {children}
-                        <DebugPanelWrapper />
+                        {/* <DebugPanelWrapper /> */}
                       </SplitProvider>
                     </OrderProvider>
                   </CartProvider>

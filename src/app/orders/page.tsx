@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useRequireRestaurantContext } from "@/hooks/useNavigationGuard";
 import { useSessionValidation } from "@/hooks/useSessionValidation";
 import { useOrdersPageState } from "@/hooks/useOrdersPageState";
-import { useSession } from "@/contexts/SessionContext";
 import { Header } from "@/components/layout/Header";
 import { PostOrderView } from "@/components/order/PostOrderView";
 import { Footer } from "@/components/layout/Footer";
@@ -13,24 +12,8 @@ import OrdersLoading from "./loading";
 
 function OrdersPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const restaurantContext = useRequireRestaurantContext();
   useSessionValidation();
-  const { endSession } = useSession();
-
-  // Hydrate payment result from query on first render; useSearchParams on /orders is read-only here
-  const [paymentResult, setPaymentResult] = useState<'success' | 'failure' | null>(() => {
-    const r = searchParams.get('paymentResult');
-    return r === 'success' || r === 'failure' ? r : null;
-  });
-  const paymentAmount = useMemo(() => {
-    const n = Number(searchParams.get('amount') || 0);
-    return Number.isFinite(n) ? n : 0;
-  }, [searchParams]);
-  const paymentTip = useMemo(() => {
-    const n = Number(searchParams.get('tip') || 0);
-    return Number.isFinite(n) ? n : 0;
-  }, [searchParams]);
 
   const {
     orderData,
@@ -40,11 +23,11 @@ function OrdersPage() {
   } = useOrdersPageState();
 
   // Redirect to /cart if no orders exist
-  useEffect(() => {
-    if (!isLoading && allOrderIds.length === 0) {
-      router.replace('/cart');
-    }
-  }, [isLoading, allOrderIds.length, router]);
+  // useEffect(() => {
+  //   if (!isLoading && allOrderIds.length === 0) {
+  //     router.replace('/cart');
+  //   }
+  // }, [isLoading, allOrderIds.length,]);
 
   if (!restaurantContext || !restaurantContext.restaurant) {
     return null;
