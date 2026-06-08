@@ -502,7 +502,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const currentSessionUserId = useMemo(() => getFromStorage<string>(STORAGE_KEY_USER_ID) as string, []);
 
-  const anyonePaidIfSplit = useMemo(() => ((sessionData?.participantsCount && sessionData?.participantsCount > 1) && splitPaymentStatus?.some((s) => s.paid)) || false, [splitPaymentStatus]);
+  const anyonePaidIfSplit = useMemo(() => ((
+    sessionData?.participantsCount && sessionData?.participantsCount > 1) && splitPaymentStatus?.some((s) => s.paid)) || false,
+    [splitPaymentStatus, sessionData?.participantsCount]);
 
   const value: SessionState = useMemo(() => ({
     previewSession,
