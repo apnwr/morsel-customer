@@ -49,7 +49,7 @@ interface SessionState {
   validateSession: () => { isValid: boolean; reason?: string };
   refreshSessionData: () => Promise<void>;
   endSession: (reason?: 'completed' | 'timeout' | 'left' | 'cancelled') => Promise<void>;
-  currentSessionUserId?: string;
+  // currentSessionUserId?: string;
   anyonePaidIfSplit: boolean;
 }
 
@@ -524,7 +524,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     validateSession,
     refreshSessionData,
     endSession,
-    currentSessionUserId,
+    // currentSessionUserId,
     anyonePaidIfSplit
   }), [previewSession, setPreviewSession, sessionData, setSessionData, clearSession, activeOrderId, setActiveOrderId, clearActiveOrder, splitPaymentStatus, serverSplitConfig, serverSplitType, isLoading, isSessionActive, isSessionExpired, isUserParticipant, isParticipantPaid, validateSession, refreshSessionData, endSession]);
 

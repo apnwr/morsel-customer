@@ -44,7 +44,8 @@ export function PreOrderView({ onPlaceOrder, isPlacingOrder }: PreOrderViewProps
   const router = useRouter();
   const { formatPrice } = useLocale();
   const { cart: liveCart, updateQuantity, removeItem, addItem } = useCart();
-  const { sessionData, anyonePaidIfSplit, currentSessionUserId } = useSession();
+  const { sessionData, anyonePaidIfSplit } = useSession();
+  const currentSessionUserId = getFromStorage<string>(STORAGE_KEYS.SESSION_USER_ID);
 
   // Freeze the cart state while placing an order to prevent the UI from
   // flashing empty if the cart is cleared before navigation completes.
